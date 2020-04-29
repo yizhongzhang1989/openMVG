@@ -160,9 +160,9 @@ endif()
 # ==============================================================================
 # IMAGE IO detection
 # ==============================================================================
-find_package(JPEG QUIET)
-find_package(PNG QUIET)
-find_package(TIFF QUIET)
+#find_package(JPEG QUIET)
+#find_package(PNG QUIET)
+#find_package(TIFF QUIET)
 
 # Folders
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

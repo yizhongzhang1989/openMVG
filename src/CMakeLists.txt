@@ -393,6 +393,9 @@ add_subdirectory(testing)
 # The openMVG library itself
 add_subdirectory(openMVG)
 
+#The openMVG_IMU library itself
+add_subdirectory(openMVG_IMU)
+
 # openMVG tutorial examples
 if (OpenMVG_BUILD_EXAMPLES)
   add_subdirectory(openMVG_Samples)

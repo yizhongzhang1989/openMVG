@@ -1,7 +1,7 @@
 OpenMVG (open Multiple View Geometry, Our Fork)
 =====================================
 
-The target of this fork is to integrate IMU data into structure from motion process to help reconstruction of large scene.
+The target of this fork is to integrate IMU data into structure from motion process to help reconstruction of large scene in completeness and robustness.
 
 
 <p align="center">

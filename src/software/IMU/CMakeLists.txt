@@ -28,8 +28,8 @@
 ###
 
 
-add_executable(openMVG_IMU_main_GlobalSfM main_GlobalSfM.cpp)
-target_link_libraries(openMVG_IMU_main_GlobalSfM
+add_executable(openMVG_IMU_main_GlobalSfM_motion_averaging main_GlobalSfM_motion_averaging.cpp)
+target_link_libraries(openMVG_IMU_main_GlobalSfM_motion_averaging
   PRIVATE
     openMVG_IMU_sfm
     openMVG_system
@@ -40,8 +40,22 @@ target_link_libraries(openMVG_IMU_main_GlobalSfM
 )
 
 # Installation rules
-set_property(TARGET openMVG_IMU_main_GlobalSfM PROPERTY FOLDER OpenMVG/software/imu)
-install(TARGETS openMVG_IMU_main_GlobalSfM DESTINATION bin/)
+set_property(TARGET openMVG_IMU_main_GlobalSfM_motion_averaging PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_GlobalSfM_motion_averaging DESTINATION bin/)
+
+#Bundle Adjustment in Global SfM
+add_executable(openMVG_IMU_main_GlobalSfM_ba main_GlobalSfM_ba.cpp)
+target_link_libraries(openMVG_IMU_main_GlobalSfM_ba
+  PRIVATE
+    openMVG_IMU_sfm
+    openMVG_system
+    openMVG_sfm
+    ${STLPLUS_LIBRARY}
+)
+
+# Installation rules
+set_property(TARGET openMVG_IMU_main_GlobalSfM_ba PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_GlobalSfM_ba DESTINATION bin/)
 
 # SplitMatchFileIntoMatchFiles
 

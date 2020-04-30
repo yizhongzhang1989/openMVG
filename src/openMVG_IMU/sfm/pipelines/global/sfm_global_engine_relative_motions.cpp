@@ -6,13 +6,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#include "openMVG/sfm/pipelines/global/sfm_global_engine_relative_motions.hpp"
+#include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_relative_motions.hpp"
 
 #include "openMVG/cameras/Camera_Common.hpp"
 #include "openMVG/graph/graph.hpp"
 #include "openMVG/features/feature.hpp"
 #include "openMVG/matching/indMatch.hpp"
-#include "openMVG/sfm/pipelines/global/GlobalSfM_rotation_averaging.hpp"
+#include "openMVG_IMU/sfm/pipelines/global/GlobalSfM_rotation_averaging.hpp"
 #include "openMVG/sfm/pipelines/relative_pose_engine.hpp"
 #include "openMVG/sfm/pipelines/sfm_features_provider.hpp"
 #include "openMVG/sfm/pipelines/sfm_matches_provider.hpp"
@@ -109,7 +109,7 @@ void GlobalSfMReconstructionEngine_RelativeMotions::SetTranslationAveragingMetho
 
 bool GlobalSfMReconstructionEngine_RelativeMotions::Process() {
 
-   std::cout<<"/////IMU Global SfM/////\n";
+   std::cout<<"/////IMU Global SfM motion averaging/////\n";
   //-------------------
   // Keep only the largest biedge connected subgraph
   //-------------------
@@ -145,11 +145,49 @@ bool GlobalSfMReconstructionEngine_RelativeMotions::Process() {
     std::cerr << "GlobalSfM:: Cannot initialize an initial structure!" << std::endl;
     return false;
   }
-  if (!Adjust())
+  /////////////BC start////////////////
+  //output the view  graph
+  std::cout<<"BC is debuging\n";
+  if (!sLogging_file_.empty() && !sOut_directory_.empty())
   {
-    std::cerr << "GlobalSfM:: Non-linear adjustment failure!" << std::endl;
-    return false;
+    std::cout<<"saving view graph before final ba\n";
+    std::ofstream viewgraph_file(stlplus::create_filespec(sOut_directory_, "viewgraph.csv"));
+    std::set<IndexT> set_view_ids;
+    Pair_Set relative_view_pairs;
+
+    viewgraph_file<<"image_id1,image_id2,match_num\n";
+    for(const auto& pair_iter : tripletWise_matches)
+    {
+      const auto & imageI = pair_iter.first.first;
+      const auto & imageJ = pair_iter.first.second;
+      size_t match_num = pair_iter.second.size();
+      set_view_ids.insert(imageI);
+      set_view_ids.insert(imageJ);
+      relative_view_pairs.insert(Pair(imageI,imageJ));
+
+      viewgraph_file<<imageI<<","<<imageJ<<","<<match_num<<"\n";
+    } 
+    // Log a relative view graph
+    {
+      const std::string sGraph_name = "viewgraph";
+      graph::indexedGraph putativeGraph(set_view_ids, relative_view_pairs);
+      graph::exportToGraphvizData(
+        stlplus::create_filespec(sOut_directory_, sGraph_name),
+        putativeGraph);
+    }
+	viewgraph_file.close();
   }
+  Save(sfm_data_,
+      stlplus::create_filespec(sOut_directory_, "sfm_data_preliminary",".json"),
+      ESfM_Data(ALL));
+  
+  std::cout<<"Debug complete\n";
+  /////////////BC   end////////////////
+  // if (!Adjust())
+  // {
+  //   std::cerr << "GlobalSfM:: Non-linear adjustment failure!" << std::endl;
+  //   return false;
+  // }
 
   //-- Export statistics about the SfM process
   if (!sLogging_file_.empty())
@@ -300,6 +338,41 @@ bool GlobalSfMReconstructionEngine_RelativeMotions::Compute_Global_Translations
     matches_provider_,
     global_rotations,
     tripletWise_matches);
+  /////////////BC start////////////////
+  //output the pose graph
+  std::cout<<"BC is debuging\n";
+  if (!sLogging_file_.empty() && !sOut_directory_.empty())
+  {
+    std::cout<<"saving pose graph after translation\n";
+    std::ofstream viewgraph_file(stlplus::create_filespec(sOut_directory_, "posegraph.csv"));
+    std::set<IndexT> set_view_ids;
+    Pair_Set relative_view_pairs;
+
+    viewgraph_file<<"pose_id1,pose_id2\n";
+    
+      for (const openMVG::RelativeInfo_Vec & iter : translation_averaging_solver.Getrelative_motion())
+      {
+          for (const relativeInfo & rel : iter)
+          {
+            relative_view_pairs.insert(rel.first);
+            set_view_ids.insert(rel.first.first);
+            set_view_ids.insert(rel.first.second);
+            viewgraph_file<<rel.first.first<<","<<rel.first.second<<"\n";
+          }
+      }
+    
+    // Log a relative view graph
+    {
+      const std::string sGraph_name = "posegraph";
+      graph::indexedGraph putativeGraph(set_view_ids, relative_view_pairs);
+      graph::exportToGraphvizData(
+        stlplus::create_filespec(sOut_directory_, sGraph_name),
+        putativeGraph);
+    }
+    viewgraph_file.close();
+  }
+  std::cout<<"Debug complete\n";
+  /////////////BC   end////////////////
 
   if (!sLogging_file_.empty())
   {

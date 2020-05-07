@@ -12,8 +12,8 @@
 #include <memory>
 #include <string>
 
-#include "openMVG_IMU/sfm/pipelines/global/GlobalSfM_rotation_averaging.hpp"
 #include "openMVG_IMU/sfm/pipelines/global/GlobalSfM_priotranslation_averaging.hpp"
+#include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_relative_motions.hpp"  //BC
 #include "openMVG/sfm/pipelines/sfm_engine.hpp"
 
 namespace htmlDocument { class htmlDocumentStream; }
@@ -27,7 +27,7 @@ namespace sfm{
 
 /// Global SfM Pipeline Reconstruction Engine.
 /// - Method: Global Fusion of Relative Motions.
-class GlobalSfMReconstructionEngine_PoseAugmentation : public ReconstructionEngine
+class GlobalSfMReconstructionEngine_PoseAugmentation : public GlobalSfMReconstructionEngine_RelativeMotions_General
 {
 public:
 
@@ -36,16 +36,14 @@ public:
     const std::string & soutDirectory,
     const std::string & loggingFile = "");
 
-  ~GlobalSfMReconstructionEngine_PoseAugmentation() override;
+  ~GlobalSfMReconstructionEngine_PoseAugmentation();
 
-  void SetFeaturesProvider(Features_Provider * provider);
-  void SetMatchesProvider(Matches_Provider * provider);
+  
   void SetExtraMatchesProvider(Matches_Provider * provider);
 
-  void SetRotationAveragingMethod(ERotationAveragingMethod eRotationAveragingMethod);
-  void SetTranslationAveragingMethod(ETranslationAveragingMethod eTranslation_averaging_method_);
   
-  bool Process() override;
+  
+  bool Process();
 
 protected:
 
@@ -56,30 +54,7 @@ protected:
     matching::PairWiseMatches & tripletWise_matches
   );
 
-  /// Compute the initial structure of the scene
-  bool Compute_Initial_Structure
-  (
-    matching::PairWiseMatches & tripletWise_matches
-  );
 
-
-
-
-  //----
-  //-- Data
-  //----
-
-  // HTML logger
-  std::shared_ptr<htmlDocument::htmlDocumentStream> html_doc_stream_;
-  std::string sLogging_file_;
-
-  // Parameter
-  ERotationAveragingMethod eRotation_averaging_method_;
-  ETranslationAveragingMethod eTranslation_averaging_method_;
-
-  //-- Data provider
-  Features_Provider  * features_provider_;
-  Matches_Provider  * matches_provider_;
   Matches_Provider  * extra_matches_provider_;
   
 };

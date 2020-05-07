@@ -41,9 +41,9 @@ using namespace openMVG::geometry;
 using namespace openMVG::matching;
 
 /// Use features in normalized camera frames
-bool GlobalSfM_Translation_AveragingSolver::Run
+bool GlobalSfM_Translation_AveragingSolver_General::Run
 (
-  ETranslationAveragingMethod eTranslationAveragingMethod,
+	ETranslationAveragingMethod eTranslationAveragingMethod,
   openMVG::sfm::SfM_Data & sfm_data,
   const openMVG::sfm::Features_Provider * features_provider,
   const openMVG::sfm::Matches_Provider * matches_provider,
@@ -77,7 +77,7 @@ bool GlobalSfM_Translation_AveragingSolver::Run
   return b_translation;
 }
 
-bool GlobalSfM_Translation_AveragingSolver::Translation_averaging(
+bool GlobalSfM_Translation_AveragingSolver_General::Translation_averaging(
   ETranslationAveragingMethod eTranslationAveragingMethod,
   sfm::SfM_Data & sfm_data,
   const Hash_Map<IndexT, Mat3> & map_globalR)
@@ -291,7 +291,7 @@ bool GlobalSfM_Translation_AveragingSolver::Translation_averaging(
   return true;
 }
 
-void GlobalSfM_Translation_AveragingSolver::Compute_translations
+void GlobalSfM_Translation_AveragingSolver_General::Compute_translations
 (
   const sfm::SfM_Data & sfm_data,
   const sfm::Features_Provider * features_provider,
@@ -317,7 +317,7 @@ void GlobalSfM_Translation_AveragingSolver::Compute_translations
 
 //-- Perform a trifocal estimation of the graph contain in vec_triplets with an
 // edge coverage algorithm. Its complexity is sub-linear in term of edges count.
-void GlobalSfM_Translation_AveragingSolver::ComputePutativeTranslation_EdgesCoverage
+void GlobalSfM_Translation_AveragingSolver_General::ComputePutativeTranslation_EdgesCoverage
 (
   const sfm::SfM_Data & sfm_data,
   const Hash_Map<IndexT, Mat3> & map_globalR,
@@ -587,7 +587,7 @@ void GlobalSfM_Translation_AveragingSolver::ComputePutativeTranslation_EdgesCove
 }
 
 // Robust estimation and refinement of a triplet of translations
-bool GlobalSfM_Translation_AveragingSolver::Estimate_T_triplet
+bool GlobalSfM_Translation_AveragingSolver_General::Estimate_T_triplet
 (
   const sfm::SfM_Data & sfm_data,
   const Hash_Map<IndexT, Mat3> & map_globalR,

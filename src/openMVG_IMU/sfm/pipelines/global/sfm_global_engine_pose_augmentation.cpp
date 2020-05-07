@@ -16,6 +16,7 @@
 #include "openMVG/sfm/pipelines/relative_pose_engine.hpp"
 #include "openMVG/sfm/pipelines/sfm_features_provider.hpp"
 #include "openMVG/sfm/pipelines/sfm_matches_provider.hpp"
+#include "openMVG/sfm/pipelines/global/GlobalSfM_rotation_averaging.hpp"
 #include "openMVG/sfm/sfm_data_BA.hpp"
 #include "openMVG/sfm/sfm_data_BA_ceres.hpp"
 #include "openMVG/sfm/sfm_data_io.hpp"
@@ -50,67 +51,25 @@ GlobalSfMReconstructionEngine_PoseAugmentation::GlobalSfMReconstructionEngine_Po
   const SfM_Data & sfm_data,
   const std::string & soutDirectory,
   const std::string & sloggingFile)
-  : ReconstructionEngine(sfm_data, soutDirectory), sLogging_file_(sloggingFile)
+  : GlobalSfMReconstructionEngine_RelativeMotions_General(sfm_data,soutDirectory,sloggingFile)
 {
 
-  if (!sLogging_file_.empty())
-  {
-    // setup HTML logger
-    html_doc_stream_ = std::make_shared<htmlDocument::htmlDocumentStream>("GlobalReconstructionEngine SFM report.");
-    html_doc_stream_->pushInfo(
-      htmlDocument::htmlMarkup("h1", std::string("GlobalSfMReconstructionEngine_PoseAugmentation")));
-    html_doc_stream_->pushInfo("<hr>");
-
-    html_doc_stream_->pushInfo( "Dataset info:");
-    html_doc_stream_->pushInfo( "Views count: " +
-      htmlDocument::toString( sfm_data.GetViews().size()) + "<br>");
-  }
-
-  // Set default motion Averaging methods
-  eRotation_averaging_method_ = ROTATION_AVERAGING_L2;
-  eTranslation_averaging_method_ = TRANSLATION_AVERAGING_L1;
+  
 }
 
 GlobalSfMReconstructionEngine_PoseAugmentation::~GlobalSfMReconstructionEngine_PoseAugmentation()
 {
-  if (!sLogging_file_.empty())
-  {
-    // Save the reconstruction Log
-    std::ofstream htmlFileStream(sLogging_file_.c_str());
-    htmlFileStream << html_doc_stream_->getDoc();
-  }
+  
 }
 
-void GlobalSfMReconstructionEngine_PoseAugmentation::SetFeaturesProvider(Features_Provider * provider)
-{
-  features_provider_ = provider;
-}
 
-void GlobalSfMReconstructionEngine_PoseAugmentation::SetMatchesProvider(Matches_Provider * provider)
-{
-  matches_provider_ = provider;
-}
 ////bc start/////
 void GlobalSfMReconstructionEngine_PoseAugmentation::SetExtraMatchesProvider(Matches_Provider * provider)
 {
   extra_matches_provider_ = provider;
 }
 ////bc end/////
-void GlobalSfMReconstructionEngine_PoseAugmentation::SetRotationAveragingMethod
-(
-  ERotationAveragingMethod eRotationAveragingMethod
-)
-{
-  eRotation_averaging_method_ = eRotationAveragingMethod;
-}
 
-void GlobalSfMReconstructionEngine_PoseAugmentation::SetTranslationAveragingMethod
-(
-  ETranslationAveragingMethod eTranslationAveragingMethod
-)
-{
-  eTranslation_averaging_method_ = eTranslationAveragingMethod;
-}
 
 //int GlobalSfMReconstructionEngine_PoseAugmentation::RemainExtraPars(const auto& )
 
@@ -189,8 +148,11 @@ bool GlobalSfMReconstructionEngine_PoseAugmentation::Process() {
   }
   //save the sfm scene data
   Save(sfm_data_,
+	  stlplus::create_filespec(sOut_directory_, "Trajectory_Augmentation", ".json"),
+	  ESfM_Data(INTRINSICS | VIEWS | EXTRINSICS));
+  Save(sfm_data_,
       stlplus::create_filespec(sOut_directory_, "sfm_data_Augmentation",".json"),
-      ESfM_Data(INTRINSICS|VIEWS|EXTRINSICS));
+      ESfM_Data(ALL));
   
   std::cout<<"Debug complete\n";
   /////////////BC   end////////////////
@@ -284,106 +246,6 @@ bool GlobalSfMReconstructionEngine_PoseAugmentation::Compute_Global_Translations
   }
 
   return bTranslationAveraging;
-}
-
-/// Compute the initial structure of the scene
-bool GlobalSfMReconstructionEngine_PoseAugmentation::Compute_Initial_Structure
-(
-  matching::PairWiseMatches & tripletWise_matches
-)
-{
-  // Build tracks from selected triplets (Union of all the validated triplet tracks (_tripletWise_matches))
-  {
-    using namespace openMVG::tracks;
-    TracksBuilder tracksBuilder;
-#if defined USE_ALL_VALID_MATCHES // not used by default
-    matching::PairWiseMatches pose_supported_matches;
-    for (const std::pair<Pair, IndMatches> & match_info :  matches_provider_->pairWise_matches_)
-    {
-      const View * vI = sfm_data_.GetViews().at(match_info.first.first).get();
-      const View * vJ = sfm_data_.GetViews().at(match_info.first.second).get();
-      if (sfm_data_.IsPoseAndIntrinsicDefined(vI) && sfm_data_.IsPoseAndIntrinsicDefined(vJ))
-      {
-        pose_supported_matches.insert(match_info);
-      }
-    }
-    tracksBuilder.Build(pose_supported_matches);
-#else
-    // Use triplet validated matches
-    tracksBuilder.Build(tripletWise_matches);
-#endif
-    tracksBuilder.Filter(3);
-    STLMAPTracks map_selectedTracks; // reconstructed track (visibility per 3D point)
-    tracksBuilder.ExportToSTL(map_selectedTracks);
-
-    // Fill sfm_data with the computed tracks (no 3D yet)
-    Landmarks & structure = sfm_data_.structure;
-    IndexT idx(0);
-    for (STLMAPTracks::const_iterator itTracks = map_selectedTracks.begin();
-      itTracks != map_selectedTracks.end();
-      ++itTracks, ++idx)
-    {
-      const submapTrack & track = itTracks->second;
-      structure[idx] = Landmark();
-      Observations & obs = structure.at(idx).obs;
-      for (submapTrack::const_iterator it = track.begin(); it != track.end(); ++it)
-      {
-        const size_t imaIndex = it->first;
-        const size_t featIndex = it->second;
-        const PointFeature & pt = features_provider_->feats_per_view.at(imaIndex)[featIndex];
-        obs[imaIndex] = Observation(pt.coords().cast<double>(), featIndex);
-      }
-    }
-
-    std::cout << std::endl << "Track stats" << std::endl;
-    {
-      std::ostringstream osTrack;
-      //-- Display stats:
-      //    - number of images
-      //    - number of tracks
-      std::set<uint32_t> set_imagesId;
-      TracksUtilsMap::ImageIdInTracks(map_selectedTracks, set_imagesId);
-      osTrack << "------------------" << "\n"
-        << "-- Tracks Stats --" << "\n"
-        << " Tracks number: " << tracksBuilder.NbTracks() << "\n"
-        << " Images Id: " << "\n";
-      std::copy(set_imagesId.begin(),
-        set_imagesId.end(),
-        std::ostream_iterator<uint32_t>(osTrack, ", "));
-      osTrack << "\n------------------" << "\n";
-
-      std::map<uint32_t, uint32_t> map_Occurence_TrackLength;
-      TracksUtilsMap::TracksLength(map_selectedTracks, map_Occurence_TrackLength);
-      osTrack << "TrackLength, Occurrence" << "\n";
-      for (const auto & iter : map_Occurence_TrackLength)  {
-        osTrack << "\t" << iter.first << "\t" << iter.second << "\n";
-      }
-      osTrack << "\n";
-      std::cout << osTrack.str();
-    }
-  }
-
-  // Compute 3D position of the landmark of the structure by triangulation of the observations
-  {
-    openMVG::system::Timer timer;
-
-    const IndexT trackCountBefore = sfm_data_.GetLandmarks().size();
-    SfM_Data_Structure_Computation_Blind structure_estimator(true);
-    structure_estimator.triangulate(sfm_data_);
-
-    std::cout << "\n#removed tracks (invalid triangulation): " <<
-      trackCountBefore - IndexT(sfm_data_.GetLandmarks().size()) << std::endl;
-    std::cout << std::endl << "  Triangulation took (s): " << timer.elapsed() << std::endl;
-
-    // Export initial structure
-    if (!sLogging_file_.empty())
-    {
-      Save(sfm_data_,
-        stlplus::create_filespec(stlplus::folder_part(sLogging_file_), "initial_structure", "ply"),
-        ESfM_Data(EXTRINSICS | STRUCTURE));
-    }
-  }
-  return !sfm_data_.structure.empty();
 }
 
 

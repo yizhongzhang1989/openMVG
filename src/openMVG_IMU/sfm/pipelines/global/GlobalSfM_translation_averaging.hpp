@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "openMVG/multiview/translation_averaging_common.hpp"
+#include "openMVG/sfm/pipelines/global/GlobalSfM_translation_averaging.hpp"  //BC
 #include "openMVG/tracks/tracks.hpp"
 
 namespace openMVG { namespace graph { struct Triplet; } }
@@ -24,18 +25,12 @@ namespace openMVG { namespace sfm { struct SfM_Data; } }
 namespace openMVG{
 namespace sfm{
 
-enum ETranslationAveragingMethod
-{
-  TRANSLATION_AVERAGING_L1 = 1,
-  TRANSLATION_AVERAGING_L2_DISTANCE_CHORDAL = 2,
-  TRANSLATION_AVERAGING_SOFTL1 = 3
-};
 
 struct SfM_Data;
 struct Matches_Provider;
 struct Features_Provider;
 
-class GlobalSfM_Translation_AveragingSolver
+class GlobalSfM_Translation_AveragingSolver_General
 {
   
 
@@ -43,7 +38,7 @@ public:
 	std::vector<RelativeInfo_Vec> vec_relative_motion_;
   const std::vector<RelativeInfo_Vec> & Getrelative_motion() const {return vec_relative_motion_;}  //BC
   bool Run(
-    ETranslationAveragingMethod eTranslationAveragingMethod,
+	  ETranslationAveragingMethod eTranslationAveragingMethod,
     openMVG::sfm::SfM_Data & sfm_data,
     const openMVG::sfm::Features_Provider * features_provider,
     const openMVG::sfm::Matches_Provider * matches_provider,
@@ -53,7 +48,7 @@ public:
 
 public:   //BC
   bool Translation_averaging(
-    ETranslationAveragingMethod eTranslationAveragingMethod,
+	  ETranslationAveragingMethod eTranslationAveragingMethod,
     sfm::SfM_Data & sfm_data,
     const Hash_Map<IndexT, Mat3> & map_globalR);
 

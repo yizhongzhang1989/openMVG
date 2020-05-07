@@ -8,7 +8,6 @@
 
 #include "openMVG/cameras/Camera_Common.hpp"
 #include "openMVG/cameras/Cameras_Common_command_line_helper.hpp"
-#include "openMVG_IMU/sfm/pipelines/global/GlobalSfM_rotation_averaging.hpp"
 #include "openMVG_IMU/sfm/pipelines/global/GlobalSfM_translation_averaging.hpp"
 #include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_motion_averaging.hpp"
 #include "openMVG/sfm/pipelines/sfm_features_provider.hpp"
@@ -178,7 +177,7 @@ int main(int argc, char **argv)
   //---------------------------------------
 
   openMVG::system::Timer timer;
-  GlobalSfMReconstructionEngine_RelativeMotions sfmEngine(
+  GlobalSfMReconstructionEngine_MotionAveraging sfmEngine(
     sfm_data,
     sOutDir,
     stlplus::create_filespec(sOutDir, "Reconstruction_Report.html"));

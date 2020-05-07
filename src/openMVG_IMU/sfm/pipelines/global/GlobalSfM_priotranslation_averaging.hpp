@@ -27,7 +27,7 @@ namespace sfm{
 
 
 //BC START//
-class GlobalSfM_PrioTranslation_AveragingSolver: public GlobalSfM_Translation_AveragingSolver  
+class GlobalSfM_PrioTranslation_AveragingSolver: public GlobalSfM_Translation_AveragingSolver_General 
 {
 
 public:

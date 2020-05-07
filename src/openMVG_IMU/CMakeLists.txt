@@ -1,5 +1,5 @@
 add_subdirectory(sfm)
-
+add_subdirectory(multiview)
 
 #INSTALL RULES
 install(

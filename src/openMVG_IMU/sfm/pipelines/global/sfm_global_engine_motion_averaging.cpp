@@ -6,7 +6,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_relative_motions.hpp"
+#include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_motion_averaging.hpp"
 
 #include "openMVG/cameras/Camera_Common.hpp"
 #include "openMVG/graph/graph.hpp"

@@ -10,13 +10,14 @@
 #include "openMVG/cameras/Cameras_Common_command_line_helper.hpp"
 #include "openMVG_IMU/sfm/pipelines/global/GlobalSfM_rotation_averaging.hpp"
 #include "openMVG_IMU/sfm/pipelines/global/GlobalSfM_translation_averaging.hpp"
-#include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_motion_averaging.hpp"
+#include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_pose_augmentation.hpp"
 #include "openMVG/sfm/pipelines/sfm_features_provider.hpp"
 #include "openMVG/sfm/pipelines/sfm_matches_provider.hpp"
 #include "openMVG/sfm/sfm_data.hpp"
 #include "openMVG/sfm/sfm_data_io.hpp"
 #include "openMVG/sfm/sfm_report.hpp"
 #include "openMVG/system/timer.hpp"
+
 
 #include "third_party/cmdLine/cmdLine.h"
 #include "third_party/stlplus3/filesystemSimplified/file_system.hpp"
@@ -35,11 +36,7 @@ int main(int argc, char **argv)
     << "-----------------------------------------------------------\n"
     << "Global Structure from Motion:\n"
     << "-----------------------------------------------------------\n"
-    << "Open Source implementation of the paper:\n"
-    << "\"Global Fusion of Relative Motions for "
-    << "Robust, Accurate and Scalable Structure from Motion.\"\n"
-    << "Pierre Moulon, Pascal Monasse and Renaud Marlet. "
-    << " ICCV 2013." << std::endl
+    << "Pose graph Augmentation" << std::endl
     << "------------------------------------------------------------"
     << std::endl;
 
@@ -48,6 +45,7 @@ int main(int argc, char **argv)
 
   std::string sSfM_Data_Filename;
   std::string sMatchesDir, sMatchFilename;
+  std::string extra_sMatchesDir,extra_sMatchFilename;
   std::string sOutDir = "";
   int iRotationAveragingMethod = int (ROTATION_AVERAGING_L2);
   int iTranslationAveragingMethod = int (TRANSLATION_AVERAGING_SOFTL1);
@@ -57,6 +55,8 @@ int main(int argc, char **argv)
   cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
   cmd.add( make_option('m', sMatchesDir, "matchdir") );
   cmd.add( make_option('M', sMatchFilename, "match_file") );
+  cmd.add( make_option('l', extra_sMatchesDir, "extra_matchdir") );
+  cmd.add( make_option('e', extra_sMatchFilename, "extra_match_file") );
   cmd.add( make_option('o', sOutDir, "outdir") );
   cmd.add( make_option('r', iRotationAveragingMethod, "rotationAveraging") );
   cmd.add( make_option('t', iTranslationAveragingMethod, "translationAveraging") );
@@ -71,7 +71,10 @@ int main(int argc, char **argv)
     << "[-i|--input_file] path to a SfM_Data scene\n"
     << "[-m|--matchdir] path to the matches that corresponds to the provided SfM_Data scene\n"
     << "[-o|--outdir] path where the output data will be stored\n"
+	<< "[-l|--extra_matchdir] path to the extra matches that corresponds to the provided SfM_Data scene\n"
+	<< "[-e|--extra_match_file] path to the extra match file to use.\n"
     << "\n[Optional]\n"
+    
     << "[-r|--rotationAveraging]\n"
       << "\t 1 -> L1 minimization\n"
       << "\t 2 -> L2 minimization (default)\n"
@@ -122,7 +125,7 @@ int main(int argc, char **argv)
 
   // Load input SfM_Data scene
   SfM_Data sfm_data;
-  if (!Load(sfm_data, sSfM_Data_Filename, ESfM_Data(VIEWS|INTRINSICS))) {
+  if (!Load(sfm_data, sSfM_Data_Filename, ESfM_Data(ALL))) {
     std::cerr << std::endl
       << "The input SfM_Data file \""<< sSfM_Data_Filename << "\" cannot be read." << std::endl;
     return EXIT_FAILURE;
@@ -172,13 +175,48 @@ int main(int argc, char **argv)
       std::cerr << "\nCannot create the output directory" << std::endl;
     }
   }
+  ///BC start///
+  //extra Matching reading
+  std::shared_ptr<Matches_Provider> extra_matches_provider = std::make_shared<Matches_Provider>();
+  if // Try to read the provided match filename or the default one (matches.e.txt/bin)
+  (
+    !(extra_matches_provider->load(sfm_data, extra_sMatchFilename) ||
+      extra_matches_provider->load(sfm_data, stlplus::create_filespec(extra_sMatchesDir, "matches.e.txt")) ||
+      extra_matches_provider->load(sfm_data, stlplus::create_filespec(extra_sMatchesDir, "matches.e.bin")))
+  )
+  {
+    std::cerr << std::endl
+      << "Invalid matches file." << std::endl;
+    return EXIT_FAILURE;
+  }
+  //add extra matches into original matches
+  matching::PairWiseMatches::iterator iter;
+  std::cout << "matches_provider->getpars() first" << matches_provider->getPairs().size() << "\n";
+  std::cout << "extra_matches_provider->getpars() first" << extra_matches_provider->getPairs().size() << "\n";
+  for (iter = extra_matches_provider->pairWise_matches_.begin(); iter != extra_matches_provider->pairWise_matches_.end();
+	  )
+  {
+	  if (matches_provider->pairWise_matches_.count(iter->first) == 0)
+	  {
+		  matches_provider->pairWise_matches_.insert(*iter);
+		  iter++;
+	  }
+	  else  //remove already existing matches 
+	  {
+		  iter=extra_matches_provider->pairWise_matches_.erase(iter);
+	  }
+  }
+  //matches_provider now contains all matches(original and extra)
+  std::cout << "matches_provider->getpars() then" << matches_provider->getPairs().size() << "\n";
+  std::cout << "extra_matches_provider->getpars() then" << extra_matches_provider->getPairs().size() << "\n";
 
+  ///BC end///
   //---------------------------------------
   // Global SfM reconstruction process
   //---------------------------------------
 
   openMVG::system::Timer timer;
-  GlobalSfMReconstructionEngine_RelativeMotions sfmEngine(
+  GlobalSfMReconstructionEngine_PoseAugmentation sfmEngine(
     sfm_data,
     sOutDir,
     stlplus::create_filespec(sOutDir, "Reconstruction_Report.html"));
@@ -186,6 +224,7 @@ int main(int argc, char **argv)
   // Configure the features_provider & the matches_provider
   sfmEngine.SetFeaturesProvider(feats_provider.get());
   sfmEngine.SetMatchesProvider(matches_provider.get());
+  sfmEngine.SetExtraMatchesProvider(extra_matches_provider.get());
 
   // Configure reconstruction parameters
   sfmEngine.Set_Intrinsics_Refinement_Type(intrinsic_refinement_options);

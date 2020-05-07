@@ -6,8 +6,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifndef OPENMVG_SFM_GLOBAL_ENGINE_BA_HPP
-#define OPENMVG_SFM_GLOBAL_ENGINE_BA_HPP
+#ifndef OPENMVG_IMU_SFM_GLOBAL_ENGINE_BA_HPP
+#define OPENMVG_IMU_SFM_GLOBAL_ENGINE_BA_HPP
 
 #include <memory>
 #include <string>

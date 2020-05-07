@@ -6,8 +6,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifndef OPENMVG_SFM_GLOBAL_ENGINE_PIPELINES_GLOBAL_TRANSLATION_AVERAGING_HPP
-#define OPENMVG_SFM_GLOBAL_ENGINE_PIPELINES_GLOBAL_TRANSLATION_AVERAGING_HPP
+#ifndef OPENMVG_IMU_SFM_GLOBAL_ENGINE_PIPELINES_GLOBAL_TRANSLATION_AVERAGING_HPP
+#define OPENMVG_IMU_SFM_GLOBAL_ENGINE_PIPELINES_GLOBAL_TRANSLATION_AVERAGING_HPP
 
 #include <string>
 #include <vector>
@@ -37,11 +37,11 @@ struct Features_Provider;
 
 class GlobalSfM_Translation_AveragingSolver
 {
-  std::vector<RelativeInfo_Vec> vec_relative_motion_;
+  
 
 public:
-  
-  const std::vector<RelativeInfo_Vec> & Getrelative_motion() const {return vec_relative_motion_;}
+	std::vector<RelativeInfo_Vec> vec_relative_motion_;
+  const std::vector<RelativeInfo_Vec> & Getrelative_motion() const {return vec_relative_motion_;}  //BC
   bool Run(
     ETranslationAveragingMethod eTranslationAveragingMethod,
     openMVG::sfm::SfM_Data & sfm_data,
@@ -51,7 +51,7 @@ public:
     matching::PairWiseMatches & tripletWise_matches
   );
 
-private:
+public:   //BC
   bool Translation_averaging(
     ETranslationAveragingMethod eTranslationAveragingMethod,
     sfm::SfM_Data & sfm_data,

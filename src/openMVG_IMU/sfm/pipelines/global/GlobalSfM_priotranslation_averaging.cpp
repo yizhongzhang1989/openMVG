@@ -52,8 +52,13 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::MyRun
   const openMVG::sfm::Matches_Provider * extra_matches_provider
 )
 {
-  // Compute the relative translations and save them to vec_initialRijTijEstimates:
-  Compute_translations(
+  // Compute the relative translations and save them to vec_initialRijTijEstimates
+  const Pair_Set& extra_pairs = extra_matches_provider->getPairs();
+  for (const auto& pair : extra_pairs)
+  {
+	  extra_pairs_[pair] = "0";
+  }
+  PrioCompute_translations(
     sfm_data,
     features_provider,
     matches_provider,
@@ -62,12 +67,12 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::MyRun
   
   //check whether the extra matches  is filtered completely
   size_t remainextramatches = 0;
-  const Pair_Set& pairs = extra_matches_provider->getPairs();
+  
   for (const openMVG::RelativeInfo_Vec & iter : Getrelative_motion())
   {
     for (const relativeInfo & rel : iter)
     {
-          if(pairs.count(rel.first)) 
+          if(extra_pairs.count(rel.first))
           {
             remainextramatches++;
             break;
@@ -323,7 +328,552 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::PrioTranslation_averaging(
   return true;
 }
 
+void GlobalSfM_PrioTranslation_AveragingSolver::PrioCompute_translations
+(
+	const sfm::SfM_Data & sfm_data,
+	const sfm::Features_Provider * features_provider,
+	const sfm::Matches_Provider * matches_provider,
+	const Hash_Map<IndexT, Mat3> & map_globalR,
+	matching::PairWiseMatches &tripletWise_matches
+)
+{
+	std::cout << "\n-------------------------------" << "\n"
+		<< " Relative translations computation: " << "\n"
+		<< "-------------------------------" << std::endl;
 
+	// Compute relative translations over the graph of global rotations
+	//  thanks to an edge coverage algorithm
+	PrioComputePutativeTranslation_EdgesCoverage(
+		sfm_data,
+		map_globalR,
+		features_provider,
+		matches_provider,
+		vec_relative_motion_,
+		tripletWise_matches);
+}
+
+//-- Perform a trifocal estimation of the graph contain in vec_triplets with an
+// edge coverage algorithm. Its complexity is sub-linear in term of edges count.
+void GlobalSfM_PrioTranslation_AveragingSolver::PrioComputePutativeTranslation_EdgesCoverage
+(
+	const sfm::SfM_Data & sfm_data,
+	const Hash_Map<IndexT, Mat3> & map_globalR,
+	const sfm::Features_Provider * features_provider,
+	const sfm::Matches_Provider * matches_provider,
+	std::vector<RelativeInfo_Vec> & vec_triplet_relative_motion,
+	matching::PairWiseMatches & newpairMatches
+)
+{
+	openMVG::system::Timer timerLP_triplet;
+
+	//--
+	// Compute the relative translations using triplets of rotations over the rotation graph.
+	//--
+	//
+	// 1. List plausible triplets over the global rotation pose graph Ids.
+	//   - list all edges that have support in the rotation pose graph
+	//
+	Pair_Set rotation_pose_id_graph;
+	std::set<IndexT> set_pose_ids;
+	std::transform(map_globalR.cbegin(), map_globalR.cend(),
+		std::inserter(set_pose_ids, set_pose_ids.begin()), stl::RetrieveKey());
+	// List shared correspondences (pairs) between poses
+	for (const auto & match_iterator : matches_provider->pairWise_matches_)
+	{
+		const Pair pair = match_iterator.first;
+		const View * v1 = sfm_data.GetViews().at(pair.first).get();
+		const View * v2 = sfm_data.GetViews().at(pair.second).get();
+
+		if (// Consider the pair iff it is supported by the rotation graph
+			(v1->id_pose != v2->id_pose)
+			&& set_pose_ids.count(v1->id_pose)
+			&& set_pose_ids.count(v2->id_pose))
+		{
+			rotation_pose_id_graph.insert({ v1->id_pose, v2->id_pose });
+		}
+	}
+	// List putative triplets (from global rotations Ids)
+	const std::vector<graph::Triplet> vec_triplets =
+		graph::TripletListing(rotation_pose_id_graph);
+	std::cout << "#Triplets: " << vec_triplets.size() << std::endl;
+
+	{
+		// Compute triplets of translations
+		// Avoid to cover each edge of the graph by using an edge coverage algorithm
+		// An estimated triplets of translation mark three edges as estimated.
+
+		//-- Alias (list triplet ids used per edges)
+		using myEdge = Pair; // An edge between two pose id
+		Hash_Map<myEdge, std::vector<uint32_t>> map_tripletIds_perEdge;
+		for (size_t i = 0; i < vec_triplets.size(); ++i)
+		{
+			const graph::Triplet & triplet = vec_triplets[i];
+			map_tripletIds_perEdge[{triplet.i, triplet.j}].push_back(i);
+			map_tripletIds_perEdge[{triplet.i, triplet.k}].push_back(i);
+			map_tripletIds_perEdge[{triplet.j, triplet.k}].push_back(i);
+		}
+
+		//-- precompute the visibility count per triplets (sum of their 2 view matches)
+		Hash_Map<IndexT, IndexT> map_tracksPerTriplets;
+		for (const auto & match_iterator : matches_provider->pairWise_matches_)
+		{
+			const Pair pair = match_iterator.first;
+			const View * v1 = sfm_data.GetViews().at(pair.first).get();
+			const View * v2 = sfm_data.GetViews().at(pair.second).get();
+			if (v1->id_pose != v2->id_pose)
+			{
+				// Consider the pair iff it is supported by 2 different pose id
+				const myEdge edge(v1->id_pose, v2->id_pose);
+				if (map_tripletIds_perEdge.count(edge) != 0)
+				{
+					const auto & edge_tripletIds = map_tripletIds_perEdge.at(edge);
+					for (const auto & triplet_id : edge_tripletIds)
+					{
+						if (map_tracksPerTriplets.count(triplet_id) == 0)
+							map_tracksPerTriplets[triplet_id] = match_iterator.second.size();
+						else
+							map_tracksPerTriplets[triplet_id] += match_iterator.second.size();
+					}
+				}
+			}
+		}
+		// Collect edges that are covered by the triplets
+		std::vector<myEdge> vec_edges;
+		std::transform(map_tripletIds_perEdge.cbegin(),
+			map_tripletIds_perEdge.cend(),
+			std::back_inserter(vec_edges),
+			stl::RetrieveKey());
+
+		openMVG::sfm::MutexSet<myEdge> m_mutexSet;
+
+		C_Progress_display my_progress_bar(
+			vec_edges.size(),
+			std::cout,
+			"\nRelative translations computation (edge coverage algorithm)\n");
+
+#  ifdef OPENMVG_USE_OPENMP
+		std::vector<std::vector<RelativeInfo_Vec>> initial_estimates(omp_get_max_threads());
+#  else
+		std::vector<std::vector<RelativeInfo_Vec>> initial_estimates(1);
+#  endif
+
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+		for (int k = 0; k < static_cast<int>(vec_edges.size()); ++k)
+		{
+			const myEdge & edge = vec_edges[k];
+			++my_progress_bar;
+
+			if (m_mutexSet.count(edge) == 0 && m_mutexSet.size() != vec_edges.size())
+			{
+				// Find the triplets that are supporting the given edge
+				const auto & vec_possibleTripletIndexes = map_tripletIds_perEdge.at(edge);
+
+				//-- Sort the triplets according their number of track
+				std::vector<uint32_t> vec_commonTracksPerTriplets;
+				for (const uint32_t triplet_index : vec_possibleTripletIndexes)
+				{
+					vec_commonTracksPerTriplets.push_back(map_tracksPerTriplets[triplet_index]);
+				}
+
+				using namespace stl::indexed_sort;
+				std::vector<sort_index_packet_descend<uint32_t, uint32_t>> packet_vec(vec_commonTracksPerTriplets.size());
+				sort_index_helper(packet_vec, &vec_commonTracksPerTriplets[0]);
+
+				std::vector<uint32_t> vec_triplet_ordered(vec_commonTracksPerTriplets.size(), 0);
+				for (size_t i = 0; i < vec_commonTracksPerTriplets.size(); ++i) {
+					vec_triplet_ordered[i] = vec_possibleTripletIndexes[packet_vec[i].index];
+				}
+
+				// Try to solve a triplet of translations for the given edge
+				for (const uint32_t triplet_index : vec_triplet_ordered)
+				{
+					const graph::Triplet & triplet = vec_triplets[triplet_index];
+
+					// If the triplet is already estimated by another thread; try the next one
+					if (m_mutexSet.count(Pair(triplet.i, triplet.j)) &&
+						m_mutexSet.count(Pair(triplet.i, triplet.k)) &&
+						m_mutexSet.count(Pair(triplet.j, triplet.k)))
+					{
+						continue;
+					}
+
+					//--
+					// Try to estimate this triplet of translations
+					//--
+					double dPrecision = 4.0; // upper bound of the residual pixel reprojection error
+
+					std::vector<Vec3> vec_tis(3);
+					std::vector<uint32_t> vec_inliers;
+					openMVG::tracks::STLMAPTracks pose_triplet_tracks;
+
+					const std::string sOutDirectory = "./";
+					///BC START///
+					std::string flag;
+					Pair edge_pair = std::make_pair(edge.first, edge.second);
+					///BC end////
+					const bool bTriplet_estimation = PrioEstimate_T_triplet(
+						sfm_data,
+						map_globalR,
+						features_provider,
+						matches_provider,
+						triplet,
+						vec_tis,
+						dPrecision,
+						vec_inliers,
+						pose_triplet_tracks,
+						sOutDirectory,
+						flag,
+						edge_pair
+						);
+					///BC START///
+					
+					if (extra_pairs_.count(edge_pair))
+					{
+						std::string& sval = extra_pairs_.at(edge_pair);
+						if (sval !="1")
+						{
+							if (bTriplet_estimation) sval = "1";
+							else sval +=  flag;
+						}
+					}
+					///BC end////
+					if (bTriplet_estimation)
+					{
+						// Since new translation edges have been computed, mark their corresponding edges as estimated
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp critical
+#endif
+						{
+							m_mutexSet.insert({ triplet.i, triplet.j });
+							m_mutexSet.insert({ triplet.j, triplet.k });
+							m_mutexSet.insert({ triplet.i, triplet.k });
+						}
+
+						// Compute the triplet relative motions (IJ, JK, IK)
+						{
+							const Mat3
+								RI = map_globalR.at(triplet.i),
+								RJ = map_globalR.at(triplet.j),
+								RK = map_globalR.at(triplet.k);
+							const Vec3
+								ti = vec_tis[0],
+								tj = vec_tis[1],
+								tk = vec_tis[2];
+
+							Mat3 Rij;
+							Vec3 tij;
+							RelativeCameraMotion(RI, ti, RJ, tj, &Rij, &tij);
+
+							Mat3 Rjk;
+							Vec3 tjk;
+							RelativeCameraMotion(RJ, tj, RK, tk, &Rjk, &tjk);
+
+							Mat3 Rik;
+							Vec3 tik;
+							RelativeCameraMotion(RI, ti, RK, tk, &Rik, &tik);
+
+#ifdef OPENMVG_USE_OPENMP
+							const int thread_id = omp_get_thread_num();
+#else
+							const int thread_id = 0;
+#endif
+
+							RelativeInfo_Vec triplet_relative_motion;
+							triplet_relative_motion.push_back(
+							{ { triplet.i, triplet.j },{ Rij, tij } });
+							triplet_relative_motion.push_back(
+							{ { triplet.j, triplet.k },{ Rjk, tjk } });
+							triplet_relative_motion.push_back(
+							{ { triplet.i, triplet.k },{ Rik, tik } });
+
+							initial_estimates[thread_id].emplace_back(triplet_relative_motion);
+
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp critical
+#endif
+							{
+								// Add inliers as valid pairwise matches
+								for (const uint32_t & inlier_it : vec_inliers)
+								{
+									tracks::STLMAPTracks::const_iterator it_tracks = pose_triplet_tracks.begin();
+									std::advance(it_tracks, inlier_it);
+									const tracks::submapTrack & track = it_tracks->second;
+
+									// create pairwise matches from the inlier track
+									tracks::submapTrack::const_iterator iter_I = track.begin();
+									tracks::submapTrack::const_iterator iter_J = track.begin();
+									std::advance(iter_J, 1);
+									while (iter_J != track.end())
+									{ // matches(pair(view_id(I), view_id(J))) <= IndMatch(feat_id(I), feat_id(J))
+										newpairMatches[{iter_I->first, iter_J->first}]
+											.emplace_back(iter_I->second, iter_J->second);
+										++iter_I;
+										++iter_J;
+									}
+								}
+							}
+						}
+						// Since a relative translation have been found for the edge: vec_edges[k],
+						//  we break and start to estimate the translations for some other edges.
+						break;
+					}
+				}
+			}
+		}
+		// Merge thread(s) estimates
+		for (auto & vec : initial_estimates)
+		{
+			vec_triplet_relative_motion.insert(vec_triplet_relative_motion.end(),
+				std::make_move_iterator(vec.begin()), std::make_move_iterator(vec.end()));
+		}
+	}
+
+	const double timeLP_triplet = timerLP_triplet.elapsed();
+	std::cout << "TRIPLET COVERAGE TIMING:\n"
+		<< "-------------------------------" << "\n"
+		<< "-- #Relative triplet of translations estimates: " << vec_triplet_relative_motion.size()
+		<< " computed from " << vec_triplets.size() << " triplets.\n"
+		<< "-- resulting in " << vec_triplet_relative_motion.size() * 3 << " translations estimation.\n"
+		<< "-- time to compute triplets of relative translations: " << timeLP_triplet << " seconds.\n"
+		<< "-------------------------------" << std::endl;
+}
+
+// Robust estimation and refinement of a triplet of translations
+bool GlobalSfM_PrioTranslation_AveragingSolver::PrioEstimate_T_triplet
+(
+	const sfm::SfM_Data & sfm_data,
+	const Hash_Map<IndexT, Mat3> & map_globalR,
+	const sfm::Features_Provider * features_provider,
+	const sfm::Matches_Provider * matches_provider,
+	const graph::Triplet & poses_id,
+	std::vector<Vec3> & vec_tis,
+	double & dPrecision, // UpperBound of the precision found by the AContrario estimator
+	std::vector<uint32_t> & vec_inliers,
+	openMVG::tracks::STLMAPTracks & tracks,
+	const std::string & sOutDirectory,
+	std::string& flag,    //bc
+	const Pair& edge_pair
+) const
+{
+	// List matches that belong to the triplet of poses
+	PairWiseMatches map_triplet_matches;
+	const std::set<IndexT> set_pose_ids{ poses_id.i, poses_id.j, poses_id.k };
+	// List shared correspondences (pairs) between poses
+	for (const auto & match_iterator : matches_provider->pairWise_matches_)
+	{
+		const Pair & pair = match_iterator.first;
+		const View * v1 = sfm_data.GetViews().at(pair.first).get();
+		const View * v2 = sfm_data.GetViews().at(pair.second).get();
+		if (// Consider the pair iff it is supported by the triplet graph & 2 different pose id
+			(v1->id_pose != v2->id_pose)
+			&& set_pose_ids.count(v1->id_pose)
+			&& set_pose_ids.count(v2->id_pose))
+		{
+			map_triplet_matches.insert(match_iterator);
+		}
+	}
+
+	openMVG::tracks::TracksBuilder tracksBuilder;
+	tracksBuilder.Build(map_triplet_matches);
+	tracksBuilder.Filter(3);
+	tracksBuilder.ExportToSTL(tracks);
+	const int minInlierForExtraPair = 0; //bc
+	if (tracks.size() < 30&& extra_pairs_.count(edge_pair)==0)   //bc
+	{
+		flag = "2("+std::to_string(tracks.size())+")";
+		return false;
+	}
+	else if (tracks.size() < minInlierForExtraPair&& extra_pairs_.count(edge_pair))  //bc
+	{
+		flag = "2(" + std::to_string(tracks.size()) + ")";
+		return false;
+	}
+	
+	
+
+	// Data conversion
+	// Fill image observations as a unique matrix array
+	Mat
+		x1(2, tracks.size()),
+		x2(2, tracks.size()),
+		x3(2, tracks.size());
+
+	Mat* xxx[3] = { &x1, &x2, &x3 };
+	std::set<IndexT> intrinsic_ids;
+	size_t cpt = 0;
+	for (const auto & tracks_it : tracks)
+	{
+		const tracks::submapTrack & track = tracks_it.second;
+		uint32_t index = 0;
+		for (const auto & track_it : track)
+		{
+			const uint32_t idx_view = track_it.first;
+			const View * view = sfm_data.views.at(idx_view).get();
+			const IntrinsicBase * cam = sfm_data.intrinsics.at(view->id_intrinsic).get();
+			intrinsic_ids.insert(view->id_intrinsic);
+			const features::PointFeature pt = features_provider->getFeatures(idx_view)[track_it.second];
+			xxx[index++]->col(cpt) = ((*cam)(cam->get_ud_pixel(pt.coords().cast<double>()))).colwise().hnormalized();
+		}
+		++cpt;
+	}
+	// Retrieve the smallest focal value, for threshold normalization
+	double min_focal = std::numeric_limits<double>::max();
+	for (const auto & ids : intrinsic_ids)
+	{
+		const cameras::IntrinsicBase * intrinsicPtr = sfm_data.GetIntrinsics().at(ids).get();
+		const cameras::Pinhole_Intrinsic * intrinsic = dynamic_cast< const cameras::Pinhole_Intrinsic * > (intrinsicPtr);
+		if (intrinsic)
+		{
+			min_focal = std::min(min_focal, intrinsic->focal());
+		}
+	}
+	if (min_focal == std::numeric_limits<double>::max())
+	{
+		flag = "3"; //bc
+		return false;
+	}
+
+	// Get rotations:
+	const std::vector<Mat3> vec_global_R_Triplet =
+	{ map_globalR.at(poses_id.i), map_globalR.at(poses_id.j), map_globalR.at(poses_id.k) };
+
+	using namespace openMVG::trifocal;
+	using namespace openMVG::trifocal::kernel;
+
+	using KernelType =
+		TranslationTripletKernel_ACRansac<
+		translations_Triplet_Solver,
+		translations_Triplet_Solver,
+		TrifocalTensorModel>;
+	const double ThresholdUpperBound = 1.0e-2; // upper bound of the pixel residual (normalized coordinates)
+	KernelType kernel(x1, x2, x3, vec_global_R_Triplet, Mat3::Identity(), ThresholdUpperBound);
+
+	const size_t ORSA_ITER = 320;  // max number of iterations of AC-RANSAC
+
+	TrifocalTensorModel T;
+	const std::pair<double, double> acStat =
+		robust::ACRANSAC(kernel, vec_inliers, ORSA_ITER, &T, dPrecision / min_focal, false);
+	// If robust estimation fails => stop.
+	if (dPrecision == std::numeric_limits<double>::infinity())
+	{
+		flag = "4";  //bc
+		return false;
+	}
+
+	// Update output parameters
+	dPrecision = acStat.first * min_focal;
+
+	vec_tis.resize(3);
+	Mat3 K, R;
+	KRt_From_P(T.P1, &K, &R, &vec_tis[0]);
+	KRt_From_P(T.P2, &K, &R, &vec_tis[1]);
+	KRt_From_P(T.P3, &K, &R, &vec_tis[2]);
+
+#ifdef DEBUG_TRIPLET
+	// compute 3D scene base on motion estimation
+	SfM_Data    tiny_scene;
+
+	// intialize poses (which are now shared by a group of images)
+	tiny_scene.poses[poses_id.i] = Pose3(vec_global_R_Triplet[0], -vec_global_R_Triplet[0].transpose() * vec_tis[0]);
+	tiny_scene.poses[poses_id.j] = Pose3(vec_global_R_Triplet[1], -vec_global_R_Triplet[1].transpose() * vec_tis[1]);
+	tiny_scene.poses[poses_id.k] = Pose3(vec_global_R_Triplet[2], -vec_global_R_Triplet[2].transpose() * vec_tis[2]);
+
+	// insert views used by the relative pose pairs
+	for (const auto & pairIterator : map_triplet_matches)
+	{
+		// initialize camera indexes
+		const IndexT I = pairIterator.first.first;
+		const IndexT J = pairIterator.first.second;
+
+		// add views
+		tiny_scene.views.insert(*sfm_data.GetViews().find(I));
+		tiny_scene.views.insert(*sfm_data.GetViews().find(J));
+
+		// add intrinsics
+		const View * view_I = sfm_data.GetViews().at(I).get();
+		const View * view_J = sfm_data.GetViews().at(J).get();
+		tiny_scene.intrinsics.insert(*sfm_data.GetIntrinsics().find(view_I->id_intrinsic));
+		tiny_scene.intrinsics.insert(*sfm_data.GetIntrinsics().find(view_J->id_intrinsic));
+	}
+
+	// Fill sfm_data with the inliers tracks. Feed image observations: no 3D yet.
+	Landmarks & structure = tiny_scene.structure;
+	for (const uint32_t & inlier_it : vec_inliers)
+	{
+		tracks::STLMAPTracks::const_iterator it_tracks = tracks.begin();
+		std::advance(it_tracks, inlier_it);
+		const tracks::submapTrack & track = it_tracks->second;
+		Observations & obs = structure[inlier_it].obs;
+		for (tracks::submapTrack::const_iterator it = track.begin(); it != track.end(); ++it)
+		{
+			// get view Id and feat ID
+			const uint32_t viewIndex = it->first;
+			const uint32_t featIndex = it->second;
+
+			// get feature
+			const features::PointFeature & pt = features_provider->getFeatures(viewIndex)[featIndex];
+			obs[viewIndex] = Observation(pt.coords().cast<double>(), featIndex);
+		}
+	}
+
+	// Compute 3D landmark positions (triangulation of the observations)
+	{
+		SfM_Data_Structure_Computation_Blind structure_estimator(false);
+		structure_estimator.triangulate(tiny_scene);
+	}
+
+	// Refine structure and poses (keep intrinsic constant)
+	Bundle_Adjustment_Ceres::BA_Ceres_options options(false, false);
+	Bundle_Adjustment_Ceres bundle_adjustment_obj(options);
+	if (bundle_adjustment_obj.Adjust(tiny_scene,
+		Optimize_Options(
+			cameras::Intrinsic_Parameter_Type::NONE,
+			Extrinsic_Parameter_Type::ADJUST_ALL,
+			Structure_Parameter_Type::ADJUST_ALL)
+	)
+		)
+	{
+		// export scene for visualization
+		std::ostringstream os;
+		os << poses_id.i << "_" << poses_id.j << "_" << poses_id.k << ".ply";
+		Save(tiny_scene, os.str(), ESfM_Data(STRUCTURE | EXTRINSICS));
+
+		// Export refined translations
+		vec_tis[0] = tiny_scene.poses[poses_id.i].translation();
+		vec_tis[1] = tiny_scene.poses[poses_id.j].translation();
+		vec_tis[2] = tiny_scene.poses[poses_id.k].translation();
+	}
+
+	std::ostringstream os;
+	os << poses_id.i << "_" << poses_id.j << "_" << poses_id.k << ".ply";
+	Save(tiny_scene, os.str(), ESfM_Data(STRUCTURE | EXTRINSICS));
+
+#endif
+
+	// Keep the model iff it has a sufficient inlier count
+	bool bTest = (vec_inliers.size() > 30 && 0.33 * tracks.size());  //bc remove const
+	if (extra_pairs_.count(edge_pair))  //bc
+	{
+		bTest = vec_inliers.size() > minInlierForExtraPair;
+	}
+	if (bTest == false)  //bc
+	{
+		flag = "5(v:" + std::to_string(vec_inliers.size()) + ",0.33*"+ std::to_string(tracks.size()) +")";
+	}
+
+#ifdef DEBUG_TRIPLET
+	{
+		std::cout << "Triplet : status: " << bTest
+			<< " AC: " << std::sqrt(dPrecision)
+			<< " inliers % " << double(vec_inliers.size()) / tracks.size() * 100.0
+			<< " total putative " << tracks.size() << std::endl;
+	}
+#endif
+
+	return bTest;
+}
 
 } // namespace sfm
 } // namespace openMVG

@@ -144,6 +144,10 @@ int main(int argc, char **argv)
 
     //-- Export to disk computed scene (data & visualizable results)
     std::cout << "...Export SfM_Data to disk." << std::endl;
+	Save(sfmEngine.Get_SfM_Data(),
+		stlplus::create_filespec(sOutDir, "opt_trajectory_data", ".bin"),
+		ESfM_Data(INTRINSICS|EXTRINSICS|VIEWS));
+
     Save(sfmEngine.Get_SfM_Data(),
       stlplus::create_filespec(sOutDir, "opt_sfm_data", ".bin"),
       ESfM_Data(ALL));

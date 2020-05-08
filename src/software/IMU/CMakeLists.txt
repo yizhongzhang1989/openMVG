@@ -71,6 +71,20 @@ target_link_libraries(openMVG_IMU_main_GlobalSfM_pose_augmentation
 set_property(TARGET openMVG_IMU_main_GlobalSfM_pose_augmentation PROPERTY FOLDER OpenMVG/software/imu)
 install(TARGETS openMVG_IMU_main_GlobalSfM_pose_augmentation DESTINATION bin/)
 
+#Iterative Pose Augmentation in Global SfM
+add_executable(openMVG_IMU_main_GlobalSfM_iterative_pose_augmentation main_GlobalSfM_iterative_pose_augmentation.cpp)
+target_link_libraries(openMVG_IMU_main_GlobalSfM_iterative_pose_augmentation
+  PRIVATE
+    openMVG_IMU_sfm
+    openMVG_system
+    openMVG_sfm
+    ${STLPLUS_LIBRARY}
+)
+
+# Installation rules
+set_property(TARGET openMVG_IMU_main_GlobalSfM_iterative_pose_augmentation PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_GlobalSfM_iterative_pose_augmentation DESTINATION bin/)
+
 # SplitMatchFileIntoMatchFiles
 
 

@@ -31,6 +31,7 @@ class GlobalSfM_PrioTranslation_AveragingSolver: public GlobalSfM_Translation_Av
 {
 
 public:
+	std::map<Pair,std::string>  extra_pairs_;
   bool MyRun
   (
     ETranslationAveragingMethod eTranslationAveragingMethod,
@@ -50,10 +51,39 @@ public:   //BC
   sfm::SfM_Data & sfm_data,
   const Hash_Map<IndexT, Mat3> & map_globalR);
 
+  void PrioCompute_translations(
+	  const sfm::SfM_Data & sfm_data,
+	  const sfm::Features_Provider * features_provider,
+	  const sfm::Matches_Provider * matches_provider,
+	  const Hash_Map<IndexT, Mat3> & map_globalR,
+	  matching::PairWiseMatches &tripletWise_matches);
+
   //-- Compute the relative translations on the rotations graph.
   // Compute relative translations by using triplets of poses.
   // Use an edge coverage algorithm to reduce the graph covering complexity
   // Complexity: sub-linear in term of edges count.
+  void PrioComputePutativeTranslation_EdgesCoverage(
+	  const sfm::SfM_Data & sfm_data,
+	  const Hash_Map<IndexT, Mat3> & map_globalR,
+	  const sfm::Features_Provider * features_provider,
+	  const sfm::Matches_Provider * matches_provider,
+	  std::vector<RelativeInfo_Vec> & vec_triplet_relative_motion,
+	  matching::PairWiseMatches & newpairMatches);
+
+  // Robust estimation and refinement of triplet of translations
+  bool PrioEstimate_T_triplet(
+	  const sfm::SfM_Data & sfm_data,
+	  const Hash_Map<IndexT, Mat3> & map_globalR,
+	  const sfm::Features_Provider * features_provider,
+	  const sfm::Matches_Provider * matches_provider,
+	  const graph::Triplet & poses_id,
+	  std::vector<Vec3> & vec_tis,
+	  double & dPrecision, // UpperBound of the precision found by the AContrario estimator
+	  std::vector<uint32_t> & vec_inliers,
+	  openMVG::tracks::STLMAPTracks & rig_tracks,
+	  const std::string & sOutDirectory,
+	  std::string& flag,
+	  const Pair& edge_pair) const;
   
 };
 //BC END//

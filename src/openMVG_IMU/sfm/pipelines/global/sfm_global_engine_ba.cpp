@@ -7,7 +7,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_ba.hpp"
-
+#include "openMVG_IMU/sfm/pipelines/global/myoutput.hpp"
 
 
 #include <iostream>
@@ -41,7 +41,9 @@ bool GlobalSfMReconstructionEngine_BA::Process() {
     std::cerr << "GlobalSfM:: Non-linear adjustment failure!" << std::endl;
     return false;
   }
-
+  Output_trajectory(stlplus::create_filespec(sOut_directory_, "view_poses", ".csv"),sfm_data_);
+  
+  Output_TriangulatedCorrespondings(stlplus::create_filespec(sOut_directory_, "triangulated_correspondings", ".csv"),sfm_data_);
   //-- Export statistics about the SfM process
   std::cout << "Structure from Motion statistics.";
 

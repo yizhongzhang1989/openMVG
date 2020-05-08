@@ -7,6 +7,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_pose_augmentation.hpp"
+#include "openMVG_IMU/sfm/pipelines/global/myoutput.hpp"
 
 #include "openMVG/cameras/Camera_Common.hpp"
 #include "openMVG/graph/graph.hpp"
@@ -27,6 +28,7 @@
 #include "openMVG/system/timer.hpp"
 #include "openMVG/tracks/tracks.hpp"
 #include "openMVG/types.hpp"
+
 
 #include "third_party/histogram/histogram.hpp"
 #include "third_party/htmlDoc/htmlDoc.hpp"
@@ -75,7 +77,16 @@ void GlobalSfMReconstructionEngine_PoseAugmentation::SetExtraMatchesProvider(Mat
 
 bool GlobalSfMReconstructionEngine_PoseAugmentation::Process() {
 
-   std::cout<<"/////IMU Global SfM Pose Augmentation/////\n";
+
+  ////BC start////
+	//save the raw pose
+  Output_trajectory(stlplus::create_filespec(sOut_directory_, "rawposes", ".csv"),sfm_data_);
+	
+  //save the matching after add loop edges
+  Output_Matchings(stlplus::create_filespec(sOut_directory_, "matching_withloopbegin", ".csv"),matches_provider_);
+  
+  ////BC end //// 
+  std::cout<<"/////IMU Global SfM Pose Augmentation/////\n";
   //-------------------
   // Keep only the largest biedge connected subgraph
   //-------------------
@@ -153,6 +164,14 @@ bool GlobalSfMReconstructionEngine_PoseAugmentation::Process() {
   Save(sfm_data_,
       stlplus::create_filespec(sOut_directory_, "sfm_data_Augmentation",".json"),
       ESfM_Data(ALL));
+  //save the image pose by view_id
+  Output_trajectory(stlplus::create_filespec(sOut_directory_, "view_poses", ".csv"),sfm_data_);
+  
+  //save the triangulated correspondings
+  Output_TriangulatedCorrespondings(stlplus::create_filespec(sOut_directory_, "triangulated_correspondings", ".csv"),sfm_data_);
+  
+  // triangulated matchings
+  Output_TriangulatedMatchings(stlplus::create_filespec(sOut_directory_, "triangulated_matchings", ".csv"),matches_provider_,sfm_data_);
   
   std::cout<<"Debug complete\n";
   /////////////BC   end////////////////
@@ -205,6 +224,12 @@ bool GlobalSfMReconstructionEngine_PoseAugmentation::Compute_Global_Translations
   /////////////BC start////////////////
   //output the pose graph
   std::cout<<"BC is debuging\n";
+  std::ofstream extratripletestimation_file(stlplus::create_filespec(sOut_directory_, "extratriplet_estimation.csv"));
+  for (const auto& pair_item : priotranslation_averaging_solver.extra_pairs_)
+  {
+	  extratripletestimation_file << pair_item.first.first << "-" << pair_item.first.second << ":" << pair_item.second << "\n";
+  }
+  extratripletestimation_file.close();
   if (!sLogging_file_.empty() && !sOut_directory_.empty())
   {
     std::cout<<"saving pose graph after translation\n";

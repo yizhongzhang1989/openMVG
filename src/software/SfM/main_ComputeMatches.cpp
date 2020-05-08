@@ -451,7 +451,36 @@ int main(int argc, char **argv)
           GeometricFilter_EMatrix_AC(4.0, imax_iteration),
           map_PutativesMatches, bGuided_matching, d_distance_ratio, &progress);
         map_GeometricMatches = filter_ptr->Get_geometric_matches();
+        //////////BC START////////
+		std::cout << "BC START\n";
+        std::ofstream indexspecified_log(stlplus::create_filespec(sMatchesDirectory, "indexspecified", "txt"));
+        indexspecified_log<<"image_i,image_j,nummatching\n";
+        std::vector<int> interval_specified{30,101,138,196,225,281};
+        for (const auto & pairwisematches_it : map_GeometricMatches)
+        {
+            IndexT imagei=pairwisematches_it.first.first;
+            IndexT imagej=pairwisematches_it.first.second;
+            bool imagei_s = false,imagej_s = false;
+            for(size_t j = 0; j< interval_specified.size();j+=2)
+            {
+                  if(imagei>=interval_specified[j]&&imagei<=interval_specified[j+1])
+                  {
+                    imagei_s=true;
+                  }
 
+                  if(imagej>=interval_specified[j]&&imagej<=interval_specified[j+1])
+                  {
+                    imagej_s=true;
+                  }
+            }
+            if(imagei_s && imagej_s)
+            {
+              indexspecified_log<<imagei<<","<<imagej<<","<<pairwisematches_it.second.size()<<"\n";
+            }
+        }
+        indexspecified_log.close();
+		std::cout << "BC END\n";
+        //////////BC END////////
         //-- Perform an additional check to remove pairs with poor overlap
         std::vector<PairWiseMatches::key_type> vec_toRemove;
         for (const auto & pairwisematches_it : map_GeometricMatches)

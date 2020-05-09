@@ -6,8 +6,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifndef OPENMVG_IMU_SFM_GLOBAL_ENGINE_POSE_AUGMENTATION_HPP
-#define OPENMVG_IMU_SFM_GLOBAL_ENGINE_POSE_AUGMENTATION_HPP
+#ifndef OPENMVG_IMU_SFM_GLOBAL_ENGINE_ITERATIVE_POSE_AUGMENTATION_HPP
+#define OPENMVG_IMU_SFM_GLOBAL_ENGINE_ITERATIVE_POSE_AUGMENTATION_HPP
 
 #include <memory>
 #include <string>
@@ -37,21 +37,24 @@ public:
     const std::string & loggingFile = "");
 
   ~GlobalSfMReconstructionEngine_IterativePoseAugmentation();
+  void SetMatchesDir(const std::string MatchesDir);
 
   
   bool Run();
-  bool Process();
-  bool LoopDetection();
+  bool Process(std::shared_ptr<Matches_Provider> extra_matches_provider_);
+  bool LoopDetection(Pair_Set& extra_pairs, const Pair_Set& tried_pairs);
+  bool Optimize();
 protected:
 
   /// Compute/refine relative translations and compute global translations
-  bool Compute_Global_Translations
+  bool Compute_Global_PrioTranslations
   (
     const Hash_Map<IndexT, Mat3> & global_rotations,
-    matching::PairWiseMatches & tripletWise_matches
+    matching::PairWiseMatches & tripletWise_matches,
+    Matches_Provider* extra_matches_provider_
   );
 
-  
+  std::string sMatchesDir_;
 
   
 };

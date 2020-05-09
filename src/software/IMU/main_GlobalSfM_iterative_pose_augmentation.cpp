@@ -9,7 +9,7 @@
 #include "openMVG/cameras/Camera_Common.hpp"
 #include "openMVG/cameras/Cameras_Common_command_line_helper.hpp"
 #include "openMVG_IMU/sfm/pipelines/global/GlobalSfM_translation_averaging.hpp"
-#include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_pose_augmentation.hpp"
+#include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_iterative_pose_augmentation.hpp"
 #include "openMVG/sfm/pipelines/sfm_features_provider.hpp"
 #include "openMVG/sfm/pipelines/sfm_matches_provider.hpp"
 #include "openMVG/sfm/sfm_data.hpp"
@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     << "-----------------------------------------------------------\n"
     << "Global Structure from Motion:\n"
     << "-----------------------------------------------------------\n"
-    << "Pose graph Augmentation" << std::endl
+    << "Pose graph Iterative Augmentation" << std::endl
     << "------------------------------------------------------------"
     << std::endl;
 
@@ -175,7 +175,7 @@ int main(int argc, char **argv)
   //---------------------------------------
 
   openMVG::system::Timer timer;
-  GlobalSfMReconstructionEngine_PoseAugmentation sfmEngine(
+  GlobalSfMReconstructionEngine_IterativePoseAugmentation sfmEngine(
     sfm_data,
     sOutDir,
     stlplus::create_filespec(sOutDir, "Reconstruction_Report.html"));
@@ -183,6 +183,7 @@ int main(int argc, char **argv)
   // Configure the features_provider & the matches_provider
   sfmEngine.SetFeaturesProvider(feats_provider.get());
   sfmEngine.SetMatchesProvider(matches_provider.get());
+  sfmEngine.SetMatchesDir(sMatchesDir);
 
   // Configure reconstruction parameters
   sfmEngine.Set_Intrinsics_Refinement_Type(intrinsic_refinement_options);
@@ -195,7 +196,7 @@ int main(int argc, char **argv)
   sfmEngine.SetTranslationAveragingMethod(
     ETranslationAveragingMethod(iTranslationAveragingMethod));
 
-  if (sfmEngine.Process())
+  if (sfmEngine.Run())
   {
     std::cout << std::endl << " Total Ac-Global-Sfm took (s): " << timer.elapsed() << std::endl;
 
@@ -206,8 +207,15 @@ int main(int argc, char **argv)
     //-- Export to disk computed scene (data & visualizable results)
     std::cout << "...Export SfM_Data to disk." << std::endl;
     Save(sfmEngine.Get_SfM_Data(),
-      stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
+      stlplus::create_filespec(sOutDir, "sfm_data_iterative_augmentation", ".bin"),
       ESfM_Data(ALL));
+
+    Save(sfmEngine.Get_SfM_Data(),
+      stlplus::create_filespec(sOutDir, "sfm_data_iterative_augmentation", ".json"),
+      ESfM_Data(ALL));
+    Save(sfmEngine.Get_SfM_Data(),
+      stlplus::create_filespec(sOutDir, "trajectory_iterative_augmentation", ".json"),
+      ESfM_Data(VIEWS|EXTRINSICS|INTRINSICS));
 
     Save(sfmEngine.Get_SfM_Data(),
       stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),

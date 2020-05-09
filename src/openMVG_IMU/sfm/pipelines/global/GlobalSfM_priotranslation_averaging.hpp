@@ -40,7 +40,7 @@ public:
     const openMVG::sfm::Matches_Provider * matches_provider,
     const Hash_Map<IndexT, Mat3> & map_globalR,
     matching::PairWiseMatches & tripletWise_matches,
-    const openMVG::sfm::Matches_Provider * extra_matches_provider
+    openMVG::sfm::Matches_Provider * extra_matches_provider
   );
 
 public:   //BC

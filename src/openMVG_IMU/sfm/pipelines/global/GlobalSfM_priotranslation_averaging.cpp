@@ -49,12 +49,12 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::MyRun
   const openMVG::sfm::Matches_Provider * matches_provider,
   const Hash_Map<IndexT, Mat3> & map_globalR,
   matching::PairWiseMatches & tripletWise_matches,
-  const openMVG::sfm::Matches_Provider * extra_matches_provider
+  openMVG::sfm::Matches_Provider * extra_matches_provider
 )
 {
   // Compute the relative translations and save them to vec_initialRijTijEstimates
-  const Pair_Set& extra_pairs = extra_matches_provider->getPairs();
-  for (const auto& pair : extra_pairs)
+  
+  for (const auto& pair : extra_matches_provider->getPairs())
   {
 	  extra_pairs_[pair] = "0";
   }
@@ -67,25 +67,41 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::MyRun
   
   //check whether the extra matches  is filtered completely
   size_t remainextramatches = 0;
-  
+  Pair_Set remain_pairs;
   for (const openMVG::RelativeInfo_Vec & iter : Getrelative_motion())
   {
     for (const relativeInfo & rel : iter)
     {
-          if(extra_pairs.count(rel.first))
-          {
-            remainextramatches++;
-            break;
-          }
+		Pair pair(std::min(rel.first.first, rel.first.second), std::max(rel.first.first, rel.first.second));
+        if(extra_matches_provider->pairWise_matches_.count(pair))
+        {
+			remain_pairs.insert(pair);
+			remainextramatches++;
+			break;
+        }
     }
   }
-
+  //erase filtered matches
+  matching::PairWiseMatches::iterator iter;
+  for (iter = extra_matches_provider->pairWise_matches_.begin(); iter != extra_matches_provider->pairWise_matches_.end();
+	  )
+  {
+	  Pair pair(std::min(iter->first.first, iter->first.second), std::max(iter->first.first, iter->first.second));
+	  if (remain_pairs.count(pair) == 0)
+	  {
+		  iter=extra_matches_provider->pairWise_matches_.erase(iter);
+	  }
+	  else
+	  {
+		  iter++;
+	  }
+  }
   if(!remainextramatches)
   {
     std::cout<<"all extra matches are filtered\n";
     return false;
   }
-  std::cout<<"Remain "<<remainextramatches<<" pairs\n";
+  std::cout<<"Number of Relative translation constraints applied by extra pairs: "<<remainextramatches<<" \n";
 
   const bool b_translation = PrioTranslation_averaging(
     eTranslationAveragingMethod,

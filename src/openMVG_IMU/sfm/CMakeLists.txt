@@ -16,7 +16,8 @@ target_compile_features(openMVG_IMU_sfm INTERFACE ${CXX11_FEATURES})
 target_link_libraries(openMVG_IMU_sfm
   PUBLIC
     openMVG_sfm
-	openMVG_IMU_multiview
+    openMVG_IMU_multiview
+    openMVG_IMU_matching_image_collection
     openMVG_geometry
     openMVG_features
     openMVG_graph

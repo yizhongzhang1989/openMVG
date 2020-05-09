@@ -8,6 +8,7 @@
 
 #include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_iterative_pose_augmentation.hpp"
 #include "openMVG_IMU/sfm/pipelines/global/myoutput.hpp"
+#include "openMVG_IMU/matching_image_collection/ComputeMatchesController.hpp"
 
 #include "openMVG/cameras/Camera_Common.hpp"
 #include "openMVG/graph/graph.hpp"
@@ -64,19 +65,114 @@ GlobalSfMReconstructionEngine_IterativePoseAugmentation::~GlobalSfMReconstructio
   
 }
 
-
+void GlobalSfMReconstructionEngine_IterativePoseAugmentation::SetMatchesDir(const std::string MatchesDir)
+{
+    sMatchesDir_=MatchesDir;
+}
 
 bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::Run()
 {
-  Pair_Set currentpairs = matches_provider_->getPairs();
-  while(LoopDetection())
+  Pair_Set extra_pairs;
+  unsigned int loop_i = 1;
+  //Because the matching of a image pair is only based on the features in the image,
+  //even though optimized by ba, the failed image pair in matching phase will still fail.
+  //So we develop a set to record the failed or succeeded matches to avoid duplicate matching and boost speeds
+  Pair_Set tried_pairs;
+  while(LoopDetection(extra_pairs, tried_pairs))
   {
+	  system::Timer augmentation_once_timer;
+      std::cout<<"///////////////////////////\n"
+               <<"//////////loop "<<loop_i<<"/////////\n"
+               <<"///////////////////////////\n";
+	  tried_pairs.insert(extra_pairs.begin(), extra_pairs.end());
+      std::cout<<"Detect "<<extra_pairs.size()<<" pairs\n";
+      std::shared_ptr<Matches_Provider> extra_matches_provider = std::make_shared<Matches_Provider>();
+	 
+	  system::Timer matching_timer;
+	  matching_image_collection::ComputeMatchesController::Process(sfm_data_,sMatchesDir_,extra_matches_provider.get(),"f",
+                                       true,extra_pairs,true, stlplus::create_filespec(sOut_directory_, "matches_f_" + std::to_string(loop_i), ".bin"));
+	  std::cout << "Matching task done in (s): " << matching_timer.elapsed() << std::endl;
+
+      std::cout<<"Compute "<<extra_matches_provider->pairWise_matches_.size()<<" matches in "<<extra_pairs.size()<<" pairs\n";
+      if(extra_matches_provider->pairWise_matches_.size()==0)
+      {
+        std::cout<<"No more matches are found\n";
+        break;
+      }
+      // add new extra matches into total matches
+      matching::PairWiseMatches::iterator iter;
+      std::cout << "matches_provider->getpairs() first" << matches_provider_->pairWise_matches_.size() << "\n";
+      std::cout << "extra_matches_provider->getpairs() first" << extra_matches_provider->pairWise_matches_.size() << "\n";
+      for (iter = extra_matches_provider->pairWise_matches_.begin(); iter != extra_matches_provider->pairWise_matches_.end();
+        )
+      {
+        if (matches_provider_->pairWise_matches_.count(iter->first) == 0)
+        {
+          matches_provider_->pairWise_matches_.insert(*iter);
+          iter++;
+        }
+        else  //remove already existing matches 
+        {
+          iter=extra_matches_provider->pairWise_matches_.erase(iter);
+        }
+      }
+      //matches_provider now contains all matches(original and extra)
+      std::cout << "matches_provider->getpairs() then" << matches_provider_->pairWise_matches_.size() << "\n";
+      std::cout << "extra_matches_provider->getpairs() then" << extra_matches_provider->pairWise_matches_.size() << "\n";
+
+      if(extra_matches_provider->pairWise_matches_.size()==0)
+      {
+        std::cout<<"No more matches are found\n";
+        break;
+      }
+	  ////BC start////
+	  //save the raw pose
+	  Output_trajectory(stlplus::create_filespec(sOut_directory_, "rawposes_" + std::to_string(loop_i), ".csv"), sfm_data_);
+
+	  Output_Matchings(stlplus::create_filespec(sOut_directory_, "matching_withloopbegin_" + std::to_string(loop_i), ".csv"), matches_provider_);
+	  Output_Matchings(stlplus::create_filespec(sOut_directory_, "extramatching_withloopbegin_" + std::to_string(loop_i), ".csv"), extra_matches_provider.get());
+	  //save the raw corresponds
+
+	  ////BC end //// 
+	  system::Timer averaging_timer;
+      if(!Process(extra_matches_provider))
+      {
+        std::cout<<"Global sfm augmentation failed\n";
+        break;
+      }
+	  std::cout << "Remain " << extra_matches_provider->pairWise_matches_.size() << " extra pairs\n";
+	  std::cout << "Averaging task done in (s): " << averaging_timer.elapsed() << std::endl;
+	  /////////////BC start////////////////
+
+	  //save the image pose by view_id
+	  Output_trajectory(stlplus::create_filespec(sOut_directory_, "view_poses_" + std::to_string(loop_i), ".csv"), sfm_data_);
+
+	  //save the triangulated correspondings
+	  Output_TriangulatedCorrespondings(stlplus::create_filespec(sOut_directory_, "triangulated_correspondings_" + std::to_string(loop_i), ".csv"), sfm_data_);
+
+	  // save triangulated matchings
+	  Output_TriangulatedMatchings(stlplus::create_filespec(sOut_directory_, "triangulated_matchings_" + std::to_string(loop_i), ".csv"), matches_provider_, sfm_data_);
+	  //save remain extra matches
+	  Output_Matchings(stlplus::create_filespec(sOut_directory_, "remain_extramatchings_" + std::to_string(loop_i), ".csv"), extra_matches_provider.get());
+
+	  /////////////BC start////////////////
+      //optimize
+	  system::Timer optimizing_timer;
+	  Optimize();
+	  std::cout << "Optimizing task done in (s): " << optimizing_timer.elapsed() << std::endl;
+	  Output_trajectory(stlplus::create_filespec(sOut_directory_, "view_poses_ba_" + std::to_string(loop_i), ".csv"), sfm_data_);
+
+	  Output_TriangulatedCorrespondings(stlplus::create_filespec(sOut_directory_, "triangulated_correspondings_ba_" + std::to_string(loop_i), ".csv"), sfm_data_);
+      loop_i++;
+	  std::cout << "This augmentation task done in (s): " << augmentation_once_timer.elapsed() << std::endl;
 
   }
+  return true; 
 }
 
-bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::LoopDetection()
+bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::LoopDetection(Pair_Set& extra_pairs,const Pair_Set& tried_pairs)
 {
+  extra_pairs.clear();
 	const double MaxAngleThreshold = 25.0;
   for(const auto& view_i:sfm_data_.GetViews())
   {
@@ -85,29 +181,54 @@ bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::LoopDetection()
     for(const auto& view_j:sfm_data_.GetViews())
     {
       if(view_i.first>=view_j.first) continue;
+      Pair pair(view_i.first,view_j.first);
+	  Pair pair_inverse(view_j.first, view_i.first);
+      if(matches_provider_->pairWise_matches_.count(pair)||
+		 matches_provider_->pairWise_matches_.count(pair_inverse)) continue;
+	  if (tried_pairs.count(pair) || tried_pairs.count(pair_inverse)) continue;
+
       const Pose3& pose_j = sfm_data_.GetPoseOrDie(view_j.second.get());
       const Mat3 R_j = pose_j.rotation();
       const double angularErrorDegree = R2D(getRotationMagnitude(R_i * R_j.transpose()));
-	  if (angularErrorDegree < MaxAngleThreshold)
-	  {
-
-	  }
+      if (angularErrorDegree < MaxAngleThreshold)
+      {
+          extra_pairs.insert(pair);
+      }
     }
   }
+  return extra_pairs.size() > 0;
 }
 
-bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::Process() {
+bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::Optimize() {
+
+   std::cout<<"/////IMU Global SfM BA/////\n";
+  
+  if (!Adjust())
+  {
+    std::cerr << "GlobalSfM:: Non-linear adjustment failure!" << std::endl;
+    return false;
+  }
+  
+  //-- Export statistics about the SfM process
+  std::cout << "Structure from Motion statistics.";
 
 
-  ////BC start////
-	//save the raw pose
-  Output_trajectory(stlplus::create_filespec(sOut_directory_, "rawposes", ".csv"),sfm_data_);
-	
-  Output_Matchings(stlplus::create_filespec(sOut_directory_, "matching_withloopbegin", ".csv"),matches_provider_);
   
-  //save the raw corresponds
+  std::cout << "-------------------------------" << "\n"
+    << "-- View count: " << sfm_data_.GetViews().size() << "\n"
+    << "-- Intrinsic count: " << sfm_data_.GetIntrinsics().size() << "\n"
+    << "-- Pose count: " << sfm_data_.GetPoses().size() << "\n"
+    << "-- Track count: "  << sfm_data_.GetLandmarks().size() << "\n"
+    << "-------------------------------" << "\n";
+    
+
+  return true;
+}
+
+bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::Process(std::shared_ptr<Matches_Provider> extra_matches_provider_) {
+
+
   
-  ////BC end //// 
   std::cout<<"/////IMU Global SfM Iterative Pose Augmentation/////\n";
   //-------------------
   // Keep only the largest biedge connected subgraph
@@ -136,113 +257,42 @@ bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::Process() {
   }
   ////bc end////
   matching::PairWiseMatches  tripletWise_matches;
-  if (!Compute_Global_Translations(global_rotations, tripletWise_matches))
+  if (!Compute_Global_PrioTranslations(global_rotations, tripletWise_matches,extra_matches_provider_.get()))
   {
     std::cerr << "GlobalSfM:: Translation Averaging failure!" << std::endl;
     return false;
   }
+  //recompute structure
+  sfm_data_.structure.clear();    //bc
   if (!Compute_Initial_Structure(tripletWise_matches))
   {
     std::cerr << "GlobalSfM:: Cannot initialize an initial structure!" << std::endl;
     return false;
   }
-  /////////////BC start////////////////
-  //output the view  graph
-  std::cout<<"BC is debuging\n";
-  if (!sLogging_file_.empty() && !sOut_directory_.empty())
-  {
-    std::cout<<"saving view graph before final ba\n";
-    std::ofstream viewgraph_file(stlplus::create_filespec(sOut_directory_, "viewgraph_augamentation.csv"));
-    std::set<IndexT> set_view_ids;
-    Pair_Set relative_view_pairs;
-
-    viewgraph_file<<"image_id1,image_id2,match_num\n";
-    for(const auto& pair_iter : tripletWise_matches)
-    {
-      const auto & imageI = pair_iter.first.first;
-      const auto & imageJ = pair_iter.first.second;
-      size_t match_num = pair_iter.second.size();
-      set_view_ids.insert(imageI);
-      set_view_ids.insert(imageJ);
-      relative_view_pairs.insert(Pair(imageI,imageJ));
-
-      viewgraph_file<<imageI<<","<<imageJ<<","<<match_num<<"\n";
-    } 
-    // Log a relative view graph
-    {
-      const std::string sGraph_name = "viewgraph_augmentation";
-      graph::indexedGraph putativeGraph(set_view_ids, relative_view_pairs);
-      graph::exportToGraphvizData(
-        stlplus::create_filespec(sOut_directory_, sGraph_name),
-        putativeGraph);
-    }
-	viewgraph_file.close();
-  }
-  //save the sfm scene data
-  Save(sfm_data_,
-	  stlplus::create_filespec(sOut_directory_, "Trajectory_Augmentation", ".json"),
-	  ESfM_Data(INTRINSICS | VIEWS | EXTRINSICS));
-  Save(sfm_data_,
-      stlplus::create_filespec(sOut_directory_, "sfm_data_Augmentation",".json"),
-      ESfM_Data(ALL));
-  //save the image pose by view_id
-  Output_trajectory(stlplus::create_filespec(sOut_directory_, "view_poses", ".csv"),sfm_data_);
   
-  //save the triangulated correspondings
-  Output_TriangulatedCorrespondings(stlplus::create_filespec(sOut_directory_, "triangulated_correspondings", ".csv"),sfm_data_);
-  
-  // save triangulated matchings
-  Output_TriangulatedMatchings(stlplus::create_filespec(sOut_directory_, "triangulated_matchings", ".csv"),matches_provider_,sfm_data_);
-  
-  std::cout<<"Debug complete\n";
-  /////////////BC   end////////////////
-  // if (!Adjust())
-  // {
-  //   std::cerr << "GlobalSfM:: Non-linear adjustment failure!" << std::endl;
-  //   return false;
-  // }
-
-  //-- Export statistics about the SfM process
-  if (!sLogging_file_.empty())
-  {
-    using namespace htmlDocument;
-    std::ostringstream os;
-    os << "Structure from Motion statistics.";
-    html_doc_stream_->pushInfo("<hr>");
-    html_doc_stream_->pushInfo(htmlMarkup("h1",os.str()));
-
-    os.str("");
-    os << "-------------------------------" << "<br>"
-      << "-- View count: " << sfm_data_.GetViews().size() << "<br>"
-      << "-- Intrinsic count: " << sfm_data_.GetIntrinsics().size() << "<br>"
-      << "-- Pose count: " << sfm_data_.GetPoses().size() << "<br>"
-      << "-- Track count: "  << sfm_data_.GetLandmarks().size() << "<br>"
-      << "-------------------------------" << "<br>";
-    html_doc_stream_->pushInfo(os.str());
-  }
 
   return true;
 }
 
 
 /// Compute/refine relative translations and compute global translations
-bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::Compute_Global_Translations
+bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::Compute_Global_PrioTranslations
 (
   const Hash_Map<IndexT, Mat3> & global_rotations,
-  matching::PairWiseMatches & tripletWise_matches
+  matching::PairWiseMatches & tripletWise_matches,
+  Matches_Provider* extra_matches_provider_
 )
 {
   // Translation averaging (compute translations & update them to a global common coordinates system)
   GlobalSfM_PrioTranslation_AveragingSolver priotranslation_averaging_solver;
-  const bool bTranslationAveraging = false;
-  // const bool bTranslationAveraging = priotranslation_averaging_solver.MyRun(
-  //   eTranslation_averaging_method_,
-  //   sfm_data_,
-  //   features_provider_,
-  //   matches_provider_,
-  //   global_rotations,
-  //   tripletWise_matches,
-  //   extra_matches_provider_);
+  const bool bTranslationAveraging = priotranslation_averaging_solver.MyRun(
+    eTranslation_averaging_method_,
+    sfm_data_,
+    features_provider_,
+    matches_provider_,
+    global_rotations,
+    tripletWise_matches,
+    extra_matches_provider_);
   /////////////BC start////////////////
   //output the pose graph
   std::cout<<"BC is debuging\n";

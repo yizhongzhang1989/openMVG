@@ -31,6 +31,11 @@ bool Output_trajectory(std::string filename,const SfM_Data& sfm_data_) {
 	trajectory_file << "viewid,R00,R01,R02,R10,R11,R12,R20,R21,R22,C0,C1,C2\n";
 	for (const auto& view_item : sfm_data_.GetViews())
 	{
+		if (!sfm_data_.GetPoses().count(view_item.first))
+		{
+			std::cout << "View " << view_item.first << " is not calibrated\n";
+			continue;
+		}
 		const geometry::Pose3& pose = sfm_data_.GetPoseOrDie(view_item.second.get());
 		trajectory_file << view_item.first << ",";
 		const Mat3& rotation = pose.rotation();
@@ -178,6 +183,18 @@ bool Output_AngleBetweenRotations(std::string filename,const Matches_Provider* m
   {
       const std::shared_ptr<View> view_i = sfm_data_.GetViews().at(match_item.first.first);
       const std::shared_ptr<View> view_j = sfm_data_.GetViews().at(match_item.first.second);
+	  if (!sfm_data_.GetPoses().count(match_item.first.first) || !sfm_data_.GetPoses().count(match_item.first.second))
+	  {
+		  if (!sfm_data_.GetPoses().count(match_item.first.first))
+		  {
+			  std::cout << "View " << match_item.first.first << " is not calibrated\n";
+		  }
+		  if (!sfm_data_.GetPoses().count(match_item.first.second))
+		  {
+			  std::cout << "View " << match_item.first.second << " is not calibrated\n";
+		  }
+		  continue;
+	  }
       const Mat3 R_i = sfm_data_.GetPoseOrDie(view_i.get()).rotation();
       const Mat3 R_j = sfm_data_.GetPoseOrDie(view_j.get()).rotation();
       const double angularErrorDegree = R2D(getRotationMagnitude(R_i * R_j.transpose()));

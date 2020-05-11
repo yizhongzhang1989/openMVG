@@ -176,6 +176,11 @@ bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::LoopDetection(Pair
 	const double MaxAngleThreshold = 25.0;
   for(const auto& view_i:sfm_data_.GetViews())
   {
+	if (!sfm_data_.GetPoses().count(view_i.first))
+	{
+		std::cout << "View " << view_i.first << " is not calibrated\n";
+		continue;
+	}
     const Pose3& pose_i = sfm_data_.GetPoseOrDie(view_i.second.get());
     const Mat3 R_i = pose_i.rotation();
     for(const auto& view_j:sfm_data_.GetViews())
@@ -186,6 +191,12 @@ bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::LoopDetection(Pair
       if(matches_provider_->pairWise_matches_.count(pair)||
 		 matches_provider_->pairWise_matches_.count(pair_inverse)) continue;
 	  if (tried_pairs.count(pair) || tried_pairs.count(pair_inverse)) continue;
+
+	  if (!sfm_data_.GetPoses().count(view_j.first))
+	  {
+		  std::cout << "View " << view_j.first << " is not calibrated\n";
+		  continue;
+	  }
 
       const Pose3& pose_j = sfm_data_.GetPoseOrDie(view_j.second.get());
       const Mat3 R_j = pose_j.rotation();

@@ -496,7 +496,7 @@ int main(int argc, char **argv)
         {
             if(iteration_sfm_data.IsPoseAndIntrinsicDefined(view_item.second.get()))
             {
-               newviews ++;
+               if (!registered_views.count(view_item.first)) newviews ++;
                registered_views.insert(view_item.first);
             }
         }

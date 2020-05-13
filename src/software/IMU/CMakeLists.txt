@@ -85,30 +85,35 @@ target_link_libraries(openMVG_IMU_main_GlobalSfM_iterative_pose_augmentation
 set_property(TARGET openMVG_IMU_main_GlobalSfM_iterative_pose_augmentation PROPERTY FOLDER OpenMVG/software/imu)
 install(TARGETS openMVG_IMU_main_GlobalSfM_iterative_pose_augmentation DESTINATION bin/)
 
-# SplitMatchFileIntoMatchFiles
-
-
-# Installation rules
-
-
-# -
-# Use openCV Feature detector to describe the images
-# -
-
-
 ###
-# SfM Research tools
-#
-# - Quality comparison against a GT camera path (MultiView Evaluation dataset)
+# SfM Align tools
 ###
-
+add_executable(openMVG_IMU_main_TrajectoryAlign main_TrajectoryAlign.cpp)
+target_link_libraries(openMVG_IMU_main_TrajectoryAlign
+  openMVG_features
+  openMVG_image
+  openMVG_sfm
+  openMVG_system
+  ${STLPLUS_LIBRARY}
+)
 
 #installation rules
+set_property(TARGET openMVG_IMU_main_TrajectoryAlign PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_TrajectoryAlign DESTINATION bin/)
+###
+# Iterative sequential sfm
+###
+add_executable(openMVG_IMU_main_Iterative_IncrementalSfM main_Iterative_IncrementalSfM.cpp)
+target_link_libraries(openMVG_IMU_main_Iterative_IncrementalSfM
+  PRIVATE
+    openMVG_system
+    openMVG_image
+    openMVG_features
+    openMVG_sfm
+    ${STLPLUS_LIBRARY}
+)
 
-
-##
-# Export tutorial with valid path thanks to a configuration file
-##
-
+set_property(TARGET openMVG_IMU_main_Iterative_IncrementalSfM PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_Iterative_IncrementalSfM DESTINATION bin/)
 
 

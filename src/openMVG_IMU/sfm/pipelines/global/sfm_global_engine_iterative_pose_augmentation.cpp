@@ -86,9 +86,11 @@ bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::Run()
                <<"///////////////////////////\n";
 	  tried_pairs.insert(extra_pairs.begin(), extra_pairs.end());
       std::cout<<"Detect "<<extra_pairs.size()<<" pairs\n";
-      std::shared_ptr<Matches_Provider> extra_matches_provider = std::make_shared<Matches_Provider>();
-	 
+      ///////////////////////////////////////////////////////
+	  ////////////match extra image pair start///////////////
+	  ///////////////////////////////////////////////////////
 	  system::Timer matching_timer;
+	  std::shared_ptr<Matches_Provider> extra_matches_provider = std::make_shared<Matches_Provider>();
 	  matching_image_collection::ComputeMatchesController::Process(sfm_data_,sMatchesDir_,extra_matches_provider.get(),"f",
                                        true,extra_pairs,true, stlplus::create_filespec(sOut_directory_, "matches_f_" + std::to_string(loop_i), ".bin"));
 	  std::cout << "Matching task done in (s): " << matching_timer.elapsed() << std::endl;
@@ -134,6 +136,9 @@ bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::Run()
 	  //save the raw corresponds
 
 	  ////BC end //// 
+	  ///////////////////////////////////////////////////////
+	  ////////////////////motion averaging///////////////////
+	  ///////////////////////////////////////////////////////
 	  system::Timer averaging_timer;
       if(!Process(extra_matches_provider))
       {
@@ -155,15 +160,21 @@ bool GlobalSfMReconstructionEngine_IterativePoseAugmentation::Run()
 	  //save remain extra matches
 	  Output_Matchings(stlplus::create_filespec(sOut_directory_, "remain_extramatchings_" + std::to_string(loop_i), ".csv"), extra_matches_provider.get());
 
-	  /////////////BC start////////////////
-      //optimize
+	  
+	  ///////////////////////////////////////////////////////
+	  ////////////////////////optimize///////////////////////
+	  ///////////////////////////////////////////////////////
 	  system::Timer optimizing_timer;
 	  Optimize();
 	  std::cout << "Optimizing task done in (s): " << optimizing_timer.elapsed() << std::endl;
 	  Output_trajectory(stlplus::create_filespec(sOut_directory_, "view_poses_ba_" + std::to_string(loop_i), ".csv"), sfm_data_);
 
 	  Output_TriangulatedCorrespondings(stlplus::create_filespec(sOut_directory_, "triangulated_correspondings_ba_" + std::to_string(loop_i), ".csv"), sfm_data_);
-      loop_i++;
+	  //save the sfm scene data
+	  Save(sfm_data_,
+		  stlplus::create_filespec(sOut_directory_, "sfm_data_augmentation_loop_"  + std::to_string(loop_i), ".json"),
+		  ESfM_Data(ALL));
+	  loop_i++;
 	  std::cout << "This augmentation task done in (s): " << augmentation_once_timer.elapsed() << std::endl;
 
   }

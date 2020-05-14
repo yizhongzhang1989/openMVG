@@ -11,5 +11,7 @@
 *.db
 build*
 *.out
-
+.idea
+.vscode
+.vs
 docs/openmvg.pdf

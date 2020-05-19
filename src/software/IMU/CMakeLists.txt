@@ -115,5 +115,36 @@ target_link_libraries(openMVG_IMU_main_Iterative_IncrementalSfM
 
 set_property(TARGET openMVG_IMU_main_Iterative_IncrementalSfM PROPERTY FOLDER OpenMVG/software/imu)
 install(TARGETS openMVG_IMU_main_Iterative_IncrementalSfM DESTINATION bin/)
+###
+# Compute Matches with optialfiltering
+###
+add_executable(openMVG_IMU_main_ComputeMatches_with_opticalfiltering main_ComputeMatches_with_opticalfiltering.cpp)
+target_link_libraries(openMVG_IMU_main_ComputeMatches_with_opticalfiltering
+  PRIVATE
+    openMVG_graph
+    openMVG_features
+    openMVG_matching_image_collection
+    openMVG_multiview
+    openMVG_sfm
+    openMVG_system
+    ${STLPLUS_LIBRARY}
+)
+set_property(TARGET openMVG_IMU_main_ComputeMatches_with_opticalfiltering PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_ComputeMatches_with_opticalfiltering DESTINATION bin/)
 
-
+###
+# Compute Matches with optialfiltering
+###
+add_executable(openMVG_IMU_main_ComputeMatches_in_opticalflow main_ComputeMatches_in_opticalflow.cpp)
+target_link_libraries(openMVG_IMU_main_ComputeMatches_in_opticalflow
+  PRIVATE
+    openMVG_graph
+    openMVG_features
+    openMVG_matching_image_collection
+    openMVG_multiview
+    openMVG_sfm
+    openMVG_system
+    ${STLPLUS_LIBRARY}
+)
+set_property(TARGET openMVG_IMU_main_ComputeMatches_in_opticalflow PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_ComputeMatches_in_opticalflow DESTINATION bin/)

@@ -31,6 +31,8 @@
 #include "openMVG/stl/stl.hpp"
 #include "openMVG/system/timer.hpp"
 
+#include "openMVG_IMU/matching_image_collection/Optical_Flow_Matcher_Regions.hpp"
+
 #include "third_party/cmdLine/cmdLine.h"
 #include "third_party/stlplus3/filesystemSimplified/file_system.hpp"
 
@@ -78,10 +80,12 @@ int main(int argc, char **argv)
   int iMatchingVideoMode = -1;
   std::string sPredefinedPairList = "";
   std::string sNearestMatchingMethod = "AUTO";
+  std::string bin_dir = "";   //bc
   bool bForce = false;
   bool bGuided_matching = false;
   int imax_iteration = 2048;
   unsigned int ui_max_cache_size = 0;
+  double MaxDistanceThreshold = 10.0;
 
   //required
   cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
@@ -96,6 +100,8 @@ int main(int argc, char **argv)
   cmd.add( make_option('m', bGuided_matching, "guided_matching") );
   cmd.add( make_option('I', imax_iteration, "max_iteration") );
   cmd.add( make_option('c', ui_max_cache_size, "cache_size") );
+  cmd.add(make_option('b', bin_dir, "bin_dir"));
+  cmd.add(make_option('k', MaxDistanceThreshold, "maxdistancethreshold"));
 
 
   try {
@@ -139,6 +145,11 @@ int main(int argc, char **argv)
       << "[-c|--cache_size]\n"
       << "  Use a regions cache (only cache_size regions will be stored in memory)\n"
       << "  If not used, all regions will be load in memory."
+      << "[-b|--bin_dir]\n"
+	  << "  the directory stores the binary file of position of features tracked in optical flow.\n"
+	  << "  It must be specified if you set nearest matching method as `OPTICALFLOW`.\n"
+    << "[-k|--maxdistancethreshold]\n"
+	    << "  the distance threshold for the optical filtering.\n"
       << std::endl;
 
       std::cerr << s << std::endl;
@@ -173,7 +184,6 @@ int main(int argc, char **argv)
     std::cerr << "\nIt is an invalid output directory" << std::endl;
     return EXIT_FAILURE;
   }
-
   EGeometricModel eGeometricModelToCompute = FUNDAMENTAL_MATRIX;
   std::string sGeometricMatchesFilename = "";
   switch (sGeometricModel[0])
@@ -359,6 +369,13 @@ int main(int argc, char **argv)
       std::cout << "Using FAST_CASCADE_HASHING_L2 matcher" << std::endl;
       collectionMatcher.reset(new Cascade_Hashing_Matcher_Regions(fDistRatio));
     }
+	else if (sNearestMatchingMethod == "OPTICALFLOW" )
+	{
+		std::cout << "Using FAST_CASCADE_HASHING_L2 matcher" << std::endl;
+		collectionMatcher.reset(new Optical_Flow_Matcher_Regions(fDistRatio,bin_dir,MaxDistanceThreshold,sfm_data));
+		
+		
+	}
     if (!collectionMatcher)
     {
       std::cerr << "Invalid Nearest Neighbor method: " << sNearestMatchingMethod << std::endl;

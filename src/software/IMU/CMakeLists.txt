@@ -118,8 +118,8 @@ install(TARGETS openMVG_IMU_main_Iterative_IncrementalSfM DESTINATION bin/)
 ###
 # Compute Matches with optialfiltering
 ###
-add_executable(openMVG_IMU_main_ComputeMatches_with_opticalfiltering main_ComputeMatches_with_opticalfiltering.cpp)
-target_link_libraries(openMVG_IMU_main_ComputeMatches_with_opticalfiltering
+add_executable(openMVG_IMU_main_ComputeMatches_optical_filtering main_ComputeMatches_optical_filtering.cpp)
+target_link_libraries(openMVG_IMU_main_ComputeMatches_optical_filtering
   PRIVATE
     openMVG_graph
     openMVG_features
@@ -129,14 +129,14 @@ target_link_libraries(openMVG_IMU_main_ComputeMatches_with_opticalfiltering
     openMVG_system
     ${STLPLUS_LIBRARY}
 )
-set_property(TARGET openMVG_IMU_main_ComputeMatches_with_opticalfiltering PROPERTY FOLDER OpenMVG/software/imu)
-install(TARGETS openMVG_IMU_main_ComputeMatches_with_opticalfiltering DESTINATION bin/)
+set_property(TARGET openMVG_IMU_main_ComputeMatches_optical_filtering PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_ComputeMatches_optical_filtering DESTINATION bin/)
 
 ###
 # Compute Matches with optialfiltering
 ###
-add_executable(openMVG_IMU_main_ComputeMatches_in_opticalflow main_ComputeMatches_in_opticalflow.cpp)
-target_link_libraries(openMVG_IMU_main_ComputeMatches_in_opticalflow
+add_executable(openMVG_IMU_main_ComputeMatches_optical_matching main_ComputeMatches_optical_matching.cpp)
+target_link_libraries(openMVG_IMU_main_ComputeMatches_optical_matching
   PRIVATE
     openMVG_graph
     openMVG_features
@@ -144,7 +144,21 @@ target_link_libraries(openMVG_IMU_main_ComputeMatches_in_opticalflow
     openMVG_multiview
     openMVG_sfm
     openMVG_system
+    openMVG_IMU_matching_image_collection
     ${STLPLUS_LIBRARY}
 )
-set_property(TARGET openMVG_IMU_main_ComputeMatches_in_opticalflow PROPERTY FOLDER OpenMVG/software/imu)
-install(TARGETS openMVG_IMU_main_ComputeMatches_in_opticalflow DESTINATION bin/)
+set_property(TARGET openMVG_IMU_main_ComputeMatches_optical_matching PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_ComputeMatches_optical_matching DESTINATION bin/)
+
+###
+# - View computed matches in motion (putatives, geometrics) per image pair
+#
+add_executable(openMVG_IMU_main_exportMatches_in_motion main_exportMatches_in_motion.cpp)
+target_link_libraries(openMVG_IMU_main_exportMatches_in_motion
+  openMVG_system
+  openMVG_features
+  openMVG_sfm
+  ${STLPLUS_LIBRARY}
+)
+set_property(TARGET openMVG_IMU_main_exportMatches_in_motion PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_exportMatches_in_motion DESTINATION bin/)

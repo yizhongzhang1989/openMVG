@@ -32,6 +32,7 @@
 #include "openMVG/system/timer.hpp"
 
 #include "openMVG_IMU/matching_image_collection/Optical_Flow_Matcher_Regions.hpp"
+#include "openMVG_IMU/matching_image_collection/Hierarchical_Matcher_Regions.hpp"
 
 #include "third_party/cmdLine/cmdLine.h"
 #include "third_party/stlplus3/filesystemSimplified/file_system.hpp"
@@ -40,6 +41,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <queue>
 
 using namespace openMVG;
 using namespace openMVG::matching;
@@ -69,6 +71,167 @@ enum EPairMode
 /// - Compute putative local feature matches (descriptors matching)
 /// - Compute geometric coherent feature matches (robust model estimation from putative matches)
 /// - Export computed data
+
+void SolveArticulationPoint(const PairWiseMatches& map_GeometricMatches, const int i_neighbour_count
+	, Pair_Set& pairs)
+{
+
+
+	//collect vertex
+	std::set<IndexT> used_index;
+	for (const auto& pairwisematches : map_GeometricMatches)
+	{
+		used_index.insert(pairwisematches.first.first);
+		used_index.insert(pairwisematches.first.second);
+	}
+
+	//Discretization
+	std::map<IndexT, IndexT> reindex_front;
+	std::map<IndexT, IndexT> reindex_back;
+	size_t num_view = 0;
+	for (const IndexT view_id : used_index)
+	{
+		reindex_front.emplace(view_id, num_view);
+		reindex_back.emplace(num_view, view_id);
+		num_view++;
+	}
+
+	//collect edges
+	std::vector<std::vector<IndexT>> edges;
+	edges.resize(num_view);
+	for (const auto& pairwisematches : map_GeometricMatches)
+	{
+		IndexT u = reindex_front.at(pairwisematches.first.first);
+		IndexT v = reindex_front.at(pairwisematches.first.second);
+		edges[u].push_back(v);
+		edges[v].push_back(u);
+	}
+	//travel all node by depth first search
+	auto dfs_function = [&](IndexT i, std::vector<bool>& vis, const std::vector<std::vector<IndexT>>& edges)
+	{
+		std::stack<IndexT> dfs_stack;
+		dfs_stack.push(i);
+		vis[i] = true;
+		while (!dfs_stack.empty())
+		{
+			IndexT u = dfs_stack.top();
+			dfs_stack.pop();
+			for (const auto& v : edges[u])
+			{
+				if (vis[v]) continue;
+				dfs_stack.push(v);
+				vis[v] = true;
+			}
+		}
+	};
+	//find number of connected components in graph
+	size_t num_connected = 0;
+	std::vector<bool> vis(num_view);
+	std::fill(vis.begin(), vis.end(), false);
+	for (size_t i = 0; i < num_view; i++)
+	{
+		if (!vis[i])
+		{
+			dfs_function(i, vis, edges);
+			num_connected++;
+		}
+	}
+	std::cout << "#biconnected componcents: " << num_connected << "\n";
+	//find articulation point in graph
+	std::map<IndexT, int> articulation_points;
+
+	for (size_t i = 0; i < num_view; i++)
+	{
+		std::fill(vis.begin(), vis.end(), false);
+		size_t num_conected_tmp = 0;
+		vis[i] = true;  //remove the point 
+						//check whether new connected components occur 
+		for (size_t j = 0; j < num_view; j++)
+		{
+			if (!vis[j])
+			{
+				dfs_function(j, vis, edges);
+				num_conected_tmp++;
+			}
+		}
+		if (num_conected_tmp != num_connected)
+		{
+			articulation_points.emplace(i, num_conected_tmp -num_connected );
+			std::cout << "find articulation points: view " << reindex_back.at(i) << "\n";
+		}
+	}
+
+
+	//   *** -- * -- ***  middle point is articulation point
+	// we should add more edges between left nodes and right nodes.
+	//xxxxxPlan1 : pair the articulation views with its neighbour frames (optional)
+	//Plan2 : pair the articulation views according graph
+	int num_neighbour = i_neighbour_count < 0 ? 15 : i_neighbour_count;
+
+
+
+	for (const auto& node_item : articulation_points)
+	{
+
+		IndexT node_id = node_item.first;
+		IndexT view_id = reindex_back.at(node_id);
+		//IndexT first_view = view_id > i_neighbour_count ? view_id - i_neighbour_count : 0;
+		//IndexT second_view = view_id + i_neighbour_count < *used_index.rbegin() ? view_id + i_neighbour_count : *used_index.rbegin();
+		std::set<IndexT> searched_views;
+		searched_views.insert(view_id);
+		int minSearchDepth = num_neighbour + 1;
+		int MinSearchNodes = num_neighbour * (node_item.second + 1);
+		//std::cout << "MinSearchNodes:" << MinSearchNodes << "\n";
+		{
+			std::queue<IndexT> bfs_queue;
+			std::vector<int> vis_tmp(num_view);
+			std::fill(vis_tmp.begin(), vis_tmp.end(), 0);
+			bfs_queue.push(node_id);
+			vis_tmp[node_id] = 1;
+			while (!bfs_queue.empty())
+			{
+				IndexT u = bfs_queue.front();
+				bfs_queue.pop();
+				for (const auto& v : edges[u])
+				{
+					if (vis_tmp[v]) continue;
+
+					vis_tmp[v] = vis_tmp[u] + 1;
+					if (vis_tmp[v] <= minSearchDepth)
+					{
+						bfs_queue.push(v);
+						//std::cout << "find view" << reindex_back.at(v) << "in level " << vis_tmp[v] << "\n";
+						//std::cout << "			minSearchDepth:" << minSearchDepth << "\n";
+						searched_views.insert(reindex_back.at(v));
+						if (searched_views.size() > MinSearchNodes)
+						{
+							minSearchDepth = vis_tmp[v];
+						}
+					}
+
+				}
+			}
+		}
+		size_t  size_before = pairs.size();
+		for (const auto& view_id1 : searched_views)
+		{
+			for (const auto& view_id2 : searched_views)
+			{
+				if (view_id1 < view_id2)
+				{
+					pairs.insert(Pair(view_id1, view_id2));
+				}
+			}
+		}
+		size_t  size_after = pairs.size();
+		std::cout << "find " << size_after - size_before << " pairs for articulation view " << view_id << "\n";
+
+	}
+	std::cout << "#total pairs found : " << pairs.size() << "\n";
+}
+
+
+
 int main(int argc, char **argv)
 {
   CmdLine cmd;
@@ -86,6 +249,9 @@ int main(int argc, char **argv)
   int imax_iteration = 2048;
   unsigned int ui_max_cache_size = 0;
   double MaxDistanceThreshold = 10.0;
+  bool bfeature_validation = true, bopticalfiltering = true;
+  bool bdynamicdistance = false, bopticalmatching = false;
+  bool bSolveArticulationPoint = true;
 
   //required
   cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
@@ -102,6 +268,11 @@ int main(int argc, char **argv)
   cmd.add( make_option('c', ui_max_cache_size, "cache_size") );
   cmd.add(make_option('b', bin_dir, "bin_dir"));
   cmd.add(make_option('k', MaxDistanceThreshold, "maxdistancethreshold"));
+  cmd.add(make_option('a', bfeature_validation, "bfeature_validation"));
+  cmd.add(make_option('d', bopticalfiltering, "bopticalfiltering"));
+  cmd.add(make_option('e', bdynamicdistance, "bdynamicdistance"));
+  cmd.add(make_option('h', bopticalmatching, "bopticalmatching"));
+  cmd.add(make_option('j', bSolveArticulationPoint, "bSolveArticulationPoint"));
 
 
   try {
@@ -150,6 +321,16 @@ int main(int argc, char **argv)
 	  << "  It must be specified if you set nearest matching method as `OPTICALFLOW`.\n"
     << "[-k|--maxdistancethreshold]\n"
 	    << "  the distance threshold for the optical filtering.\n"
+		  << "[-a|--bfeature_validation]\n"
+		  << "  matching with I to J and J to I.\n"
+		  << "[-d|--bopticalfiltering]\n"
+		  << "  filter matches by optical flow.\n"
+		  << "[-e|--bdynamicdistance]\n"
+		  << "  select a dynamic distance threshold in optical filtering.\n"
+		  << "[-h|--bopticalmatching]\n"
+		  << "  match with local feature according optical flow.\n"
+		  << "[-j|--bSolveArticulationPoint]\n"
+		  << "  detect articulation point and repair the graph.\n"
       << std::endl;
 
       std::cerr << s << std::endl;
@@ -157,19 +338,26 @@ int main(int argc, char **argv)
   }
 
   std::cout << " You called : " << "\n"
-            << argv[0] << "\n"
-            << "--input_file " << sSfM_Data_Filename << "\n"
-            << "--out_dir " << sMatchesDirectory << "\n"
-            << "Optional parameters:" << "\n"
-            << "--force " << bForce << "\n"
-            << "--ratio " << fDistRatio << "\n"
-            << "--geometric_model " << sGeometricModel << "\n"
-            << "--video_mode_matching " << iMatchingVideoMode << "\n"
-            << "--pair_list " << sPredefinedPairList << "\n"
-            << "--nearest_matching_method " << sNearestMatchingMethod << "\n"
-            << "--guided_matching " << bGuided_matching << "\n"
-            << "--cache_size " << ((ui_max_cache_size == 0) ? "unlimited" : std::to_string(ui_max_cache_size)) << std::endl;
-
+			<< argv[0] << "\n"
+			<< "--input_file " << sSfM_Data_Filename << "\n"
+			<< "--out_dir " << sMatchesDirectory << "\n"
+			<< "Optional parameters:" << "\n"
+			<< "--force " << bForce << "\n"
+			<< "--ratio " << fDistRatio << "\n"
+			<< "--geometric_model " << sGeometricModel << "\n"
+			<< "--video_mode_matching " << iMatchingVideoMode << "\n"
+			<< "--pair_list " << sPredefinedPairList << "\n"
+			<< "--nearest_matching_method " << sNearestMatchingMethod << "\n"
+			<< "--guided_matching " << bGuided_matching << "\n"
+			<< "--cache_size " << ((ui_max_cache_size == 0) ? "unlimited" : std::to_string(ui_max_cache_size)) << std::endl
+			<< "--bin_dir " << bin_dir << "\n"
+			<< "--MaxDistanceThreshold " << MaxDistanceThreshold << "\n"
+			<< "--bfeature_validation " << bfeature_validation << "\n"
+			<< "--bopticalfiltering " << bopticalfiltering << "\n"
+			<< "--bdynamicdistance " << bdynamicdistance << "\n"
+			<< "--bopticalmatching " << bopticalmatching << "\n"
+			<< "--bSolveArticulationPoint " << bSolveArticulationPoint << "\n";
+				
   EPairMode ePairmode = (iMatchingVideoMode == -1 ) ? PAIR_EXHAUSTIVE : PAIR_CONTIGUOUS;
 
   if (sPredefinedPairList.length()) {
@@ -319,6 +507,7 @@ int main(int argc, char **argv)
 
     // Allocate the right Matcher according the Matching requested method
     std::unique_ptr<Matcher> collectionMatcher;
+	std::unique_ptr<Hierarchical_Matcher_Regions> hierarchicalMatcher;
     if (sNearestMatchingMethod == "AUTO")
     {
       if (regions_type->IsScalar())
@@ -371,12 +560,18 @@ int main(int argc, char **argv)
     }
 	else if (sNearestMatchingMethod == "OPTICALFLOW" )
 	{
-		std::cout << "Using FAST_CASCADE_HASHING_L2 matcher" << std::endl;
-		collectionMatcher.reset(new Optical_Flow_Matcher_Regions(fDistRatio,bin_dir,MaxDistanceThreshold,sfm_data));
-		
-		
+		std::cout << "Using Optical_Flow_Matcher_Regions" << std::endl;
+		collectionMatcher.reset(new Optical_Flow_Matcher_Regions(fDistRatio,bin_dir,MaxDistanceThreshold,sfm_data,sMatchesDirectory));
 	}
-    if (!collectionMatcher)
+	else if (sNearestMatchingMethod == "HIERARCHICAL")
+	{
+		std::cout << "Using Hierarchical_Matcher_Regions" << std::endl;
+		hierarchicalMatcher.reset(
+			new Hierarchical_Matcher_Regions(fDistRatio, bin_dir, MaxDistanceThreshold, sfm_data, sMatchesDirectory,
+				bfeature_validation, bopticalfiltering, bdynamicdistance, bopticalmatching));
+		//collectionMatcher.reset(new Hierarchical_Matcher_Regions(fDistRatio, bin_dir, MaxDistanceThreshold, sfm_data,sMatchesDirectory));
+	}
+    if (!collectionMatcher && !hierarchicalMatcher)
     {
       std::cerr << "Invalid Nearest Neighbor method: " << sNearestMatchingMethod << std::endl;
       return EXIT_FAILURE;
@@ -398,7 +593,15 @@ int main(int argc, char **argv)
           break;
       }
       // Photometric matching of putative pairs
-      collectionMatcher->Match(regions_provider, pairs, map_PutativesMatches, &progress);
+	  if (sNearestMatchingMethod == "HIERARCHICAL")
+	  {
+		  hierarchicalMatcher->Hierarchical_Match(regions_provider, pairs, map_PutativesMatches, &progress);
+	  }
+	  else
+	  {
+		  collectionMatcher->Match(regions_provider, pairs, map_PutativesMatches, &progress);
+	  }
+      
       //---------------------------------------
       //-- Export putative matches
       //---------------------------------------
@@ -506,6 +709,132 @@ int main(int argc, char **argv)
       break;
     }
 
+	//////////Detect Articulation Point//////////////
+	if (bSolveArticulationPoint)
+	{
+
+		//---------------------------------------
+		// c. compute matches of pairs for eliminate the articulation point
+		//---------------------------------------
+		Pair_Set additional_pairs;
+		PairWiseMatches art_PutativesMatches;
+		SolveArticulationPoint(map_GeometricMatches, iMatchingVideoMode, additional_pairs);
+		if (!additional_pairs.empty())
+		{
+			Cascade_Hashing_Matcher_Regions ch_matcher(fDistRatio);
+			ch_matcher.Match(regions_provider, additional_pairs, art_PutativesMatches, &progress);
+			/*Optical_Flow_Matcher_Regions of_matcher(fDistRatio, bin_dir, MaxDistanceThreshold, sfm_data, sMatchesDirectory);
+			std::cout << "Solve Articulation Points\n";
+			of_matcher.Match(regions_provider, additional_pairs, art_PutativesMatches, &progress);*/
+			if (!art_PutativesMatches.empty())
+			{
+				for (const auto& pairwisematch : art_PutativesMatches)
+				{
+					if (!map_PutativesMatches.count(pairwisematch.first))
+					{
+						map_PutativesMatches.emplace(pairwisematch.first, pairwisematch.second);
+					}
+					else
+					{
+						std::vector<IndMatch>& indmatches = map_PutativesMatches.at(pairwisematch.first);
+						std::set<IndexT> feat1_paired;
+						std::set<IndexT> feat2_paired;
+						for (const auto& indmatch_raw : indmatches)
+						{
+							feat1_paired.insert(indmatch_raw.i_);
+							feat2_paired.insert(indmatch_raw.j_);
+						}
+						for (const auto& indmatch_extra : pairwisematch.second)
+						{
+							if (!feat1_paired.count(indmatch_extra.i_) && !feat2_paired.count(indmatch_extra.j_))
+							{
+								indmatches.emplace_back(indmatch_extra);
+							}
+						}
+					}
+				}
+
+				//---------------------------------------
+				// d. second Geometric filtering of  new matches
+				//---------------------------------------
+
+				std::unique_ptr<ImageCollectionGeometricFilter> filter_ptr(
+					new ImageCollectionGeometricFilter(&sfm_data, regions_provider));
+
+				if (filter_ptr)
+				{
+
+
+					map_GeometricMatches.clear();
+					switch (eGeometricModelToCompute)
+					{
+					case HOMOGRAPHY_MATRIX:
+					{
+						const bool bGeometric_only_guided_matching = true;
+						filter_ptr->Robust_model_estimation(
+							GeometricFilter_HMatrix_AC(4.0, imax_iteration),
+							map_PutativesMatches, bGuided_matching,
+							bGeometric_only_guided_matching ? -1.0 : d_distance_ratio, &progress);
+						map_GeometricMatches = filter_ptr->Get_geometric_matches();
+					}
+					break;
+					case FUNDAMENTAL_MATRIX:
+					{
+						filter_ptr->Robust_model_estimation(
+							GeometricFilter_FMatrix_AC(4.0, imax_iteration),
+							map_PutativesMatches, bGuided_matching, d_distance_ratio, &progress);
+						map_GeometricMatches = filter_ptr->Get_geometric_matches();
+					}
+					break;
+					case ESSENTIAL_MATRIX:
+					{
+						filter_ptr->Robust_model_estimation(
+							GeometricFilter_EMatrix_AC(4.0, imax_iteration),
+							map_PutativesMatches, bGuided_matching, d_distance_ratio, &progress);
+						map_GeometricMatches = filter_ptr->Get_geometric_matches();
+
+						//-- Perform an additional check to remove pairs with poor overlap
+						std::vector<PairWiseMatches::key_type> vec_toRemove;
+						for (const auto & pairwisematches_it : map_GeometricMatches)
+						{
+							const size_t putativePhotometricCount = map_PutativesMatches.find(pairwisematches_it.first)->second.size();
+							const size_t putativeGeometricCount = pairwisematches_it.second.size();
+							const float ratio = putativeGeometricCount / static_cast<float>(putativePhotometricCount);
+							if (putativeGeometricCount < 50 || ratio < .3f) {
+								// the pair will be removed
+								vec_toRemove.push_back(pairwisematches_it.first);
+							}
+						}
+						//-- remove discarded pairs
+						for (const auto & pair_to_remove_it : vec_toRemove)
+						{
+							map_GeometricMatches.erase(pair_to_remove_it);
+						}
+					}
+					break;
+					case ESSENTIAL_MATRIX_ANGULAR:
+					{
+						filter_ptr->Robust_model_estimation(
+							GeometricFilter_ESphericalMatrix_AC_Angular(4.0, imax_iteration),
+							map_PutativesMatches, bGuided_matching);
+						map_GeometricMatches = filter_ptr->Get_geometric_matches();
+					}
+					break;
+					case ESSENTIAL_MATRIX_ORTHO:
+					{
+						filter_ptr->Robust_model_estimation(
+							GeometricFilter_EOMatrix_RA(2.0, imax_iteration),
+							map_PutativesMatches, bGuided_matching, d_distance_ratio, &progress);
+						map_GeometricMatches = filter_ptr->Get_geometric_matches();
+					}
+					break;
+					}
+				}
+			}
+		}
+	}
+	
+
     //---------------------------------------
     //-- Export geometric filtered matches
     //---------------------------------------
@@ -543,3 +872,5 @@ int main(int argc, char **argv)
   }
   return EXIT_SUCCESS;
 }
+
+

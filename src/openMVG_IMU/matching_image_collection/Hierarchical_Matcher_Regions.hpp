@@ -6,13 +6,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifndef OPENMVG_IMU_MATCHING_OPTICAL_FLOW_MATCHER_REGIONS_HPP
-#define OPENMVG_IMU_MATCHING_OPTICAL_FLOW_MATCHER_REGIONS_HPP
+#ifndef OPENMVG_IMU_MATCHING_HIERARCHICAL_MATCHER_REGIONS_HPP
+#define OPENMVG_IMU_MATCHING_HIERARCHICAL_MATCHER_REGIONS_HPP
 
 #include <memory>
 
 #include "openMVG/matching_image_collection/Matcher.hpp"
 #include "openMVG/sfm/sfm_data.hpp"
+#include "openMVG_IMU/matching/optical_flow.hpp"
+
 namespace openMVG { namespace matching { class PairWiseMatchesContainer; } }
 namespace openMVG { namespace sfm { struct Regions_Provider; } }
 
@@ -26,23 +28,15 @@ namespace matching_image_collection {
 /// Using a Cascade Hashing matching
 /// Cascade hashing tables are computed once and used for all the regions.
 ///
-class Optical_Flow_Matcher_Regions : public Matcher
+class Hierarchical_Matcher_Regions : public Matcher
 {
   public:
 
-	struct Optical_track
-	{
-		unsigned int view_id;
-		unsigned int feat_id;
-		float x;
-		float y;
-		float rx;
-		float ry;
-	};
-	explicit Optical_Flow_Matcher_Regions
+	explicit Hierarchical_Matcher_Regions
 	(
 		float distRatio, std::string bin_dir, double maxDistanceThreshold, const sfm::SfM_Data& sfm_data,
-		std::string sMatches_dir
+		const std::string sMatches_dir, bool bfeature_validation = true, bool bopticalfiltering = true,
+		bool bdynamicdistance = true, bool bopticalmatching = true, bool bdebug = true
 	);
 
   /// Find corresponding points between some pair of view Ids
@@ -53,13 +47,29 @@ class Optical_Flow_Matcher_Regions : public Matcher
     C_Progress * progress = nullptr
   ) const override;
 
-  private:
+  void Hierarchical_Match
+  (const std::shared_ptr<sfm::Regions_Provider> & regions_provider,
+	  const Pair_Set & pairs,
+	  matching::PairWiseMatches & map_PutativesMatches, // the pairwise photometric corresponding points
+	  C_Progress * progress = nullptr
+  );
+
+  
+
+
+
+ public:
   // Distance ratio used to discard spurious correspondence
   float f_dist_ratio_;
-  std::string bin_dir_;
-  double MaxDistanceThreshold;
-  std::string sMatches_dir_;
-  std::map<IndexT, std::map<Pair, Optical_track>> opticaltrack_table;
+  std::string sMatches_dir_;  // for debug
+  matching::OpticalFlow_Container opticalflow_container;
+  std::map<IndexT, std::set<IndexT>> notable_features;
+  bool bfeature_validation_;
+  bool bopticalfiltering_;
+  bool bdynamicdistance_;
+  bool bopticalmatching_;
+  bool bdebug_;
+  
 };
 
 } // namespace matching_image_collection

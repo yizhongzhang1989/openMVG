@@ -121,12 +121,15 @@ bool SequentialSfMReconstructionEngine::Process() {
   // - group of images will be selected and resection + scene completion will be tried
   size_t resectionGroupIndex = 0;
   std::vector<uint32_t> vec_possible_resection_indexes;
+  bool bdebug = true;  //bc
+  std::vector<uint32_t> registration_order;  //bc
   while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
   {
     bool bImageAdded = false;
     // Add images to the 3D reconstruction
     for (const auto & iter : vec_possible_resection_indexes)
     {
+		if(bdebug) registration_order.push_back(iter);              //bc
       bImageAdded |= Resection(iter);
       set_remaining_view_id_.erase(iter);
     }
@@ -153,7 +156,18 @@ bool SequentialSfMReconstructionEngine::Process() {
   {
     eraseUnstablePosesAndObservations(sfm_data_);
   }
-
+  /////////BC START  DEBUG////////
+  if (bdebug)
+  {
+	  std::ofstream registration_order_log(stlplus::create_filespec(sOut_directory_, "registration_order.txt"));
+	  for (const auto& view_id : registration_order)
+	  {
+		  registration_order_log << view_id << " ";
+	  }
+	  registration_order_log.close();
+  }
+  
+  /////////BC END  DEBUG////////
   //-- Reconstruction done.
   //-- Display some statistics
   std::cout << "\n\n-------------------------------" << "\n"
@@ -466,6 +480,22 @@ bool SequentialSfMReconstructionEngine::AutomaticInitialPairChoice(Pair & initia
   std::sort(scoring_per_pair.begin(), scoring_per_pair.end());
   // Since scoring is ordered in increasing order, reverse the order
   std::reverse(scoring_per_pair.begin(), scoring_per_pair.end());
+  /////////bc debug start///////
+  bool bdebug = true;
+  
+  if (bdebug)
+  {
+    std::ofstream initial_score_log;
+      initial_score_log.open(stlplus::create_filespec(sOut_directory_,"initial_score.txt"));
+      initial_score_log<<"view i and view j :score\n";
+      for(const auto& pair: scoring_per_pair)
+      {
+          initial_score_log<<pair.second.first<<"-"<<pair.second.second<<":   "<<pair.first<<"\n";
+      }
+      initial_score_log.close();
+  }
+  
+  /////////bc debug end///////
   if (!scoring_per_pair.empty())
   {
     initial_pair = scoring_per_pair.begin()->second;
@@ -514,7 +544,26 @@ bool SequentialSfMReconstructionEngine::MakeInitialPair3D(const Pair & current_p
   // use the track to have a more dense match correspondence set
   openMVG::tracks::STLMAPTracks map_tracksCommon;
   shared_track_visibility_helper_->GetTracksInImages({I, J}, map_tracksCommon);
+///////////////////bc debug start/////////////////
+bool bdebug = true;
+if(bdebug)
+{
+  std::ofstream initial_tack_log(stlplus::create_filespec(sOut_directory_,"initial_track.txt"));
+  initial_tack_log<<I<<"-"<<J<<"\n";
+  std::set<Pair> set_initial_tacks;
+  for(const auto& submaptrack_item:map_tracksCommon)
+  {
+    set_initial_tacks.insert(Pair(submaptrack_item.second.at(I),submaptrack_item.second.at(J)));
+    //initial_tack_log<<submaptrack_item.second.at(I)<<" "<<submaptrack_item.second.at(J)<<"\n";
+  }
+  for(const auto& pair:set_initial_tacks)
+  {
+    initial_tack_log<<pair.first<<" "<<pair.second<<"\n";
+  }
+  initial_tack_log.close();
+}
 
+///////////////////bc debug end  /////////////////
   //-- Copy point to arrays
   const size_t n = map_tracksCommon.size();
   Mat xI(2,n), xJ(2,n);
@@ -626,6 +675,12 @@ bool SequentialSfMReconstructionEngine::MakeInitialPair3D(const Pair & current_p
     set_remaining_view_id_.erase(view_J->id_view);
 
     // List inliers and save them
+    std::ofstream initial_triangulation_log;////bc
+    if(bdebug)
+    {
+      initial_triangulation_log.open(stlplus::create_filespec(sOut_directory_,"initial_triangulation_status.txt"));
+	  initial_triangulation_log << view_I->id_view << "-" << view_J->id_view << "\n";
+	}
     for (const auto & landmark_entry : tiny_scene.GetLandmarks())
     {
       const IndexT trackId = landmark_entry.first;
@@ -653,8 +708,39 @@ bool SequentialSfMReconstructionEngine::MakeInitialPair3D(const Pair & current_p
           residual_J.norm() < relativePose_info.found_residual_precision)
       {
         sfm_data_.structure[trackId] = landmarks[trackId];
+		if (bdebug)
+		{
+			initial_triangulation_log << ob_xI.id_feat << " " << ob_xJ.id_feat 
+				<<"("<< ob_xI.x(0)<<" "<< ob_xI.x(1)<<" "<< ob_xJ.x(0)<<" "<< ob_xJ.x(1)<<")"
+				<< ": triangulated\n";  //bc
+		}
       }
+      else if(bdebug)  //bc
+      {
+        initial_triangulation_log << ob_xI.id_feat<<" "<<ob_xJ.id_feat<<": ";  //bc
+        if(!(angle > 2.0))
+        {
+          initial_triangulation_log<<" angle <= 2.0 ";
+        }
+        else if(!CheiralityTest((*cam_I)(ob_xI_ud), pose_I,
+                         (*cam_J)(ob_xJ_ud), pose_J,
+                         landmark.X))
+        {
+          initial_triangulation_log<<" CheiralityTest failed ";
+        }
+        else if(!(residual_I.norm() < relativePose_info.found_residual_precision ))
+        {
+          initial_triangulation_log<<" Reprjection of "<<ob_xI.id_feat<<" is too large ";
+        }
+        else if(!(residual_J.norm() < relativePose_info.found_residual_precision))
+        {
+          initial_triangulation_log<<" Reprjection of "<<ob_xJ.id_feat<<" is too large ";
+        }
+        initial_triangulation_log<<"\n";
+      }
+      
     }
+    initial_triangulation_log.close();
     // Save outlier residual information
     Histogram<double> histoResiduals;
     std::cout << "\n"
@@ -960,7 +1046,44 @@ bool SequentialSfMReconstructionEngine::Resection(const uint32_t viewIndex)
     pose
   );
   resection_data.pt2D = std::move(pt2D_original); // restore original image domain points
-
+  /////////////BC DEBUG START//////////////////
+  bool bdebug = true;
+  std::ofstream Resection_log;
+  if (bdebug)
+  {
+		std::string resection_folder = stlplus::create_filespec(sOut_directory_, "resection_logs");
+		if (!stlplus::folder_exists(resection_folder))
+		{
+		  stlplus::folder_create(resection_folder);
+		}
+		Resection_log.open(stlplus::create_filespec(resection_folder, "resection_"+std::to_string(viewIndex))+".txt");
+		for (size_t cpt = 0; cpt < vec_featIdForResection.size(); ++cpt)
+		{
+			Vec2f coords_ = features_provider_->feats_per_view.at(viewIndex)[vec_featIdForResection[cpt]].coords();
+			Resection_log << vec_featIdForResection[cpt] << " " << coords_(0) << " " << coords_(1) << " ";
+			bool binlier = false;
+			for (const auto& inlierid : resection_data.vec_inliers)
+			{
+				if (cpt == inlierid)
+				{
+					binlier = true;
+					break;
+				}
+			}
+			if (binlier)
+			{
+				Resection_log << "1\n";
+			}
+			else
+			{
+				Resection_log << "0\n";
+			}
+		}
+	  
+	  
+  }
+  std::vector<uint32_t> new_triangulatedpoints;
+  /////////////BC DEBUG END////////////////////
   if (!sLogging_file_.empty())
   {
     using namespace htmlDocument;
@@ -1195,11 +1318,26 @@ bool SequentialSfMReconstructionEngine::Resection(const uint32_t viewIndex)
               && residual.norm() < std::max(4.0, map_ACThreshold_.at(J))
              )
           {
+			  if (J == viewIndex&&bdebug)  ////bc
+			  {
+				  new_triangulatedpoints.push_back(allViews_of_track.at(J));
+			  }
             landmark.obs[J] = Observation(xJ, allViews_of_track.at(J));
           }
         }
       }
     }// All the tracks in the view
+	///////BC DEBUG START///////
+	if (bdebug)
+	{
+		for (const auto& feat_id : new_triangulatedpoints)
+		{
+			const Vec2 xJ = features_provider_->feats_per_view.at(viewIndex)[feat_id].coords().cast<double>();
+			Resection_log << feat_id << " " << xJ(0) << " " << xJ(1) << " 3\n";
+		}
+		Resection_log.close();
+	}
+	///////BC DEBUG END///////
   }
   return true;
 }

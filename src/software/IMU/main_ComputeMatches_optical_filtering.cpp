@@ -87,7 +87,7 @@ inline double cal_dis(double x1, double y1, double x2, double y2)
 
 bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provider* regions_provider,
 					  const std::string bin_dir,const SfM_Data& sfm_data,const std::string matches_dir
-					  ,const double MaxDistanceThreshold)
+					  ,const double MaxDistanceThreshold, std::map<IndexT, std::set<IndexT>>& notable_features,bool bnotablevalidation = false,bool bdebug = true)
 {
   // std::shared_ptr<features::Regions> feat_0= regions_provider->get(0);
   // const features::PointFeatures feats = feat_0->GetRegionsPositions();
@@ -142,13 +142,7 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 	  std::cout << "length of view " << view_id << ": " << opticaltrack_table.at(view_id).size() << "\n";
       
   }
-  //debugs//
-  bool debug = false;
-  IndexT img1 = 31;
-  IndexT img2 = 36;
-  std::ofstream filelog(stlplus::create_filespec(matches_dir, "debug_"+std::to_string(img1)+"_"+ std::to_string(img2) +".txt"));
-  std::vector<double > dissss_;
-  //debuge//
+  
   //filter putative matches
   std::cout << "**filter putative matches**\n";
   PairWiseMatches::iterator pwm_iter;
@@ -166,14 +160,7 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
       std::shared_ptr<features::Regions> feats_2= regions_provider->get(second_view_id);
 	  
 	  std::cout << "Pair " << first_view_id << "-" << second_view_id << "\n";
-	  if ((first_view_id == img1 && second_view_id == img2))
-	  {
-		  debug = true;
-	  }
-	  else
-	  {
-		  debug = false;
-	  }
+	  
 	  IndMatches::iterator im_iter;
 	  const std::map<Pair, Optical_track>& latter_opticaltable = opticaltrack_table.at(latter_view_id);
 	  std::cout << "	#raw feature pairs" << pwm_iter->second.size() << "\n";
@@ -194,10 +181,6 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 			  }
 			  else
 			  {
-				 /* if (debug)
-				  {
-					  filelog << "feature " << first_feat_id << "-" << second_feat_id << " is not be tracked\n";
-				  }*/
 				  //the first feature  is not tracked in second view
 				  im_iter = pwm_iter->second.erase(im_iter);
 				  count_featpairs_untracked++;
@@ -242,23 +225,11 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 			dis_metric.push_back(dis_featpair);
 			if (dis_featpair > MaxDistanceThreshold)   //delete the feature pairs whose distance is too large.
 			{
-				if (debug)
-				{
-					filelog << ot_1.rx<<" "<<ot_1.ry<<" "<<ot_1.x << " " << ot_1.y << " " 
-						<< ot_2.rx << " " << ot_2.ry << " " << ot_2.x << " " << ot_2.y << " "<< dis_featpair <<" 0\n";
-					dissss_.push_back(dis_featpair);
-				}
 				count_featpairs_filtered++;
 				im_iter = pwm_iter->second.erase(im_iter);
 			}
 			else
 			{
-				if (debug)
-				{
-					filelog << ot_1.rx << " " << ot_1.ry << " " << ot_1.x << " " << ot_1.y << " "
-						<< ot_2.rx << " " << ot_2.ry << " " << ot_2.x << " " << ot_2.y << " " << dis_featpair << " 1\n";
-					dissss_.push_back(dis_featpair);
-				}
 				count_featpairs_accepted++;
 				im_iter++;
 			}
@@ -273,31 +244,6 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
   std::cout << "# feature pairs filtered:" << count_featpairs_filtered << "\n";
   std::cout << "# feature pairs all:" << count_featpairs_all << "\n";
 
-  //debugs//
-  if (dissss_.size()!=0)
-  {
-	  std::sort(dissss_.begin(), dissss_.end());
-	  std::ofstream dissss_stream(stlplus::create_filespec(matches_dir, "dissss_"+std::to_string(img1)+"_"+ std::to_string(img2) +".txt"));
-	  double sum = 0.0;
-	  for (size_t i = 0; i < dissss_.size(); i++)
-	  {
-		  dissss_stream << dissss_[i] << "\n";
-		  sum += dissss_[i];
-	  }
-
-	  dissss_stream << "Min:" << dissss_[0] << "\n";
-	  dissss_stream << "Max:" << *(dissss_.rbegin()) << "\n";
-	  dissss_stream << "Median:" << dissss_[dissss_.size() / 2] << "\n";
-	  dissss_stream << "Mean:" << sum / ((double)dissss_.size()) << "\n";
-
-	  dissss_stream << "# feature pairs untracked:" << count_featpairs_untracked << "\n";
-	  dissss_stream << "# feature pairs accepted:" << count_featpairs_accepted << "\n";
-	  dissss_stream << "# feature pairs filtered:" << count_featpairs_filtered << "\n";
-	  dissss_stream << "# feature pairs all:" << count_featpairs_all << "\n";
-	  dissss_stream.close();
-  }
-  filelog.close();
-  //debuge//
   //output distances
   std::cout << "**output distances**\n";
   std::sort(dis_metric.begin(), dis_metric.end());
@@ -319,6 +265,95 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
   dis_metric_stream << "# feature pairs filtered:" << count_featpairs_filtered << "\n";
   dis_metric_stream << "# feature pairs all:" << count_featpairs_all << "\n";
   dis_metric_stream.close();
+
+  
+  {
+	  /////compute notable features in every frame
+	  //map{{view_id}->map{{feature_id}->{status}}}
+	  std::map<int, std::map<int, int>>  notablefeature_records;
+	  const IndexT NumAdjFrames = 2;
+	  for (const auto& pairwise_item : map_PutativesMatches)
+	  {
+		  const IndexT I = pairwise_item.first.first;
+		  const IndexT J = pairwise_item.first.second;
+		  if (J - I > NumAdjFrames) continue;   //3 adjacent frames
+		  if (!notablefeature_records.count(I))
+		  {
+			  notablefeature_records.emplace(I, std::map<int, int>());
+		  }
+
+		  for (const auto& indmatch : pairwise_item.second)
+		  {
+			  if (!notablefeature_records.at(I).count(indmatch.i_))
+			  {
+				  notablefeature_records.at(I).emplace(indmatch.i_, 0);
+			  }
+			  int& mark = notablefeature_records.at(I).at(indmatch.i_);
+			  mark |= 1 << (J - I - 1);
+		  }
+	  }
+
+	  for (const auto& features_in_view : notablefeature_records)
+	  {
+		  notable_features.emplace(features_in_view.first, std::set<IndexT>());
+		  for (const auto& feature_items : features_in_view.second)
+		  {
+			  if (feature_items.second == 3)
+				  notable_features.at(features_in_view.first).insert(feature_items.first);
+		  }
+	  }
+	  if (bnotablevalidation)
+	  {
+		  std::cout << "notable validation\n";
+		  PairWiseMatches::iterator pm_iter;
+		  size_t num_deleted = 0;
+		  for (pm_iter = map_PutativesMatches.begin(); pm_iter != map_PutativesMatches.end(); pm_iter++)
+		  {
+			  const IndexT I = pm_iter->first.first;
+			  const IndexT J = pm_iter->first.second;
+			  if (J - I > NumAdjFrames) continue;   //3 adjacent frames
+			  IndMatches::iterator im_iter;
+			  
+			  for (im_iter = pm_iter->second.begin(); im_iter != pm_iter->second.end();)
+			  {
+				  if (!notable_features.count(I) || !notable_features.count(J))
+				  {
+					  im_iter++;
+					  continue;
+				  }
+				  if (notable_features.at(I).count(im_iter->i_) && notable_features.at(J).count(im_iter->j_))
+				  {
+					  im_iter++;
+				  }
+				  else
+				  {
+					  num_deleted++;
+					  im_iter = pm_iter->second.erase(im_iter);
+				  }
+			  }
+		  }
+		  std::cout << num_deleted << " are deleted.\n";
+	  }
+	  if (bdebug) {
+		  std::string output_dir(stlplus::create_filespec(matches_dir, "notables_features"));
+		  stlplus::folder_create(output_dir);
+		  for (const auto& notablefeatures_item : notable_features)
+		  {
+			  std::stringstream ss;
+			  ss << std::setw(8) << std::setfill('0') << notablefeatures_item.first
+				  << "_" << notablefeatures_item.second.size() << ".txt";
+			  std::ofstream file(stlplus::create_filespec(output_dir, ss.str()));
+			  std::shared_ptr<features::Regions> feats_1 = regions_provider->get(notablefeatures_item.first);
+			  for (const auto& feature_id : notablefeatures_item.second)
+			  {
+				  Vec2 first_feat = feats_1->GetRegionPosition(feature_id);
+				  file << feature_id << " "<< first_feat (0)<<" "<< first_feat(1) <<"\n";
+			  }
+			  file.close();
+		  }
+
+	  }
+  }
 }
 
 /// Compute corresponding features between a series of views:
@@ -342,7 +377,9 @@ int main(int argc, char **argv)
   bool bGuided_matching = false;
   int imax_iteration = 2048;
   unsigned int ui_max_cache_size = 0;
-  double MaxDistanceThreshold = 40.0;
+  double MaxDistanceThreshold = 10.0;
+  bool bnotableaugmentation = false;
+  bool bnotablevalidation = false;
 
   //required
   cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
@@ -359,6 +396,8 @@ int main(int argc, char **argv)
   cmd.add( make_option('c', ui_max_cache_size, "cache_size") );
   cmd.add(make_option('b', bin_dir, "bin_dir"));
   cmd.add(make_option('k', MaxDistanceThreshold, "maxdistancethreshold"));
+  cmd.add(make_option('p', bnotableaugmentation, "bnotableaugmentation"));
+  cmd.add(make_option('q', bnotablevalidation, "bnotablevalidation"));
 
   try {
       if (argc == 1) throw std::string("Invalid command line parameter.");
@@ -682,8 +721,83 @@ int main(int argc, char **argv)
   //    
   //    
   //---------------------------------------
-  OpticalFiltering(map_PutativesMatches,regions_provider.get(), 
-				   bin_dir, sfm_data,sMatchesDirectory, MaxDistanceThreshold);
+  std::map<IndexT, std::set<IndexT>> notable_features;
+  if (!OpticalFiltering(map_PutativesMatches, regions_provider.get(),
+	  bin_dir, sfm_data, sMatchesDirectory, MaxDistanceThreshold, notable_features, bnotablevalidation))
+  {
+	  return EXIT_FAILURE;
+  }
+
+  if (bnotableaugmentation)
+  {
+	  std::cout << "manually apply new notable matches\n";
+	  Pair_Set additional_pairs;
+	  for (IndexT ii = 250; ii < 270; ii++)
+	  {
+		  for (IndexT jj = 270; jj < 280; jj++)
+		  {
+			  additional_pairs.insert(Pair(ii, jj));
+		  }
+	  }
+	  
+	  if (!additional_pairs.empty())
+	  {
+		  Cascade_Hashing_Matcher_Regions ch_matcher(fDistRatio);
+		  PairWiseMatches art_PutativesMatches;
+		  ch_matcher.Match(regions_provider, additional_pairs, art_PutativesMatches, &progress);
+		  
+		  //notable validation
+		  PairWiseMatches::iterator pair_iter;
+		  for (pair_iter = art_PutativesMatches.begin() ; pair_iter!= art_PutativesMatches.end();)
+		  {
+			  IndMatches::iterator ind_iter;
+			  for (ind_iter = pair_iter->second.begin() ; ind_iter!= pair_iter->second.end();)
+			  {
+				  if (!notable_features.at(pair_iter->first.first).count(ind_iter->i_) ||
+					  !notable_features.at(pair_iter->first.second).count(ind_iter->j_))
+				  {
+					  ind_iter = pair_iter->second.erase(ind_iter);
+				  }
+				  else
+				  {
+					  ind_iter++;
+				  }
+			  }
+			  pair_iter++;
+		  }
+
+		  if (!art_PutativesMatches.empty())
+		  {
+			  for (const auto& pairwisematch : art_PutativesMatches)
+			  {
+				  if (!map_PutativesMatches.count(pairwisematch.first) )
+				  {
+					  if(!pairwisematch.second.empty())
+						map_PutativesMatches.emplace(pairwisematch.first, pairwisematch.second);
+				  }
+				  else
+				  {
+					  std::vector<IndMatch>& indmatches = map_PutativesMatches.at(pairwisematch.first);
+					  std::set<IndexT> feat1_paired;
+					  std::set<IndexT> feat2_paired;
+					  for (const auto& indmatch_raw : indmatches)
+					  {
+						  feat1_paired.insert(indmatch_raw.i_);
+						  feat2_paired.insert(indmatch_raw.j_);
+					  }
+					  for (const auto& indmatch_extra : pairwisematch.second)   // remove duplicates
+					  {
+						  if (!feat1_paired.count(indmatch_extra.i_) && !feat2_paired.count(indmatch_extra.j_))
+						  {
+							  indmatches.emplace_back(indmatch_extra);
+						  }
+					  }
+				  }
+			  }
+		  }
+	  }
+
+  }
   //---------------------------------------
   //-- Export putative matches
   //---------------------------------------

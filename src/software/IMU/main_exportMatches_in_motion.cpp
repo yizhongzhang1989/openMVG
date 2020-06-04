@@ -199,11 +199,14 @@ int main(int argc, char ** argv)
   std::string sMatchesDir;
   std::string sMatchFile;
   std::string sOutDir = "";
+  bool sOutAscii = false,sOutViews = true;
 
   cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
   cmd.add( make_option('d', sMatchesDir, "matchdir") );
   cmd.add( make_option('m', sMatchFile, "matchfile") );
   cmd.add( make_option('o', sOutDir, "outdir") );
+  cmd.add(make_option('t', sOutAscii, "outascii"));
+  cmd.add(make_option('v', sOutViews, "outviews"));
 
   try {
       if (argc == 1) throw std::string("Invalid command line parameter.");
@@ -214,6 +217,8 @@ int main(int argc, char ** argv)
       << "[-d|--matchdir path]\n"
       << "[-m|--sMatchFile filename]\n"
       << "[-o|--outdir path]\n"
+	<< "[-t|--outascii output text file of matches]\n"
+		  << "[-v|--outviews output views of matches]\n"
       << std::endl;
 
       std::cerr << s << std::endl;
@@ -298,35 +303,49 @@ int main(int argc, char ** argv)
     if (!vec_FilteredMatches.empty()) {
 
       // Draw corresponding features
-      const bool bVertical = false;
-      std::ostringstream os;
-      os << stlplus::folder_append_separator(sOutDir)
-        << iter->first << "_" << iter->second
-        << "_" << vec_FilteredMatches.size() << "_.svg";
-      Matches2SVG_in_motion
-      (
-        sView_I,
-        {view_I->ui_width, view_I->ui_height},
-        feats_provider->getFeatures(view_I->id_view),
-        sView_J,
-        {view_J->ui_width, view_J->ui_height},
-        feats_provider->getFeatures(view_J->id_view),
-        vec_FilteredMatches,
-        os.str(),
-        bVertical
-      );
-      // std::stringstream sformatstream;
-      // sformatstream<< iter->first << "_" << iter->second<< "_" << vec_FilteredMatches.size() << "_.txt";
-      // std::ofstream asciifile(sformatstream.str());
-      // const features::PointFeatures & left_features=feats_provider->getFeatures(view_I->id_view);
-      // const features::PointFeatures & right_features=feats_provider->getFeatures(view_J->id_view);
-      // for(const auto& indexmatch:vec_FilteredMatches)
-      // {
-      //   const features::PointFeature & L = left_features[indexmatch.i_];
-      //   const features::PointFeature & R = right_features[indexmatch.j_];
-      //   asciifile<<indexmatch.i_<<" "<<indexmatch.j_<<" "<<L.x()<<" "<<L.y()<<" "<<R.x()<<" "<<R.x()<<"\n";
-      // }
-      // asciifile.close();
+		if (sOutViews)
+		{
+			const bool bVertical = false;
+			std::ostringstream os;
+			os << stlplus::folder_append_separator(sOutDir)
+				<< iter->first << "_" << iter->second
+				<< "_" << vec_FilteredMatches.size() << "_.svg";
+			Matches2SVG_in_motion
+			(
+				sView_I,
+				{ view_I->ui_width, view_I->ui_height },
+				feats_provider->getFeatures(view_I->id_view),
+				sView_J,
+				{ view_J->ui_width, view_J->ui_height },
+				feats_provider->getFeatures(view_J->id_view),
+				vec_FilteredMatches,
+				os.str(),
+				bVertical
+			);
+		}
+	  if (sOutAscii) {
+
+       std::stringstream sformatstream;
+       sformatstream<< iter->first << "_" << iter->second<< "_" << vec_FilteredMatches.size() << "_.txt";
+       std::ofstream asciifile(stlplus::create_filespec(sOutDir,sformatstream.str()));
+	   if (!asciifile.is_open())
+	   {
+		   std::cout << "invalid path:" << stlplus::create_filespec(sOutDir, sformatstream.str()) << "\n";
+	   }
+	   else
+	   {
+		   const features::PointFeatures & left_features = feats_provider->getFeatures(view_I->id_view);
+		   const features::PointFeatures & right_features = feats_provider->getFeatures(view_J->id_view);
+		   for (const auto& indexmatch : vec_FilteredMatches)
+		   {
+			   const features::PointFeature & L = left_features[indexmatch.i_];
+			   const features::PointFeature & R = right_features[indexmatch.j_];
+			   asciifile << indexmatch.i_ << " " << indexmatch.j_ << " " << L.x() << " " << L.y() << " " << R.x() << " " << R.x() << "\n";
+		   }
+	   }
+       asciifile.close();
+
+	  }
     }
   }
   return EXIT_SUCCESS;

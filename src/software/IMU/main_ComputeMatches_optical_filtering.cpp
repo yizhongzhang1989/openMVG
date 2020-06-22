@@ -304,7 +304,7 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 	  }
 	  if (bnotablevalidation)
 	  {
-		  std::cout << "notable validation\n";
+		  std::cout << "notable validation for 3 adjacent frames\n";
 		  PairWiseMatches::iterator pm_iter;
 		  size_t num_deleted = 0;
 		  for (pm_iter = map_PutativesMatches.begin(); pm_iter != map_PutativesMatches.end(); pm_iter++)
@@ -313,14 +313,12 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 			  const IndexT J = pm_iter->first.second;
 			  if (J - I > NumAdjFrames) continue;   //3 adjacent frames
 			  IndMatches::iterator im_iter;
-			  
+			  if (!notable_features.count(I) || !notable_features.count(J))
+			  {
+				  continue;
+			  }
 			  for (im_iter = pm_iter->second.begin(); im_iter != pm_iter->second.end();)
 			  {
-				  if (!notable_features.count(I) || !notable_features.count(J))
-				  {
-					  im_iter++;
-					  continue;
-				  }
 				  if (notable_features.at(I).count(im_iter->i_) && notable_features.at(J).count(im_iter->j_))
 				  {
 					  im_iter++;
@@ -334,23 +332,33 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 		  }
 		  std::cout << num_deleted << " are deleted.\n";
 	  }
-	  if (bdebug) {
+	  {
+
 		  std::string output_dir(stlplus::create_filespec(matches_dir, "notables_features"));
 		  stlplus::folder_create(output_dir);
-		  for (const auto& notablefeatures_item : notable_features)
+		  std::ofstream notable_info(stlplus::create_filespec(output_dir, "notable_info.txt"));
+		  for (Views::const_iterator iter = sfm_data.GetViews().begin();
+			  iter != sfm_data.GetViews().end() ; ++iter)
 		  {
-			  std::stringstream ss;
-			  ss << std::setw(8) << std::setfill('0') << notablefeatures_item.first
-				  << "_" << notablefeatures_item.second.size() << ".txt";
-			  std::ofstream file(stlplus::create_filespec(output_dir, ss.str()));
-			  std::shared_ptr<features::Regions> feats_1 = regions_provider->get(notablefeatures_item.first);
-			  for (const auto& feature_id : notablefeatures_item.second)
+			  const std::string sImageName = stlplus::create_filespec(sfm_data.s_root_path, iter->second->s_Img_path);
+			  const std::string basename = stlplus::basename_part(sImageName);
+			  const std::string featFile = stlplus::create_filespec(output_dir, basename, ".txt");
+			  if (notable_features.count(iter->first))
 			  {
-				  Vec2 first_feat = feats_1->GetRegionPosition(feature_id);
-				  file << feature_id << " "<< first_feat (0)<<" "<< first_feat(1) <<"\n";
+				  std::ofstream file(featFile);
+
+				  std::shared_ptr<features::Regions> feats_1 = regions_provider->get(iter->first);
+				  for (const auto& feature_id : notable_features.at(iter->first))
+				  {
+					  Vec2 first_feat = feats_1->GetRegionPosition(feature_id);
+					  file << feature_id << " " << first_feat(0) << " " << first_feat(1) << "\n";
+				  }
+				  file.close();
+				  notable_info << basename << ":" << notable_features.at(iter->first).size()<<"\n";
 			  }
-			  file.close();
+			  
 		  }
+		  notable_info.close();
 
 	  }
   }
@@ -378,7 +386,7 @@ int main(int argc, char **argv)
   int imax_iteration = 2048;
   unsigned int ui_max_cache_size = 0;
   double MaxDistanceThreshold = 10.0;
-  bool bnotableaugmentation = false;
+
   bool bnotablevalidation = false;
 
   //required
@@ -396,7 +404,7 @@ int main(int argc, char **argv)
   cmd.add( make_option('c', ui_max_cache_size, "cache_size") );
   cmd.add(make_option('b', bin_dir, "bin_dir"));
   cmd.add(make_option('k', MaxDistanceThreshold, "maxdistancethreshold"));
-  cmd.add(make_option('p', bnotableaugmentation, "bnotableaugmentation"));
+
   cmd.add(make_option('q', bnotablevalidation, "bnotablevalidation"));
 
   try {
@@ -728,76 +736,6 @@ int main(int argc, char **argv)
 	  return EXIT_FAILURE;
   }
 
-  if (bnotableaugmentation)
-  {
-	  std::cout << "manually apply new notable matches\n";
-	  Pair_Set additional_pairs;
-	  for (IndexT ii = 250; ii < 270; ii++)
-	  {
-		  for (IndexT jj = 270; jj < 280; jj++)
-		  {
-			  additional_pairs.insert(Pair(ii, jj));
-		  }
-	  }
-	  
-	  if (!additional_pairs.empty())
-	  {
-		  Cascade_Hashing_Matcher_Regions ch_matcher(fDistRatio);
-		  PairWiseMatches art_PutativesMatches;
-		  ch_matcher.Match(regions_provider, additional_pairs, art_PutativesMatches, &progress);
-		  
-		  //notable validation
-		  PairWiseMatches::iterator pair_iter;
-		  for (pair_iter = art_PutativesMatches.begin() ; pair_iter!= art_PutativesMatches.end();)
-		  {
-			  IndMatches::iterator ind_iter;
-			  for (ind_iter = pair_iter->second.begin() ; ind_iter!= pair_iter->second.end();)
-			  {
-				  if (!notable_features.at(pair_iter->first.first).count(ind_iter->i_) ||
-					  !notable_features.at(pair_iter->first.second).count(ind_iter->j_))
-				  {
-					  ind_iter = pair_iter->second.erase(ind_iter);
-				  }
-				  else
-				  {
-					  ind_iter++;
-				  }
-			  }
-			  pair_iter++;
-		  }
-
-		  if (!art_PutativesMatches.empty())
-		  {
-			  for (const auto& pairwisematch : art_PutativesMatches)
-			  {
-				  if (!map_PutativesMatches.count(pairwisematch.first) )
-				  {
-					  if(!pairwisematch.second.empty())
-						map_PutativesMatches.emplace(pairwisematch.first, pairwisematch.second);
-				  }
-				  else
-				  {
-					  std::vector<IndMatch>& indmatches = map_PutativesMatches.at(pairwisematch.first);
-					  std::set<IndexT> feat1_paired;
-					  std::set<IndexT> feat2_paired;
-					  for (const auto& indmatch_raw : indmatches)
-					  {
-						  feat1_paired.insert(indmatch_raw.i_);
-						  feat2_paired.insert(indmatch_raw.j_);
-					  }
-					  for (const auto& indmatch_extra : pairwisematch.second)   // remove duplicates
-					  {
-						  if (!feat1_paired.count(indmatch_extra.i_) && !feat2_paired.count(indmatch_extra.j_))
-						  {
-							  indmatches.emplace_back(indmatch_extra);
-						  }
-					  }
-				  }
-			  }
-		  }
-	  }
-
-  }
   //---------------------------------------
   //-- Export putative matches
   //---------------------------------------

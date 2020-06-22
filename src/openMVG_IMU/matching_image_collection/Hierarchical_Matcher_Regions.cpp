@@ -63,7 +63,7 @@ void Match_Hierarchical
 	bool bopticalfiltering = true,
 	bool bdynamicdistance = true,
 	bool bopticalmatching = true,
-	bool bnotablevalidation = false,
+	bool bnotablevalidation = false,         
 	bool bdebug = true
 )
 {
@@ -460,7 +460,7 @@ void Match_Hierarchical
 		 }
 		 if (bnotablevalidation)
 		 {
-			 std::cout << "notable validation\n";
+			 std::cout << "notable validation for 3 adjacent frames\n";
 			 PairWiseMatches::iterator pm_iter;
 			 size_t num_deleted = 0;
 			 for (pm_iter = map_PutativesMatches.begin(); pm_iter != map_PutativesMatches.end(); pm_iter++)
@@ -469,14 +469,12 @@ void Match_Hierarchical
 				 const IndexT J = pm_iter->first.second;
 				 if (J - I > NumAdjFrames) continue;   //3 adjacent frames
 				 IndMatches::iterator im_iter;
-
+				 if (!notable_features.count(I) || !notable_features.count(J))
+				 {
+					 continue;
+				 }
 				 for (im_iter = pm_iter->second.begin(); im_iter != pm_iter->second.end();)
 				 {
-					 if (!notable_features.count(I) || !notable_features.count(J))
-					 {
-						 im_iter++;
-						 continue;
-					 }
 					 if (notable_features.at(I).count(im_iter->i_) && notable_features.at(J).count(im_iter->j_))
 					 {
 						 im_iter++;
@@ -490,25 +488,7 @@ void Match_Hierarchical
 			 }
 			 std::cout << num_deleted << " are deleted.\n";
 		 }
-		 if (bdebug) {
-			 std::string output_dir(stlplus::create_filespec(sMatchesDir, "notables_features"));
-			 stlplus::folder_create(output_dir);
-			 for (const auto& notablefeatures_item : notable_features)
-			 {
-				 std::stringstream ss;
-				 ss << std::setw(8) << std::setfill('0') << notablefeatures_item.first
-					 << "_" << notablefeatures_item.second.size() << ".txt";
-				 std::ofstream file(stlplus::create_filespec(output_dir, ss.str()));
-				 std::shared_ptr<features::Regions> feats_1 = regions_provider.get(notablefeatures_item.first);
-				 for (const auto& feature_id : notablefeatures_item.second)
-				 {
-					 Vec2 first_feat = feats_1->GetRegionPosition(feature_id);
-					 file << feature_id << " " << first_feat(0) << " " << first_feat(1) << "\n";
-				 }
-				 file.close();
-			 }
-
-		 }
+		 
 	 }
 	  {
 		  if (bdebug) {
@@ -802,6 +782,7 @@ void Hierarchical_Matcher_Regions::Hierarchical_Match
 	bool bopticalfiltering = false;
 	bool bdynamicdistance = false;
 	bool bopticalmatching = false;*/
+	bool bnotablevalidation = true;   //turn it down
 	if (regions_provider->Type_id() == typeid(unsigned char).name())
 	{
 		impl::Match_Hierarchical<unsigned char>(
@@ -816,7 +797,7 @@ void Hierarchical_Matcher_Regions::Hierarchical_Match
 			bfeature_validation_,
 			bopticalfiltering_,
 			bdynamicdistance_,
-			bopticalmatching_,false,bdebug_);
+			bopticalmatching_, bnotablevalidation,bdebug_);
 	}
 	else if (regions_provider->Type_id() == typeid(float).name())
 	{
@@ -832,7 +813,7 @@ void Hierarchical_Matcher_Regions::Hierarchical_Match
 			bfeature_validation_,
 			bopticalfiltering_,
 			bdynamicdistance_,
-			bopticalmatching_, false,bdebug_);
+			bopticalmatching_, bnotablevalidation,bdebug_);
 	}
 	else
 	{

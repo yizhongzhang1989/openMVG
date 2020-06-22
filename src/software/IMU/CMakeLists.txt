@@ -115,6 +115,42 @@ target_link_libraries(openMVG_IMU_main_Iterative_IncrementalSfM
 
 set_property(TARGET openMVG_IMU_main_Iterative_IncrementalSfM PROPERTY FOLDER OpenMVG/software/imu)
 install(TARGETS openMVG_IMU_main_Iterative_IncrementalSfM DESTINATION bin/)
+
+###
+# Iterative sequential sfm with initial augmentation
+###
+add_executable(openMVG_IMU_main_Iterative_IncrementalSfM_initial_augmentation main_Iterative_IncrementalSfM_initial_augmentation.cpp)
+target_link_libraries(openMVG_IMU_main_Iterative_IncrementalSfM_initial_augmentation
+  PRIVATE
+    openMVG_IMU_sfm
+    openMVG_system
+    openMVG_image
+    openMVG_features
+    openMVG_sfm
+    ${STLPLUS_LIBRARY}
+)
+
+set_property(TARGET openMVG_IMU_main_Iterative_IncrementalSfM_initial_augmentation PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_Iterative_IncrementalSfM_initial_augmentation DESTINATION bin/)
+
+###
+# sequential sfm with robust initialization
+###
+add_executable(openMVG_IMU_main_IncrementalSfM_robust_initialization main_IncrementalSfM_robust_initialization.cpp)
+target_link_libraries(openMVG_IMU_main_IncrementalSfM_robust_initialization
+  PRIVATE
+    openMVG_IMU_sfm
+    openMVG_system
+    openMVG_image
+    openMVG_features
+    openMVG_sfm
+    ${STLPLUS_LIBRARY}
+)
+
+set_property(TARGET openMVG_IMU_main_IncrementalSfM_robust_initialization PROPERTY FOLDER OpenMVG/software/imu)
+install(TARGETS openMVG_IMU_main_IncrementalSfM_robust_initialization DESTINATION bin/)
+
+
 ###
 # Compute Matches with optialfiltering
 ###

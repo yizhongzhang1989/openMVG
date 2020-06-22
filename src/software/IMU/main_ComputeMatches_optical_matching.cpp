@@ -309,6 +309,9 @@ int main(int argc, char **argv)
       << "    FASTCASCADEHASHINGL2: (default)\n"
       << "      L2 Cascade Hashing with precomputed hashed regions\n"
       << "     (faster than CASCADEHASHINGL2 but use more memory).\n"
+	  << "     OPTICALFLOW: optical matching\n"
+	  << "     HIERARCHICAL: sift matching (+feature validation) (+static/dynamic optical filtering)\n"
+	  << "                   (+optical matching).\n"
       << "  For Binary based descriptor:\n"
       << "    BRUTEFORCEHAMMING: BruteForce Hamming matching.\n"
       << "[-m|--guided_matching]\n"
@@ -596,6 +599,35 @@ int main(int argc, char **argv)
 	  if (sNearestMatchingMethod == "HIERARCHICAL")
 	  {
 		  hierarchicalMatcher->Hierarchical_Match(regions_provider, pairs, map_PutativesMatches, &progress);
+
+		  //save the notable features
+		  {
+			  std::string output_dir(stlplus::create_filespec(sMatchesDirectory, "notables_features"));
+			  stlplus::folder_create(output_dir);
+			  std::ofstream notable_info(stlplus::create_filespec(output_dir, "notable_info.txt"));
+			  for (Views::const_iterator iter = sfm_data.GetViews().begin();
+				  iter != sfm_data.GetViews().end(); ++iter)
+			  {
+				  const std::string sImageName = stlplus::create_filespec(sfm_data.s_root_path, iter->second->s_Img_path);
+				  const std::string basename = stlplus::basename_part(sImageName);
+				  const std::string featFile = stlplus::create_filespec(output_dir, basename, ".txt");
+				  if (hierarchicalMatcher->notable_features.count(iter->first))
+				  {
+					  std::ofstream file(featFile);
+
+					  std::shared_ptr<features::Regions> feats_1 = regions_provider->get(iter->first);
+					  for (const auto& feature_id : hierarchicalMatcher->notable_features.at(iter->first))
+					  {
+						  Vec2 first_feat = feats_1->GetRegionPosition(feature_id);
+						  file << feature_id << " " << first_feat(0) << " " << first_feat(1) << "\n";
+					  }
+					  file.close();
+					  notable_info << basename << ":" << hierarchicalMatcher->notable_features.at(iter->first).size() << "\n";
+				  }
+
+			  }
+			  notable_info.close();
+		  }
 	  }
 	  else
 	  {

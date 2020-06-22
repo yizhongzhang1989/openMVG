@@ -24,6 +24,8 @@ target_link_libraries(openMVG_IMU_multiview
   PUBLIC
     openMVG_multiview
     openMVG_numeric
+    openMVG_camera
+    openMVG_geometry
   PRIVATE
     openMVG_graph
     ${CERES_LIBRARIES}

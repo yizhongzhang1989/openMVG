@@ -7,7 +7,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-#include "openMVG/sfm/pipelines/sequential/sequential_SfM.hpp"
+#include "openMVG_IMU/sfm/pipelines/sequential/sequential_SfM.hpp"
 #include "openMVG/geometry/pose3.hpp"
 #include "openMVG/multiview/triangulation.hpp"
 #include "openMVG/sfm/pipelines/sfm_features_provider.hpp"
@@ -41,7 +41,7 @@ using namespace openMVG::cameras;
 using namespace openMVG::geometry;
 using namespace openMVG::matching;
 
-SequentialSfMReconstructionEngine::SequentialSfMReconstructionEngine(
+SequentialSfMReconstructionEngine_General::SequentialSfMReconstructionEngine_General(
   const SfM_Data & sfm_data,
   const std::string & soutDirectory,
   const std::string & sloggingFile)
@@ -55,7 +55,7 @@ SequentialSfMReconstructionEngine::SequentialSfMReconstructionEngine(
     // setup HTML logger
     html_doc_stream_ = std::make_shared<htmlDocument::htmlDocumentStream>("SequentialReconstructionEngine SFM report.");
     html_doc_stream_->pushInfo(
-      htmlDocument::htmlMarkup("h1", std::string("SequentialSfMReconstructionEngine")));
+      htmlDocument::htmlMarkup("h1", std::string("SequentialSfMReconstructionEngine_General")));
     html_doc_stream_->pushInfo("<hr>");
 
     html_doc_stream_->pushInfo( "Dataset info:");
@@ -70,7 +70,7 @@ SequentialSfMReconstructionEngine::SequentialSfMReconstructionEngine(
   }
 }
 
-SequentialSfMReconstructionEngine::~SequentialSfMReconstructionEngine()
+SequentialSfMReconstructionEngine_General::~SequentialSfMReconstructionEngine_General()
 {
   if (!sLogging_file_.empty())
   {
@@ -80,22 +80,39 @@ SequentialSfMReconstructionEngine::~SequentialSfMReconstructionEngine()
   }
 }
 
-void SequentialSfMReconstructionEngine::SetFeaturesProvider(Features_Provider * provider)
+void SequentialSfMReconstructionEngine_General::SetFeaturesProvider(Features_Provider * provider)
 {
   features_provider_ = provider;
 }
 
-void SequentialSfMReconstructionEngine::SetMatchesProvider(Matches_Provider * provider)
+void SequentialSfMReconstructionEngine_General::SetMatchesProvider(Matches_Provider * provider)
 {
   matches_provider_ = provider;
 }
 
-bool SequentialSfMReconstructionEngine::Process() {
+bool SequentialSfMReconstructionEngine_General::Process() {
 
   //-------------------
   //-- Incremental reconstruction
   //-------------------
-
+  /////////BC DEBUG START////////
+	bool bdebug = true;  //bc
+	std::ofstream intrinsic_log;
+	if (bdebug)
+	{
+		intrinsic_log.open(stlplus::create_filespec(sOut_directory_, "intrinsic_log.txt"));
+		intrinsic_log << "input intrinsic: \n";
+		Mat3 K = dynamic_cast<const cameras::Pinhole_Intrinsic*>(sfm_data_.GetIntrinsics().at(0).get())->K();
+		for (int i = 0; i < 3; i++)
+		{
+			for (int j = 0; j < 3; j++)
+			{
+				intrinsic_log << K(i, j) << " ";
+			}
+			intrinsic_log << "\n";
+		}
+	}
+  /////////BC DEBUG END////////
   if (!InitLandmarkTracks())
     return false;
 
@@ -121,16 +138,41 @@ bool SequentialSfMReconstructionEngine::Process() {
   // - group of images will be selected and resection + scene completion will be tried
   size_t resectionGroupIndex = 0;
   std::vector<uint32_t> vec_possible_resection_indexes;
-
+  
+  std::vector<uint32_t> registration_order;  //bc
+  if (bdebug)
+  {
+	  intrinsic_log << "initial intrinsic"<<"("<< initial_pair_ .first<<","<< initial_pair_ .second<<"): \n";
+	  Mat3 K = dynamic_cast<const cameras::Pinhole_Intrinsic*>(sfm_data_.GetIntrinsics().at(0).get())->K();
+	  for (int i = 0; i < 3; i++)
+	  {
+		  for (int j = 0; j < 3; j++)
+		  {
+			  intrinsic_log << K(i, j) << " ";
+		  }
+		  intrinsic_log << "\n";
+	  }
+	  Save(sfm_data_,
+		  stlplus::create_filespec(sOut_directory_, "sfm_data_" + std::to_string(registration_order.size()) + "_" 
+									+ std::to_string(initial_pair_.first)+std::to_string(initial_pair_.second), ".bin"),
+		  ESfM_Data(ALL));
+  }
   while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
   {
     bool bImageAdded = false;
     // Add images to the 3D reconstruction
     for (const auto & iter : vec_possible_resection_indexes)
     {
-
       bImageAdded |= Resection(iter);
       set_remaining_view_id_.erase(iter);
+	  if (bdebug) //bc
+	  {
+		  registration_order.push_back(iter);
+		  Save(sfm_data_,
+			  stlplus::create_filespec(sOut_directory_, "sfm_data_"+std::to_string(registration_order.size())+"_"+std::to_string(iter), ".bin"),
+			  ESfM_Data(ALL));
+		               
+	  }
     }
 
     if (bImageAdded)
@@ -148,6 +190,22 @@ bool SequentialSfMReconstructionEngine::Process() {
       while (badTrackRejector(4.0, 50));
       eraseUnstablePosesAndObservations(sfm_data_);
     }
+	if (bdebug) //bc
+	{
+		intrinsic_log <<" Iteration "<< registration_order.size() <<" intrinsic: \n";
+		Mat3 K = dynamic_cast<const cameras::Pinhole_Intrinsic*>(sfm_data_.GetIntrinsics().at(0).get())->K();
+		for (int i = 0; i < 3; i++)
+		{
+			for (int j = 0; j < 3; j++)
+			{
+				intrinsic_log << K(i, j) << " ";
+			}
+			intrinsic_log << "\n";
+		}
+		Save(sfm_data_,
+			stlplus::create_filespec(sOut_directory_, "ba_sfm_data_" + std::to_string(registration_order.size()), ".bin"),
+			ESfM_Data(ALL));
+	}
     ++resectionGroupIndex;
   }
   // Ensure there is no remaining outliers
@@ -155,7 +213,19 @@ bool SequentialSfMReconstructionEngine::Process() {
   {
     eraseUnstablePosesAndObservations(sfm_data_);
   }
-
+  /////////BC START  DEBUG////////
+  if (bdebug)
+  {
+	  intrinsic_log.close();
+	  std::ofstream registration_order_log(stlplus::create_filespec(sOut_directory_, "registration_order.txt"));
+	  for (const auto& view_id : registration_order)
+	  {
+		  registration_order_log << view_id << " ";
+	  }
+	  registration_order_log.close();
+  }
+  
+  /////////BC END  DEBUG////////
   //-- Reconstruction done.
   //-- Display some statistics
   std::cout << "\n\n-------------------------------" << "\n"
@@ -203,7 +273,7 @@ bool SequentialSfMReconstructionEngine::Process() {
 }
 
 /// Select a candidate initial pair
-bool SequentialSfMReconstructionEngine::ChooseInitialPair(Pair & initialPairIndex) const
+bool SequentialSfMReconstructionEngine_General::ChooseInitialPair(Pair & initialPairIndex) const
 {
   if (initial_pair_ != Pair(0,0))
   {
@@ -231,7 +301,7 @@ bool SequentialSfMReconstructionEngine::ChooseInitialPair(Pair & initialPairInde
 
     std::cout << std::endl
       << "----------------------------------------------------\n"
-      << "SequentialSfMReconstructionEngine::ChooseInitialPair\n"
+      << "SequentialSfMReconstructionEngine_General::ChooseInitialPair\n"
       << "----------------------------------------------------\n"
       << " Pairs that have valid intrinsic and high support of points are displayed:\n"
       << " Choose one pair manually by typing the two integer indexes\n"
@@ -291,7 +361,7 @@ bool SequentialSfMReconstructionEngine::ChooseInitialPair(Pair & initialPairInde
   return true;
 }
 
-bool SequentialSfMReconstructionEngine::InitLandmarkTracks()
+bool SequentialSfMReconstructionEngine_General::InitLandmarkTracks()
 {
   // Compute tracks from matches
   tracks::TracksBuilder tracksBuilder;
@@ -340,7 +410,7 @@ bool SequentialSfMReconstructionEngine::InitLandmarkTracks()
   return map_tracks_.size() > 0;
 }
 
-bool SequentialSfMReconstructionEngine::AutomaticInitialPairChoice(Pair & initial_pair) const
+bool SequentialSfMReconstructionEngine_General::AutomaticInitialPairChoice(Pair & initial_pair) const
 {
   // select a pair that have the largest baseline (mean angle between its bearing vectors).
 
@@ -364,7 +434,14 @@ bool SequentialSfMReconstructionEngine::AutomaticInitialPairChoice(Pair & initia
   }
 
   std::vector<std::pair<double, Pair>> scoring_per_pair;
-
+  ///////BC DEBUG START/////
+  bool bdebug = true;
+  std::ofstream initial_essentials_log;
+  if (bdebug)
+  {
+	  initial_essentials_log.open(stlplus::create_filespec(sOut_directory_, "initial_chooseessentials.txt"));
+  }
+  ///////BC DEBUG END/////
   // Compute the relative pose & the 'baseline score'
   C_Progress_display my_progress_bar( matches_provider_->pairWise_matches_.size(),
     std::cout,
@@ -458,7 +535,47 @@ bool SequentialSfMReconstructionEngine::AutomaticInitialPairChoice(Pair & initia
   #ifdef OPENMVG_USE_OPENMP
               #pragma omp critical
   #endif
-					    scoring_per_pair.emplace_back(scoring_angle, current_pair);
+				{           //bc
+					scoring_per_pair.emplace_back(scoring_angle, current_pair);
+					if (bdebug)  //bc
+					{
+						initial_essentials_log << "Pair " << view_I->id_view << " - " << view_J->id_view << "\n";
+						initial_essentials_log << "Essential:\n";
+						for (int i = 0; i < 3; i++)
+						{
+							for (int j = 0; j < 3; j++)
+							{
+								initial_essentials_log << relativePose_info.essential_matrix(i, j) << " ";
+							}
+							initial_essentials_log << "\n";
+						}
+						initial_essentials_log << "relativePose:\n";
+						Mat3 rot = pose_J.rotation();
+						Vec3 trans = pose_J.translation();
+						for (int i = 0; i < 3; i++)
+						{
+							for (int j = 0; j < 3; j++)
+							{
+								initial_essentials_log << rot(i,j) << " ";
+							}
+							initial_essentials_log << trans(i) << "\n";
+						}
+						initial_essentials_log << "inliers:\n";
+						for (const uint32_t & inlier_idx : relativePose_info.vec_inliers)
+						{
+							openMVG::tracks::STLMAPTracks::const_iterator iterT = map_tracksCommon.begin();
+							std::advance(iterT, inlier_idx);
+							tracks::submapTrack::const_iterator iter = iterT->second.begin();
+							assert(map_tracksCommon.at(inlier_idx).at(I) == iter->second);
+							assert(map_tracksCommon.at(inlier_idx).at(J) == (++iter)->second);
+							const Vec2 featI = features_provider_->feats_per_view[I][iter->second].coords().cast<double>();
+							const Vec2 featJ = features_provider_->feats_per_view[J][(++iter)->second].coords().cast<double>();
+							initial_essentials_log << iter->second <<" "<<featI(0) << " " << featI(1) << " ";
+							initial_essentials_log << (++iter)->second <<" "<<featJ(0) << " " << featJ(1) << "\n";
+						}
+					}
+				}
+             
             }
           }
         }
@@ -468,7 +585,23 @@ bool SequentialSfMReconstructionEngine::AutomaticInitialPairChoice(Pair & initia
   std::sort(scoring_per_pair.begin(), scoring_per_pair.end());
   // Since scoring is ordered in increasing order, reverse the order
   std::reverse(scoring_per_pair.begin(), scoring_per_pair.end());
-
+  /////////bc debug start///////
+  
+  
+  if (bdebug)
+  {
+	  initial_essentials_log.close();
+    std::ofstream initial_score_log;
+      initial_score_log.open(stlplus::create_filespec(sOut_directory_,"initial_score.txt"));
+      initial_score_log<<"view i and view j :score\n";
+      for(const auto& pair: scoring_per_pair)
+      {
+          initial_score_log<<pair.second.first<<"-"<<pair.second.second<<":   "<<pair.first<<"\n";
+      }
+      initial_score_log.close();
+  }
+  
+  /////////bc debug end///////
   if (!scoring_per_pair.empty())
   {
     initial_pair = scoring_per_pair.begin()->second;
@@ -478,7 +611,7 @@ bool SequentialSfMReconstructionEngine::AutomaticInitialPairChoice(Pair & initia
 }
 
 /// Compute the initial 3D seed (First camera t=0; R=Id, second estimated by 5 point algorithm)
-bool SequentialSfMReconstructionEngine::MakeInitialPair3D(const Pair & current_pair)
+bool SequentialSfMReconstructionEngine_General::MakeInitialPair3D(const Pair & current_pair)
 {
   // Compute robust Essential matrix for ImageId [I,J]
   // use min max to have I < J
@@ -517,7 +650,26 @@ bool SequentialSfMReconstructionEngine::MakeInitialPair3D(const Pair & current_p
   // use the track to have a more dense match correspondence set
   openMVG::tracks::STLMAPTracks map_tracksCommon;
   shared_track_visibility_helper_->GetTracksInImages({I, J}, map_tracksCommon);
+///////////////////bc debug start/////////////////
+bool bdebug = true;
+if(bdebug)
+{
+  std::ofstream initial_tack_log(stlplus::create_filespec(sOut_directory_,"initial_track.txt"));
+  initial_tack_log<<I<<"-"<<J<<"\n";
+  std::set<Pair> set_initial_tacks;
+  for(const auto& submaptrack_item:map_tracksCommon)
+  {
+    set_initial_tacks.insert(Pair(submaptrack_item.second.at(I),submaptrack_item.second.at(J)));
+    //initial_tack_log<<submaptrack_item.second.at(I)<<" "<<submaptrack_item.second.at(J)<<"\n";
+  }
+  for(const auto& pair:set_initial_tacks)
+  {
+    initial_tack_log<<pair.first<<" "<<pair.second<<"\n";
+  }
+  initial_tack_log.close();
+}
 
+///////////////////bc debug end  /////////////////
   //-- Copy point to arrays
   const size_t n = map_tracksCommon.size();
   Mat xI(2,n), xJ(2,n);
@@ -542,7 +694,40 @@ bool SequentialSfMReconstructionEngine::MakeInitialPair3D(const Pair & current_p
   const std::pair<size_t, size_t>
     imageSize_I(cam_I->w(), cam_I->h()),
     imageSize_J(cam_J->w(), cam_J->h());
-
+  if (bdebug)  //bc
+  {
+	  std::ofstream ransac_file(stlplus::create_filespec(sOut_directory_, "ransac_input.txt"));
+	  ransac_file << "image size I(w,h):" << imageSize_I.first << " " << imageSize_I.second << "\n";
+	  
+	  ransac_file << "intrinsics I:\n";
+	  Mat KI = dynamic_cast<const cameras::Pinhole_Intrinsic*>(cam_I)->K();
+	  for (int i = 0; i < 3; i++)
+	  {
+		  for (int j = 0; j < 3; j++)
+		  {
+			  ransac_file << KI(i, j) << " ";
+		  }
+		  ransac_file << "\n";
+	  }
+	  ransac_file << "image size J(w,h):" << imageSize_J.first << " " << imageSize_J.second << "\n";
+	  ransac_file << "intrinsics J:\n";
+	  Mat KJ = dynamic_cast<const cameras::Pinhole_Intrinsic*>(cam_J)->K();
+	  for (int i = 0; i < 3; i++)
+	  {
+		  for (int j = 0; j < 3; j++)
+		  {
+			  ransac_file << KJ(i, j) << " ";
+		  }
+		  ransac_file << "\n";
+	  }
+	  ransac_file << "xi yi xj yj:\n";
+	  for (int i = 0; i < n; i++)
+	  {
+		  ransac_file << xI(0, i) << " " << xI(1, i) << " ";
+		  ransac_file << xJ(0, i) << " " << xJ(1, i) << "\n";
+	  }
+	  ransac_file.close();
+  }
   if (!robustRelativePose(
     cam_I, cam_J, xI, xJ, relativePose_info, imageSize_I, imageSize_J, 4096))
   {
@@ -550,6 +735,49 @@ bool SequentialSfMReconstructionEngine::MakeInitialPair3D(const Pair & current_p
       << std::endl;
     return false;
   }
+  ////////bc debug start//////
+  
+  if (bdebug)  //bc
+  {
+	  std::ofstream initial_essentials_log;
+	  initial_essentials_log.open(stlplus::create_filespec(sOut_directory_,"initial_essentials.txt"));
+	  initial_essentials_log << "Pair " << view_I->id_view << " - " << view_J->id_view << "\n";
+	  initial_essentials_log << "Essential:\n";
+	  for (int i = 0; i < 3; i++)
+	  {
+		  for (int j = 0; j < 3; j++)
+		  {
+			  initial_essentials_log << relativePose_info.essential_matrix(i, j) << " ";
+		  }
+		  initial_essentials_log << "\n";
+	  }
+	  initial_essentials_log << "relativePose:\n";
+	  Mat3 rot = relativePose_info.relativePose.rotation();
+	  Vec3 trans = relativePose_info.relativePose.translation();
+	  for (int i = 0; i < 3; i++)
+	  {
+		  for (int j = 0; j < 3; j++)
+		  {
+			  initial_essentials_log << rot(i, j) << " ";
+		  }
+		  initial_essentials_log << trans(i) << "\n";
+	  }
+	  initial_essentials_log << "inliers:\n";
+	  for (const uint32_t & inlier_idx : relativePose_info.vec_inliers)
+	  {
+		  openMVG::tracks::STLMAPTracks::const_iterator iterT = map_tracksCommon.begin();
+		  std::advance(iterT, inlier_idx);
+		  tracks::submapTrack::const_iterator iter = iterT->second.begin();
+		  assert(map_tracksCommon.at(inlier_idx).at(I) == iter->second);
+		  assert(map_tracksCommon.at(inlier_idx).at(J) == (++iter)->second);
+		  const Vec2 featI = features_provider_->feats_per_view[I][iter->second].coords().cast<double>();
+		  const Vec2 featJ = features_provider_->feats_per_view[J][(++iter)->second].coords().cast<double>();
+		  initial_essentials_log << iter->second << " " << featI(0) << " " << featI(1) << " ";
+		  initial_essentials_log << (++iter)->second << " " << featJ(0) << " " << featJ(1) << "\n";
+	  }
+	  initial_essentials_log.close();
+  }
+  ////////bc debug end//////
   std::cout << "A-Contrario initial pair residual: "
     << relativePose_info.found_residual_precision << std::endl;
   // Bound min precision at 1 pix.
@@ -629,6 +857,65 @@ bool SequentialSfMReconstructionEngine::MakeInitialPair3D(const Pair & current_p
     set_remaining_view_id_.erase(view_J->id_view);
 
     // List inliers and save them
+    std::ofstream initial_triangulation_log;////bc
+    if(bdebug)
+    {
+		std::ofstream ba_initial_essential_log(stlplus::create_filespec(sOut_directory_, "ba_initial_essentials.txt"));
+		ba_initial_essential_log << "ba relative pose:\n";
+		Pose3 relative_poseji = pose_J * pose_I.inverse();
+		Mat3 relative_rji = relative_poseji.rotation();
+		Vec3 relative_tji = relative_poseji.translation();
+		for (int i = 0; i < 3; i++)
+		{
+			for (int j = 0; j < 3; j++)
+			{
+				ba_initial_essential_log << relative_rji(i, j) << " ";
+			}
+			ba_initial_essential_log << relative_tji(i) << "\n";
+		}
+		Mat3 tji_ni;
+		tji_ni << 0,                -relative_tji(2), relative_tji(1),
+			      relative_tji(2),  0,                -relative_tji(0),
+			      -relative_tji(1), relative_tji(0),  0;
+		Mat3 essential_matrix = tji_ni * relative_rji;
+		ba_initial_essential_log << "ba essential matrix:\n";
+		for (int i = 0; i < 3; i++)
+		{
+			for (int j = 0; j < 3; j++)
+			{
+				ba_initial_essential_log << essential_matrix(i, j) << " ";
+			}
+			ba_initial_essential_log << "\n";
+		}
+		ba_initial_essential_log << "essential_error\n";
+		std::vector<double> essential_error;
+		for (const uint32_t & inlier_idx : relativePose_info.vec_inliers)
+		{
+			openMVG::tracks::STLMAPTracks::const_iterator iterT = map_tracksCommon.begin();
+			std::advance(iterT, inlier_idx);
+			tracks::submapTrack::const_iterator iter = iterT->second.begin();
+			assert(map_tracksCommon.at(inlier_idx).at(I) == iter->second);
+			assert(map_tracksCommon.at(inlier_idx).at(J) == (++iter)->second);
+			const Vec2 featI = features_provider_->feats_per_view[I][iter->second].coords().cast<double>();
+			const Vec2 featJ = features_provider_->feats_per_view[J][(++iter)->second].coords().cast<double>();
+			Vec2 norm_featI=cam_I->ima2cam(featI);
+			Vec2 norm_featJ=cam_J->ima2cam(featJ);
+			Vec3 norm_featI_3, norm_featJ_3;
+			norm_featI_3 << norm_featI(0), norm_featI(1), 1.0;
+			norm_featJ_3 << norm_featJ(0), norm_featJ(1), 1.0;
+			Vec error = norm_featJ_3.transpose() * essential_matrix * norm_featI_3;
+			essential_error.push_back(error(0));
+			
+		}
+		std::sort(essential_error.begin(), essential_error.end());
+		for (size_t i = 0; i < essential_error.size(); i++)
+		{
+			ba_initial_essential_log << essential_error[i] << "\n";
+		}
+		ba_initial_essential_log.close();
+      initial_triangulation_log.open(stlplus::create_filespec(sOut_directory_,"initial_triangulation_status.txt"));
+	  initial_triangulation_log << view_I->id_view << "-" << view_J->id_view << "\n";
+	}
     for (const auto & landmark_entry : tiny_scene.GetLandmarks())
     {
       const IndexT trackId = landmark_entry.first;
@@ -656,9 +943,39 @@ bool SequentialSfMReconstructionEngine::MakeInitialPair3D(const Pair & current_p
           residual_J.norm() < relativePose_info.found_residual_precision)
       {
         sfm_data_.structure[trackId] = landmarks[trackId];
+		if (bdebug)
+		{
+			initial_triangulation_log << ob_xI.id_feat << " " << ob_xJ.id_feat 
+				<<"("<< ob_xI.x(0)<<" "<< ob_xI.x(1)<<" "<< ob_xJ.x(0)<<" "<< ob_xJ.x(1)<<")"
+				<< ": triangulated\n";  //bc
+		}
+      }
+      else if(bdebug)  //bc
+      {
+        initial_triangulation_log << ob_xI.id_feat<<" "<<ob_xJ.id_feat<<": ";  //bc
+        if(!(angle > 2.0))
+        {
+          initial_triangulation_log<<" angle <= 2.0 ";
+        }
+        else if(!CheiralityTest((*cam_I)(ob_xI_ud), pose_I,
+                         (*cam_J)(ob_xJ_ud), pose_J,
+                         landmark.X))
+        {
+          initial_triangulation_log<<" CheiralityTest failed ";
+        }
+        else if(!(residual_I.norm() < relativePose_info.found_residual_precision ))
+        {
+          initial_triangulation_log<<" Reprjection of "<<ob_xI.id_feat<<" is too large ";
+        }
+        else if(!(residual_J.norm() < relativePose_info.found_residual_precision))
+        {
+          initial_triangulation_log<<" Reprjection of "<<ob_xJ.id_feat<<" is too large ";
+        }
+        initial_triangulation_log<<"\n";
       }
       
     }
+    initial_triangulation_log.close();
     // Save outlier residual information
     Histogram<double> histoResiduals;
     std::cout << "\n"
@@ -718,7 +1035,7 @@ bool SequentialSfMReconstructionEngine::MakeInitialPair3D(const Pair & current_p
   return !sfm_data_.structure.empty();
 }
 
-double SequentialSfMReconstructionEngine::ComputeResidualsHistogram(Histogram<double> * histo)
+double SequentialSfMReconstructionEngine_General::ComputeResidualsHistogram(Histogram<double> * histo)
 {
   // Collect residuals for each observation
   std::vector<float> vec_residuals;
@@ -749,7 +1066,7 @@ double SequentialSfMReconstructionEngine::ComputeResidualsHistogram(Histogram<do
 
     std::cout << std::endl << std::endl;
     std::cout << std::endl
-      << "SequentialSfMReconstructionEngine::ComputeResidualsMSE." << "\n"
+      << "SequentialSfMReconstructionEngine_General::ComputeResidualsMSE." << "\n"
       << "\t-- #Tracks:\t" << sfm_data_.GetLandmarks().size() << std::endl
       << "\t-- Residual min:\t" << dMin << std::endl
       << "\t-- Residual median:\t" << dMedian << std::endl
@@ -783,7 +1100,7 @@ struct sort_pair_second {
  * Then keep all the images that have at least:
  *  0.75 * #correspondences(I) common correspondences to the reconstruction.
  */
-bool SequentialSfMReconstructionEngine::FindImagesWithPossibleResection(
+bool SequentialSfMReconstructionEngine_General::FindImagesWithPossibleResection(
   std::vector<uint32_t> & vec_possible_indexes)
 {
   // Threshold used to select the best images
@@ -862,6 +1179,25 @@ bool SequentialSfMReconstructionEngine::FindImagesWithPossibleResection(
   {
     vec_possible_indexes.push_back(vec_putative[i].first);
   }
+  ///////BC DEBUG START////////
+  bool debug = true;
+  if (debug)
+  {
+	  std::ofstream file;
+	  file.open(stlplus::create_filespec(sOut_directory_, "FindImagesWithPossibleResection.txt"), std::ios::out | std::ios::app);
+	  file << "Remaining " << set_remaining_view_id_.size() << " images\n";
+	  file << "M : " << M << "\n";
+	  file << "threshold : " << threshold << "\n";
+	  for (size_t i = 0; i < vec_putative.size(); i++)
+	  {
+		  file << vec_putative[i].first << " : " << vec_putative[i].second;
+		  if (vec_putative[i].second > threshold) file << " accepted.";
+		  file << "\n";
+	  }
+	  file << "\n";
+	  file.close();
+  }
+  ///////BC DEBUG END////////
   return true;
 }
 
@@ -878,7 +1214,7 @@ bool SequentialSfMReconstructionEngine::FindImagesWithPossibleResection(
  * F. Update the observations into the global scene structure
  * G. Triangulate new possible 2D tracks
  */
-bool SequentialSfMReconstructionEngine::Resection(const uint32_t viewIndex)
+bool SequentialSfMReconstructionEngine_General::Resection(const uint32_t viewIndex)
 {
   using namespace tracks;
 
@@ -964,6 +1300,44 @@ bool SequentialSfMReconstructionEngine::Resection(const uint32_t viewIndex)
     pose
   );
   resection_data.pt2D = std::move(pt2D_original); // restore original image domain points
+  /////////////BC DEBUG START//////////////////
+  bool bdebug = true;
+  std::ofstream Resection_log;
+  if (bdebug)
+  {
+		std::string resection_folder = stlplus::create_filespec(sOut_directory_, "resection_logs");
+		if (!stlplus::folder_exists(resection_folder))
+		{
+		  stlplus::folder_create(resection_folder);
+		}
+		Resection_log.open(stlplus::create_filespec(resection_folder, "resection_"+std::to_string(viewIndex))+".txt");
+		for (size_t cpt = 0; cpt < vec_featIdForResection.size(); ++cpt)
+		{
+			Vec2f coords_ = features_provider_->feats_per_view.at(viewIndex)[vec_featIdForResection[cpt]].coords();
+			Resection_log << vec_featIdForResection[cpt] << " " << coords_(0) << " " << coords_(1) << " ";
+			bool binlier = false;
+			for (const auto& inlierid : resection_data.vec_inliers)
+			{
+				if (cpt == inlierid)
+				{
+					binlier = true;
+					break;
+				}
+			}
+			if (binlier)
+			{
+				Resection_log << "1\n";
+			}
+			else
+			{
+				Resection_log << "0\n";
+			}
+		}
+	  
+	  
+  }
+  std::vector<uint32_t> new_triangulatedpoints;
+  /////////////BC DEBUG END////////////////////
   if (!sLogging_file_.empty())
   {
     using namespace htmlDocument;
@@ -1198,17 +1572,32 @@ bool SequentialSfMReconstructionEngine::Resection(const uint32_t viewIndex)
               && residual.norm() < std::max(4.0, map_ACThreshold_.at(J))
              )
           {
+			  if (J == viewIndex&&bdebug)  ////bc
+			  {
+				  new_triangulatedpoints.push_back(allViews_of_track.at(J));
+			  }
             landmark.obs[J] = Observation(xJ, allViews_of_track.at(J));
           }
         }
       }
     }// All the tracks in the view
+	///////BC DEBUG START///////
+	if (bdebug)
+	{
+		for (const auto& feat_id : new_triangulatedpoints)
+		{
+			const Vec2 xJ = features_provider_->feats_per_view.at(viewIndex)[feat_id].coords().cast<double>();
+			Resection_log << feat_id << " " << xJ(0) << " " << xJ(1) << " 3\n";
+		}
+		Resection_log.close();
+	}
+	///////BC DEBUG END///////
   }
   return true;
 }
 
 /// Bundle adjustment to refine Structure; Motion and Intrinsics
-bool SequentialSfMReconstructionEngine::BundleAdjustment()
+bool SequentialSfMReconstructionEngine_General::BundleAdjustment()
 {
   Bundle_Adjustment_Ceres::BA_Ceres_options options;
   if ( sfm_data_.GetPoses().size() > 100 &&
@@ -1245,7 +1634,7 @@ bool SequentialSfMReconstructionEngine::BundleAdjustment()
  *
  * @return True if more than 'count' outliers have been removed.
  */
-bool SequentialSfMReconstructionEngine::badTrackRejector(double dPrecision, size_t count)
+bool SequentialSfMReconstructionEngine_General::badTrackRejector(double dPrecision, size_t count)
 {
   const size_t nbOutliers_residualErr = RemoveOutliers_PixelResidualError(sfm_data_, dPrecision, 2);
   const size_t nbOutliers_angleErr = RemoveOutliers_AngleError(sfm_data_, 2.0);

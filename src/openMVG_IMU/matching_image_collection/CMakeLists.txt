@@ -25,7 +25,7 @@ target_link_libraries(openMVG_IMU_matching_image_collection
     openMVG_features
     openMVG_sfm
     openMVG_system
-	openMVG_IMU_matching
+
   openMVG_IMU_utils
     ${OPENMVG_LIBRARY_DEPENDENCIES})
 target_include_directories(openMVG_IMU_matching_image_collection

@@ -145,9 +145,9 @@ bool Optical_Matching
 	const int kNumTopCandidates = 10;
 	
 
-		//optical flow match
-		//Is the feature id consistent with index of vector<features::PointFeature> and column of descriptor matrix
-		//
+	//optical flow match
+	//Is the feature id consistent with index of vector<features::PointFeature> and column of descriptor matrix
+	//
 
 	
 	Eigen::MatrixXi candidate_hamming_distances(
@@ -206,7 +206,7 @@ bool Optical_Matching
 				double_comp(ot_2.rx, pts_2[j].x()) != 0 ||
 				double_comp(ot_2.ry, pts_2[j].y()) != 0)
 			{
-				std::cerr << "Error: optical features is inconsistent with raw features\n";
+				std::cerr << "Error: optical features is inconsistent with original features\n";
 				return false;
 			}
 			

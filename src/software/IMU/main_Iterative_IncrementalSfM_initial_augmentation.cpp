@@ -224,10 +224,8 @@ bool FindInitialImagePairs(const SfM_Data& sfm_data,const std::set<IndexT>& regi
 					if (robustRelativePose_MultiModel(
 						cam_I, cam_J,
 						xI, xJ, relativePose_info,
-						relativePose_essentialinfo,
-						relativePose_homographyinfo,
 						{ cam_I->w(), cam_I->h() }, { cam_J->w(), cam_J->h() },
-						max_iteration_count,I,J)
+						max_iteration_count)
 						&& relativePose_info.vec_inliers.size() > iMin_inliers_count)
 					{
 						// Triangulate inliers & compute angle between bearing vectors
@@ -474,8 +472,7 @@ if(bdebug)
 	  ransac_file.close();
   }
   if (!robustRelativePose_MultiModel(
-    cam_I, cam_J, xI, xJ, relativePose_info, relativePose_essentialinfo,
-    relativePose_homographyinfo,imageSize_I, imageSize_J, max_iteration_count,I,J))
+    cam_I, cam_J, xI, xJ, relativePose_info,imageSize_I, imageSize_J, max_iteration_count))
   {
     std::cerr << " /!\\ Robust estimation failed to compute E for this pair"
       << std::endl;

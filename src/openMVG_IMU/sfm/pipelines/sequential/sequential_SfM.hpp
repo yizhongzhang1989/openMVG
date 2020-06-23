@@ -28,6 +28,9 @@ struct Features_Provider;
 struct Matches_Provider;
 
 /// Sequential SfM Pipeline Reconstruction Engine.
+/// Note:the class is created as same as the homonymous class in openMVG,
+///      but the only difference is that all member variables and functions
+///      in the class are declared as public for inheriting.
 class SequentialSfMReconstructionEngine_General : public ReconstructionEngine
 {
 public:

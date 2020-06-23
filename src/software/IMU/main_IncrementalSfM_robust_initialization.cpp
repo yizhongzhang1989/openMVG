@@ -83,9 +83,13 @@ int main(int argc, char **argv)
   int i_User_camera_model = PINHOLE_CAMERA_RADIAL3;
   bool b_use_motion_priors = false;
   int triangulation_method = static_cast<int>(ETriangulationMethod::DEFAULT);
+  //the maximum iteration number of finding automatically initial pair
   size_t initial_max_iteration_count = 4096;
-  std::string sIMU_Data_Filename="";
-  bool b_robust_initialization_of_imu = true;
+  //the path to a IMU Pose file used for validation of essential matrix.
+  std::string sIMU_Data_Filename="";    
+  //Enable usage of imu validation in initialization.
+  //Otherwise,enable usage of multiple model in initialization.
+  bool b_robust_initialization_of_imu = false;  
 
   cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
   cmd.add( make_option('m', sMatchesDir, "matchdir") );
@@ -111,8 +115,8 @@ int main(int argc, char **argv)
     << "[-o|--outdir] path where the output data will be stored\n"
     << "\n[Optional]\n"
     << "[-u|--input_imu_file] the path to a IMU Pose file used for validation of essential matrix.\n"
-    << "[-r|--robust_initialization_of_imu] Enable usage of imu validation in initialization.Otherwise,enable usage of multiple model in initialization.\n"
-    << "[-d|--initialPinitial_max_iteration_countairA] the maximum iteration number of finding automatically initial pair\n"
+    << "[-r|--robust_initialization_of_imu] Enable usage of imu validation in initialization.Otherwise,enable usage of multiple model in initialization.(default: false)\n"
+    << "[-d|--initial_max_iteration_count] the maximum iteration number of finding automatically initial pair\n"
     << "[-a|--initialPairA] filename of the first image (without path)\n"
     << "[-b|--initialPairB] filename of the second image (without path)\n"
     << "[-c|--camera_model] Camera model type for view with unknown intrinsic:\n"
@@ -173,7 +177,7 @@ int main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
-  //Load input IMU_Data scene
+  //Load input IMU_Data scene if enable usage of imu validation in initialization
   SfM_Data imu_data;
   if(b_robust_initialization_of_imu && !Load(imu_data, sIMU_Data_Filename, ESfM_Data(ALL)))
   {
@@ -235,9 +239,10 @@ int main(int argc, char **argv)
   SequentialSfMReconstructionEngine_Robust_Initialization sfmEngine(
     sfm_data,
     sOutDir,
-    stlplus::create_filespec(sOutDir, "Reconstruction_Report.html"),
-    initial_max_iteration_count);
-  // Configure the imu data
+    initial_max_iteration_count,
+    stlplus::create_filespec(sOutDir, "Reconstruction_Report.html")
+    );
+  // Configure the imu data if necessary
   if(b_robust_initialization_of_imu)
   {
       sfmEngine.setIMUData(imu_data);

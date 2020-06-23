@@ -27,7 +27,7 @@ namespace sfm {
 struct Features_Provider;
 struct Matches_Provider;
 
-/// Sequential SfM Pipeline Reconstruction Engine.
+/// Derived Sequential SfM Pipeline Reconstruction Engine With Robust Initialization.
 class SequentialSfMReconstructionEngine_Robust_Initialization : public SequentialSfMReconstructionEngine_General
 {
 public:
@@ -35,22 +35,23 @@ public:
   SequentialSfMReconstructionEngine_Robust_Initialization(
     const SfM_Data & sfm_data,
     const std::string & soutDirectory,
-    const std::string & loggingFile = "",
-    const size_t initial_max_iteration_count = 256);
+    const size_t initial_max_iteration_count,
+    const std::string & loggingFile = "");
 
   ~SequentialSfMReconstructionEngine_Robust_Initialization();
-
+  //Reconstrution with robust initialization
   bool Process_Robust_Initialization();
+  //Reconstrution with original initialization from known tracks
   bool Process_KnownTracks();
-
+  //robust selecting optimal initial pair
   bool RobustAutomaticInitialPairChoice(Pair & initial_pair) const;
 
   /// Return MSE (Mean Square Error) and a histogram of residual values.
   double ComputeResidualsHistogram(Histogram<double> * histo);
 
-  /// Compute the initial 3D seed (First camera t=0; R=Id, second estimated by 5 point algorithm)
+  /// Compute the initial 3D seed in a robust way(First camera t=0; R=Id, second estimated by 5 point algorithm)
   bool RobustMakeInitialPair3D(const Pair & initialPair);
-
+  /// Enable the usage of imu validation in initialization
   void setIMUData(const SfM_Data & imu_data)
   {
     imu_data_ = imu_data;
@@ -61,10 +62,10 @@ public:
 protected:
 
 
-public:    //bc
-    size_t initial_max_iteration_count_;
-    SfM_Data imu_data_;
-    bool b_robust_initialization_of_imu_;
+public:    
+    size_t initial_max_iteration_count_;  // the number of iteration for selecting optimal initial pair
+    SfM_Data imu_data_;                   // the input imu poses
+    bool b_robust_initialization_of_imu_; // enable the usage of imu validatio
 };
 
 } // namespace sfm

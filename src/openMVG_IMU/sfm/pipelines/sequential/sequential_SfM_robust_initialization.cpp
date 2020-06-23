@@ -46,8 +46,8 @@ using namespace openMVG::matching;
 SequentialSfMReconstructionEngine_Robust_Initialization::SequentialSfMReconstructionEngine_Robust_Initialization(
   const SfM_Data & sfm_data,
   const std::string & soutDirectory,
-  const std::string & sloggingFile,
-  const size_t initial_max_iteration_count)
+  const size_t initial_max_iteration_count,
+  const std::string & sloggingFile)
   : SequentialSfMReconstructionEngine_General(sfm_data, soutDirectory,sloggingFile),
   initial_max_iteration_count_(initial_max_iteration_count)
 {
@@ -65,24 +65,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_Robust_Ini
   //-------------------
   //-- Incremental reconstruction
   //-------------------
-  /////////BC DEBUG START////////
-	bool bdebug = true;  //bc
-	std::ofstream intrinsic_log;
-	if (bdebug)
-	{
-		intrinsic_log.open(stlplus::create_filespec(sOut_directory_, "intrinsic_log.txt"));
-		intrinsic_log << "input intrinsic: \n";
-		Mat3 K = dynamic_cast<const cameras::Pinhole_Intrinsic*>(sfm_data_.GetIntrinsics().at(0).get())->K();
-		for (int i = 0; i < 3; i++)
-		{
-			for (int j = 0; j < 3; j++)
-			{
-				intrinsic_log << K(i, j) << " ";
-			}
-			intrinsic_log << "\n";
-		}
-	}
-  /////////BC DEBUG END////////
+
   if (!InitLandmarkTracks())
     return false;
   
@@ -92,8 +75,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_Robust_Ini
   {
     if (!RobustAutomaticInitialPairChoice(initial_pair_))
     {
-      intrinsic_log.close();
-      bool flag = Process_KnownTracks();   //turn the level of initialization down 
+      bool flag = Process_KnownTracks();   //turn the level of initialization down into original initialization
       return flag;
     }
   }
@@ -103,30 +85,11 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_Robust_Ini
   // Initial pair Essential Matrix and [R|t] estimation.
   if (!RobustMakeInitialPair3D(initial_pair_))
     return false;
-  //return true;  //must deleted
   // Compute robust Resection of remaining images
   // - group of images will be selected and resection + scene completion will be tried
   size_t resectionGroupIndex = 0;
   std::vector<uint32_t> vec_possible_resection_indexes;
   
-  std::vector<uint32_t> registration_order;  //bc
-  if (bdebug)
-  {
-	  intrinsic_log << "initial intrinsic"<<"("<< initial_pair_ .first<<","<< initial_pair_ .second<<"): \n";
-	  Mat3 K = dynamic_cast<const cameras::Pinhole_Intrinsic*>(sfm_data_.GetIntrinsics().at(0).get())->K();
-	  for (int i = 0; i < 3; i++)
-	  {
-		  for (int j = 0; j < 3; j++)
-		  {
-			  intrinsic_log << K(i, j) << " ";
-		  }
-		  intrinsic_log << "\n";
-	  }
-	  Save(sfm_data_,
-		  stlplus::create_filespec(sOut_directory_, "sfm_data_" + std::to_string(registration_order.size()) + "_" 
-									+ std::to_string(initial_pair_.first)+std::to_string(initial_pair_.second), ".bin"),
-		  ESfM_Data(ALL));
-  }
   while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
   {
     bool bImageAdded = false;
@@ -135,14 +98,6 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_Robust_Ini
     {
       bImageAdded |= Resection(iter);
       set_remaining_view_id_.erase(iter);
-	  if (bdebug) //bc
-	  {
-		  registration_order.push_back(iter);
-		  Save(sfm_data_,
-			  stlplus::create_filespec(sOut_directory_, "sfm_data_"+std::to_string(registration_order.size())+"_"+std::to_string(iter), ".bin"),
-			  ESfM_Data(ALL));
-		               
-	  }
     }
 
     if (bImageAdded)
@@ -160,22 +115,6 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_Robust_Ini
       while (badTrackRejector(4.0, 50));
       eraseUnstablePosesAndObservations(sfm_data_);
     }
-	if (bdebug) //bc
-	{
-		intrinsic_log <<" Iteration "<< registration_order.size() <<" intrinsic: \n";
-		Mat3 K = dynamic_cast<const cameras::Pinhole_Intrinsic*>(sfm_data_.GetIntrinsics().at(0).get())->K();
-		for (int i = 0; i < 3; i++)
-		{
-			for (int j = 0; j < 3; j++)
-			{
-				intrinsic_log << K(i, j) << " ";
-			}
-			intrinsic_log << "\n";
-		}
-		Save(sfm_data_,
-			stlplus::create_filespec(sOut_directory_, "ba_sfm_data_" + std::to_string(registration_order.size()), ".bin"),
-			ESfM_Data(ALL));
-	}
     ++resectionGroupIndex;
   }
   // Ensure there is no remaining outliers
@@ -183,19 +122,6 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_Robust_Ini
   {
     eraseUnstablePosesAndObservations(sfm_data_);
   }
-  /////////BC START  DEBUG////////
-  if (bdebug)
-  {
-	  intrinsic_log.close();
-	  std::ofstream registration_order_log(stlplus::create_filespec(sOut_directory_, "registration_order.txt"));
-	  for (const auto& view_id : registration_order)
-	  {
-		  registration_order_log << view_id << " ";
-	  }
-	  registration_order_log.close();
-  }
-  
-  /////////BC END  DEBUG////////
   //-- Reconstruction done.
   //-- Display some statistics
   std::cout << "\n\n-------------------------------" << "\n"
@@ -247,25 +173,6 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_KnownTrack
   //-------------------
   //-- Incremental reconstruction
   //-------------------
-  /////////BC DEBUG START////////
-	bool bdebug = true;  //bc
-  std::cout<<"Initialization of OpenMVG\n";
-  std::ofstream intrinsic_log;
-	if (bdebug)
-	{
-		intrinsic_log.open(stlplus::create_filespec(sOut_directory_, "intrinsic_log.txt"));
-		intrinsic_log << "input intrinsic: \n";
-		Mat3 K = dynamic_cast<const cameras::Pinhole_Intrinsic*>(sfm_data_.GetIntrinsics().at(0).get())->K();
-		for (int i = 0; i < 3; i++)
-		{
-			for (int j = 0; j < 3; j++)
-			{
-				intrinsic_log << K(i, j) << " ";
-			}
-			intrinsic_log << "\n";
-		}
-	}
-  /////////BC DEBUG END////////
   // Initial pair choice
   if (initial_pair_ == Pair(0,0))
   {
@@ -283,30 +190,11 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_KnownTrack
   // Initial pair Essential Matrix and [R|t] estimation.
   if (!MakeInitialPair3D(initial_pair_))
     return false;
-  //return true;  //must deleted
   // Compute robust Resection of remaining images
   // - group of images will be selected and resection + scene completion will be tried
   size_t resectionGroupIndex = 0;
   std::vector<uint32_t> vec_possible_resection_indexes;
   
-  std::vector<uint32_t> registration_order;  //bc
-  if (bdebug)
-  {
-    intrinsic_log << "initial intrinsic"<<"("<< initial_pair_ .first<<","<< initial_pair_ .second<<"): \n";
-	  Mat3 K = dynamic_cast<const cameras::Pinhole_Intrinsic*>(sfm_data_.GetIntrinsics().at(0).get())->K();
-	  for (int i = 0; i < 3; i++)
-	  {
-		  for (int j = 0; j < 3; j++)
-		  {
-			  intrinsic_log << K(i, j) << " ";
-		  }
-		  intrinsic_log << "\n";
-	  }
-	  Save(sfm_data_,
-		  stlplus::create_filespec(sOut_directory_, "sfm_data_" + std::to_string(registration_order.size()) + "_" 
-									+ std::to_string(initial_pair_.first)+std::to_string(initial_pair_.second), ".bin"),
-		  ESfM_Data(ALL));
-  }
   while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
   {
     bool bImageAdded = false;
@@ -315,14 +203,6 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_KnownTrack
     {
       bImageAdded |= Resection(iter);
       set_remaining_view_id_.erase(iter);
-	  if (bdebug) //bc
-	  {
-		  registration_order.push_back(iter);
-		  Save(sfm_data_,
-			  stlplus::create_filespec(sOut_directory_, "sfm_data_"+std::to_string(registration_order.size())+"_"+std::to_string(iter), ".bin"),
-			  ESfM_Data(ALL));
-		               
-	  }
     }
 
     if (bImageAdded)
@@ -340,22 +220,6 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_KnownTrack
       while (badTrackRejector(4.0, 50));
       eraseUnstablePosesAndObservations(sfm_data_);
     }
-	if (bdebug) //bc
-	{
-		intrinsic_log <<" Iteration "<< registration_order.size() <<" intrinsic: \n";
-		Mat3 K = dynamic_cast<const cameras::Pinhole_Intrinsic*>(sfm_data_.GetIntrinsics().at(0).get())->K();
-		for (int i = 0; i < 3; i++)
-		{
-			for (int j = 0; j < 3; j++)
-			{
-				intrinsic_log << K(i, j) << " ";
-			}
-			intrinsic_log << "\n";
-		}
-		Save(sfm_data_,
-			stlplus::create_filespec(sOut_directory_, "ba_sfm_data_" + std::to_string(registration_order.size()), ".bin"),
-			ESfM_Data(ALL));
-	}
     ++resectionGroupIndex;
   }
   // Ensure there is no remaining outliers
@@ -363,19 +227,6 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_KnownTrack
   {
     eraseUnstablePosesAndObservations(sfm_data_);
   }
-  /////////BC START  DEBUG////////
-  if (bdebug)
-  {
-	  intrinsic_log.close();
-	  std::ofstream registration_order_log(stlplus::create_filespec(sOut_directory_, "registration_order.txt"));
-	  for (const auto& view_id : registration_order)
-	  {
-		  registration_order_log << view_id << " ";
-	  }
-	  registration_order_log.close();
-  }
-  
-  /////////BC END  DEBUG////////
   //-- Reconstruction done.
   //-- Display some statistics
   std::cout << "\n\n-------------------------------" << "\n"
@@ -448,16 +299,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustAutomaticIni
   }
 
   std::vector<std::pair<double, Pair>> scoring_per_pair;
-  //////////BC DEBUG START///////
-	bool bdebug = true;
-	std::ofstream essentialmatrix_log;
-	std::ofstream homographymatrix_log;
-	if(bdebug)
-	{
-		essentialmatrix_log.open(stlplus::create_filespec(sOut_directory_,"total_initial_essential_matrix.txt"));
-		homographymatrix_log.open(stlplus::create_filespec(sOut_directory_, "total_initial_homography_matrix.txt"));
-	}
-	//////////BC DEBUG END///////
+  
   // Compute the relative pose & the 'baseline score'
   C_Progress_display my_progress_bar( matches_provider_->pairWise_matches_.size(),
     std::cout,
@@ -513,19 +355,14 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustAutomaticIni
 
           // Robust estimation of the relative pose
           RelativePose_MultiInfo relativePose_info;
-					RelativePose_MultiInfo relativePose_essentialinfo;
-					RelativePose_MultiInfo relativePose_homographyinfo;
-					//relativePose_info.initial_residual_tolerance = Square(4.0);   //(useless)can not send into function
-					//relativePose_essentialinfo.initial_residual_tolerance = Square(4.0);  
-					//relativePose_homographyinfo.initial_residual_tolerance = Square(4.0);
+					
           bool initialization_flag = false;
           if (!b_robust_initialization_of_imu_)
           {
+            //using multiple geometry model in initialization
           if (robustRelativePose_MultiModel(
                 cam_I, cam_J,
                 xI, xJ, relativePose_info,
-                relativePose_essentialinfo,
-						    relativePose_homographyinfo,
                 {cam_I->w(), cam_I->h()}, {cam_J->w(), cam_J->h()},
                 initial_max_iteration_count_)
               && relativePose_info.vec_inliers.size() > iMin_inliers_count)
@@ -535,6 +372,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustAutomaticIni
           }
           else
           {
+              //using imu validation in initialization
               const Pose3 imu_pose_I = imu_data_.poses.at(I);
               const Pose3 imu_pose_J = imu_data_.poses.at(J);
               Pose3 imu_relative_pose = imu_pose_J * imu_pose_I.inverse();
@@ -545,7 +383,6 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustAutomaticIni
                 initial_max_iteration_count_)
               && relativePose_info.vec_inliers.size() > iMin_inliers_count)
               {
-                  relativePose_essentialinfo = relativePose_info;
                   initialization_flag = true;
               }
           }
@@ -581,61 +418,8 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustAutomaticIni
   #ifdef OPENMVG_USE_OPENMP
               #pragma omp critical
   #endif
-				{           //bc
+				{           
 					scoring_per_pair.emplace_back(scoring_angle, current_pair);
-					if(bdebug)  //bc
-          {
-            essentialmatrix_log << "Pair "<<current_pair.first<<" - "<< current_pair.second<<"\n";
-            essentialmatrix_log <<"relation: "<<(relativePose_info.b_coplanar?"homography":"essential")<<"\n";
-            
-            essentialmatrix_log <<"essential:"<< relativePose_essentialinfo.vec_inliers.size()<<" in "<< xI .cols()<<"\n";
-            
-            for(int i = 0 ;i < 3; i++)
-            {
-              for(int j = 0 ;j < 3; j++)
-              {
-                essentialmatrix_log << relativePose_essentialinfo.model_matrix(i,j)<<" ";
-              }
-              essentialmatrix_log <<"\n";
-            }
-            essentialmatrix_log << "relative pose:\n";
-            Mat3 R_E = relativePose_essentialinfo.relativePose.rotation();
-            Vec3 t_E = relativePose_essentialinfo.relativePose.translation();
-            for (int i = 0; i < 3; i++)
-            {
-              for (int j = 0; j < 3; j++)
-              {
-                essentialmatrix_log << R_E(i, j) << " ";
-              }
-              essentialmatrix_log << t_E(i) << "\n";
-            }
-            if(!b_robust_initialization_of_imu_)
-            {
-                homographymatrix_log << "Pair " << current_pair.first << " - " << current_pair.second << "\n";
-              homographymatrix_log << "relation: " << (relativePose_info.b_coplanar ? "homography" : "essential") << "\n";
-              homographymatrix_log << "homography:"<< relativePose_homographyinfo.vec_inliers.size() << " in " << xI.cols() << "\n";
-              for(int i = 0 ;i < 3; i++)
-              {
-                for(int j = 0 ;j < 3; j++)
-                {
-                  homographymatrix_log << relativePose_homographyinfo.model_matrix(i,j)<<" ";
-                }
-                homographymatrix_log <<"\n";
-              }
-              homographymatrix_log << "relative pose:\n";
-              Mat3 R_H = relativePose_homographyinfo.relativePose.rotation();
-              Vec3 t_H = relativePose_homographyinfo.relativePose.translation();
-              for (int i = 0; i < 3; i++)
-              {
-                for (int j = 0; j < 3; j++)
-                {
-                  homographymatrix_log << R_H(i, j) << " ";
-                }
-                homographymatrix_log << t_H(i) << "\n";
-              }
-            }
-            
-          }
         }
              
             }
@@ -647,24 +431,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustAutomaticIni
   std::sort(scoring_per_pair.begin(), scoring_per_pair.end());
   // Since scoring is ordered in increasing order, reverse the order
   std::reverse(scoring_per_pair.begin(), scoring_per_pair.end());
-  /////////bc debug start///////
-  
-  
-  if (bdebug)
-  {
-	  essentialmatrix_log.close();
-		homographymatrix_log.close();
-    std::ofstream initial_score_log;
-      initial_score_log.open(stlplus::create_filespec(sOut_directory_,"initial_score.txt"));
-      initial_score_log<<"view i and view j :score\n";
-      for(const auto& pair: scoring_per_pair)
-      {
-          initial_score_log<<pair.second.first<<"-"<<pair.second.second<<":   "<<pair.first<<"\n";
-      }
-      initial_score_log.close();
-  }
-  
-  /////////bc debug end///////
+
   if (!scoring_per_pair.empty())
   {
     initial_pair = scoring_per_pair.begin()->second;
@@ -717,26 +484,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustMakeInitialP
   // use the track to have a more dense match correspondence set
   openMVG::tracks::STLMAPTracks map_tracksCommon;
   shared_track_visibility_helper_->GetTracksInImages({I, J}, map_tracksCommon);
-///////////////////bc debug start/////////////////
-bool bdebug = true;
-if(bdebug)
-{
-  std::ofstream initial_tack_log(stlplus::create_filespec(sOut_directory_,"initial_track.txt"));
-  initial_tack_log<<I<<"-"<<J<<"\n";
-  std::set<Pair> set_initial_tacks;
-  for(const auto& submaptrack_item:map_tracksCommon)
-  {
-    set_initial_tacks.insert(Pair(submaptrack_item.second.at(I),submaptrack_item.second.at(J)));
-    //initial_tack_log<<submaptrack_item.second.at(I)<<" "<<submaptrack_item.second.at(J)<<"\n";
-  }
-  for(const auto& pair:set_initial_tacks)
-  {
-    initial_tack_log<<pair.first<<" "<<pair.second<<"\n";
-  }
-  initial_tack_log.close();
-}
 
-///////////////////bc debug end  /////////////////
   //-- Copy point to arrays
   const size_t n = map_tracksCommon.size();
   Mat xI(2,n), xJ(2,n);
@@ -757,91 +505,24 @@ if(bdebug)
 
   // c. Robust estimation of the relative pose
   RelativePose_MultiInfo relativePose_info;
-  RelativePose_MultiInfo relativePose_essentialinfo;
-  RelativePose_MultiInfo relativePose_homographyinfo;
+  
   const std::pair<size_t, size_t>
     imageSize_I(cam_I->w(), cam_I->h()),
     imageSize_J(cam_J->w(), cam_J->h());
-  if (bdebug)  //bc
-  {
-	  std::ofstream ransac_file(stlplus::create_filespec(sOut_directory_, "ransac_input.txt"));
-	  ransac_file << "image size I(w,h):" << imageSize_I.first << " " << imageSize_I.second << "\n";
-	  ransac_file << "Pair "<<I<<" "<<J<<"\n";
-	  ransac_file << "intrinsics I:\n";
-	  Mat KI = dynamic_cast<const cameras::Pinhole_Intrinsic*>(cam_I)->K();
-	  for (int i = 0; i < 3; i++)
-	  {
-		  for (int j = 0; j < 3; j++)
-		  {
-			  ransac_file << KI(i, j) << " ";
-		  }
-		  ransac_file << "\n";
-	  }
-	  ransac_file << "image size J(w,h):" << imageSize_J.first << " " << imageSize_J.second << "\n";
-	  ransac_file << "intrinsics J:\n";
-	  Mat KJ = dynamic_cast<const cameras::Pinhole_Intrinsic*>(cam_J)->K();
-	  for (int i = 0; i < 3; i++)
-	  {
-		  for (int j = 0; j < 3; j++)
-		  {
-			  ransac_file << KJ(i, j) << " ";
-		  }
-		  ransac_file << "\n";
-	  }
-	  ransac_file << "xi yi xj yj:\n";
-	  for (int i = 0; i < n; i++)
-	  {
-		  ransac_file << xI(0, i) << " " << xI(1, i) << " ";
-		  ransac_file << xJ(0, i) << " " << xJ(1, i) << "\n";
-	  }
-	  ransac_file.close();
-    std::ofstream ransac_bearinginput_file(stlplus::create_filespec(sOut_directory_, "ransac_bearinginput.txt"));
-	  ransac_bearinginput_file << "Pair "<<I<<" "<<J<<"\n";
-    ransac_bearinginput_file << "image size I(w,h):" << imageSize_I.first << " " << imageSize_I.second << "\n";
-	  
-	  ransac_bearinginput_file << "intrinsics I:\n";
-	  
-	  for (int i = 0; i < 3; i++)
-	  {
-		  for (int j = 0; j < 3; j++)
-		  {
-			  ransac_bearinginput_file << KI(i, j) << " ";
-		  }
-		  ransac_bearinginput_file << "\n";
-	  }
-	  ransac_bearinginput_file << "image size J(w,h):" << imageSize_J.first << " " << imageSize_J.second << "\n";
-	  ransac_bearinginput_file << "intrinsics J:\n";
-	  
-	  for (int i = 0; i < 3; i++)
-	  {
-		  for (int j = 0; j < 3; j++)
-		  {
-			  ransac_bearinginput_file << KJ(i, j) << " ";
-		  }
-		  ransac_bearinginput_file << "\n";
-	  }
-    Mat3X bearing1 = (*cam_I)(xI);
-    Mat3X bearing2 = (*cam_J)(xJ);
-	  ransac_bearinginput_file << "bearing_xi bearing_yi bearing_xj bearing_yj:\n";
-	  for (int i = 0; i < n; i++)
-	  {
-		  ransac_bearinginput_file << bearing1(0, i) << " " << bearing1(1, i) << " ";
-		  ransac_bearinginput_file << bearing2(0, i) << " " << bearing2(1, i) << "\n";
-	  }
-	  ransac_bearinginput_file.close();
-  }
+
   bool initialization_flag = false;
   if (!b_robust_initialization_of_imu_)
   {
+    //using multiple geometry model in initialization
   if (robustRelativePose_MultiModel(
-    cam_I, cam_J, xI, xJ, relativePose_info, relativePose_essentialinfo,
-    relativePose_homographyinfo,imageSize_I, imageSize_J, 4096))
+    cam_I, cam_J, xI, xJ, relativePose_info,imageSize_I, imageSize_J, 4096))
       {
         initialization_flag = true;
       }
   }
   else
   {
+      //using imu validation in initialization
       const Pose3 imu_pose_I = imu_data_.poses.at(I);
       const Pose3 imu_pose_J = imu_data_.poses.at(J);
       Pose3 imu_relative_pose = imu_pose_J * imu_pose_I.inverse();
@@ -860,74 +541,7 @@ if(bdebug)
       << std::endl;
     return false;
   }
-  ////////bc debug start//////
-  
-  if (bdebug)  //bc
-  {
-	  std::ofstream initial_matrix_log;
-	  initial_matrix_log.open(stlplus::create_filespec(sOut_directory_,"initial_matrix.txt"));
-	  initial_matrix_log << "Pair " << view_I->id_view << " - " << view_J->id_view << "\n";
-    initial_matrix_log <<"relation: "<<(relativePose_info.b_coplanar?"homography":"essential")<<"\n";
-	  initial_matrix_log << "Essential:"<<relativePose_essentialinfo.vec_inliers.size()<<" in "<< xI .cols()<<"\n";
-	  for (int i = 0; i < 3; i++)
-	  {
-		  for (int j = 0; j < 3; j++)
-		  {
-			  initial_matrix_log << relativePose_essentialinfo.model_matrix(i,j)<<" ";
-		  }
-		  initial_matrix_log << "\n";
-	  }
-	  initial_matrix_log << "relativePose:\n";
-	  Mat3 R_E = relativePose_essentialinfo.relativePose.rotation();
-		Vec3 t_E = relativePose_essentialinfo.relativePose.translation();
-	  for (int i = 0; i < 3; i++)
-	  {
-		  for (int j = 0; j < 3; j++)
-		  {
-			  initial_matrix_log << R_E(i, j) << " ";
-		  }
-		  initial_matrix_log << t_E(i) << "\n";
-	  }
 
-
-    initial_matrix_log << "homography:"<< relativePose_homographyinfo.vec_inliers.size() << " in " << xI.cols() << "\n";
-    for(int i = 0 ;i < 3; i++)
-    {
-        for(int j = 0 ;j < 3; j++)
-        {
-          initial_matrix_log << relativePose_homographyinfo.model_matrix(i,j)<<" ";
-        }
-        initial_matrix_log <<"\n";
-    }
-    initial_matrix_log << "relative pose:\n";
-    Mat3 R_H = relativePose_homographyinfo.relativePose.rotation();
-    Vec3 t_H = relativePose_homographyinfo.relativePose.translation();
-    for (int i = 0; i < 3; i++)
-    {
-        for (int j = 0; j < 3; j++)
-        {
-          initial_matrix_log << R_H(i, j) << " ";
-        }
-        initial_matrix_log << t_H(i) << "\n";
-    }
-
-
-	  initial_matrix_log << "inliers:\n";
-	  for (const uint32_t & inlier_idx : relativePose_info.vec_inliers)
-	  {
-		  openMVG::tracks::STLMAPTracks::const_iterator iterT = map_tracksCommon.begin();
-		  std::advance(iterT, inlier_idx);
-		  tracks::submapTrack::const_iterator iter = iterT->second.begin();
-		  assert(map_tracksCommon.at(inlier_idx).at(I) == iter->second);
-		  assert(map_tracksCommon.at(inlier_idx).at(J) == (++iter)->second);
-		  const Vec2 featI = features_provider_->feats_per_view[I][iter->second].coords().cast<double>();
-		  const Vec2 featJ = features_provider_->feats_per_view[J][(++iter)->second].coords().cast<double>();
-		  initial_matrix_log << iter->second << " " << featI(0) << " " << featI(1) << " ";
-		  initial_matrix_log << (++iter)->second << " " << featJ(0) << " " << featJ(1) << "\n";
-	  }
-	  initial_matrix_log.close();
-  }
-  ////////bc debug end//////
   std::cout << "A-Contrario initial pair residual: "
     << relativePose_info.found_residual_precision << std::endl;
   // Bound min precision at 1 pix.
@@ -1007,65 +621,7 @@ if(bdebug)
     set_remaining_view_id_.erase(view_J->id_view);
 
     // List inliers and save them
-    std::ofstream initial_triangulation_log;////bc
-    if(bdebug)
-    {
-		std::ofstream ba_initial_essential_log(stlplus::create_filespec(sOut_directory_, "ba_initial_essentials.txt"));
-		ba_initial_essential_log << "ba relative pose:\n";
-		Pose3 relative_poseji = pose_J * pose_I.inverse();
-		Mat3 relative_rji = relative_poseji.rotation();
-		Vec3 relative_tji = relative_poseji.translation();
-		for (int i = 0; i < 3; i++)
-		{
-			for (int j = 0; j < 3; j++)
-			{
-				ba_initial_essential_log << relative_rji(i, j) << " ";
-			}
-			ba_initial_essential_log << relative_tji(i) << "\n";
-		}
-		Mat3 tji_ni;
-		tji_ni << 0,                -relative_tji(2), relative_tji(1),
-			      relative_tji(2),  0,                -relative_tji(0),
-			      -relative_tji(1), relative_tji(0),  0;
-		Mat3 essential_matrix = tji_ni * relative_rji;
-		ba_initial_essential_log << "ba essential matrix:\n";
-		for (int i = 0; i < 3; i++)
-		{
-			for (int j = 0; j < 3; j++)
-			{
-				ba_initial_essential_log << essential_matrix(i, j) << " ";
-			}
-			ba_initial_essential_log << "\n";
-		}
-		ba_initial_essential_log << "essential_error\n";
-		std::vector<double> essential_error;
-		for (const uint32_t & inlier_idx : relativePose_info.vec_inliers)
-		{
-			openMVG::tracks::STLMAPTracks::const_iterator iterT = map_tracksCommon.begin();
-			std::advance(iterT, inlier_idx);
-			tracks::submapTrack::const_iterator iter = iterT->second.begin();
-			assert(map_tracksCommon.at(inlier_idx).at(I) == iter->second);
-			assert(map_tracksCommon.at(inlier_idx).at(J) == (++iter)->second);
-			const Vec2 featI = features_provider_->feats_per_view[I][iter->second].coords().cast<double>();
-			const Vec2 featJ = features_provider_->feats_per_view[J][(++iter)->second].coords().cast<double>();
-			Vec2 norm_featI=cam_I->ima2cam(featI);
-			Vec2 norm_featJ=cam_J->ima2cam(featJ);
-			Vec3 norm_featI_3, norm_featJ_3;
-			norm_featI_3 << norm_featI(0), norm_featI(1), 1.0;
-			norm_featJ_3 << norm_featJ(0), norm_featJ(1), 1.0;
-			Vec error = norm_featJ_3.transpose() * essential_matrix * norm_featI_3;
-			essential_error.push_back(error(0));
-			
-		}
-		std::sort(essential_error.begin(), essential_error.end());
-		for (size_t i = 0; i < essential_error.size(); i++)
-		{
-			ba_initial_essential_log << essential_error[i] << "\n";
-		}
-		ba_initial_essential_log.close();
-      initial_triangulation_log.open(stlplus::create_filespec(sOut_directory_,"initial_triangulation_status.txt"));
-	  initial_triangulation_log << view_I->id_view << "-" << view_J->id_view << "\n";
-	}
+    
     for (const auto & landmark_entry : tiny_scene.GetLandmarks())
     {
       const IndexT trackId = landmark_entry.first;
@@ -1093,39 +649,10 @@ if(bdebug)
           residual_J.norm() < relativePose_info.found_residual_precision)
       {
         sfm_data_.structure[trackId] = landmarks[trackId];
-		if (bdebug)
-		{
-			initial_triangulation_log << ob_xI.id_feat << " " << ob_xJ.id_feat 
-				<<"("<< ob_xI.x(0)<<" "<< ob_xI.x(1)<<" "<< ob_xJ.x(0)<<" "<< ob_xJ.x(1)<<")"
-				<< ": triangulated\n";  //bc
-		}
-      }
-      else if(bdebug)  //bc
-      {
-        initial_triangulation_log << ob_xI.id_feat<<" "<<ob_xJ.id_feat<<": ";  //bc
-        if(!(angle > 2.0))
-        {
-          initial_triangulation_log<<" angle <= 2.0 ";
-        }
-        else if(!CheiralityTest((*cam_I)(ob_xI_ud), pose_I,
-                         (*cam_J)(ob_xJ_ud), pose_J,
-                         landmark.X))
-        {
-          initial_triangulation_log<<" CheiralityTest failed ";
-        }
-        else if(!(residual_I.norm() < relativePose_info.found_residual_precision ))
-        {
-          initial_triangulation_log<<" Reprjection of "<<ob_xI.id_feat<<" is too large ";
-        }
-        else if(!(residual_J.norm() < relativePose_info.found_residual_precision))
-        {
-          initial_triangulation_log<<" Reprjection of "<<ob_xJ.id_feat<<" is too large ";
-        }
-        initial_triangulation_log<<"\n";
       }
       
     }
-    initial_triangulation_log.close();
+
     // Save outlier residual information
     Histogram<double> histoResiduals;
     std::cout << "\n"

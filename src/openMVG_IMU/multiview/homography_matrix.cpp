@@ -171,7 +171,7 @@ void DecomposeHomographyMatrix(const Eigen::Matrix3d& H,
   *t = {t1, -t1, t2, -t2};
   *n = {-n1, n1, -n2, n2};
 }
-//openMVG
+
 bool RelativePoseFromHomography
 (
   
@@ -190,7 +190,7 @@ bool RelativePoseFromHomography
 )
 {
   using namespace geometry;
-  // Recover plausible relative poses from E.
+  // Recover plausible relative poses from H.
   std::vector<geometry::Pose3> relative_poses;
   assert(x1.cols() == x2.cols());
 
@@ -198,6 +198,7 @@ bool RelativePoseFromHomography
   std::vector<Eigen::Vector3d> t_cmbs;
   std::vector<Eigen::Vector3d> n_cmbs;
   DecomposeHomographyMatrix(H, K1, K2, &R_cmbs, &t_cmbs, &n_cmbs);
+  //package the pose
   for(size_t i = 0 ; i < R_cmbs.size() ; i++)
   {
     relative_poses.push_back(geometry::Pose3(R_cmbs[i], -R_cmbs[i].transpose() * t_cmbs[i]));
@@ -210,23 +211,7 @@ bool RelativePoseFromHomography
   // - count how many triangulated observations are in front of the cameras
   std::vector<std::vector<uint32_t>> vec_newInliers(relative_poses.size());
   std::vector<std::vector<Vec3>> vec_3D(relative_poses.size());
-  //bc debug start//
-  bool bdebug  = false;
-  std::ofstream decomposehomography_log;
-  if(bdebug)
-  {
-    decomposehomography_log.open("D:/Microsoft_internship/data/synthetic_data/pharmacy/key_openMVG_seq_recon_of_filtering_phase/decomposehomography_openMVG.txt");
-    decomposehomography_log<<"H:\n";
-    for(int  i = 0 ;i < 3; i++)
-    {
-      for(int j = 0; j < 3 ; j++)
-      {
-        decomposehomography_log << H(i,j)<<" ";
-      }
-      decomposehomography_log << "\n";
-    }
-  }
-  //bc debug end//
+
   const Pose3 pose1(Mat3::Identity(), Vec3::Zero());
 
   for (size_t i = 0; i < relative_poses.size(); ++i)
@@ -251,25 +236,9 @@ bool RelativePoseFromHomography
         vec_3D[i].push_back(X);
       }
     }
-    if(bdebug)
-    {
-      decomposehomography_log << "Pose "<<i<<" : " << cheirality_accumulator[i]<<" in "<<bearing_vector_index_to_use.size()<<"\n";
-      const Mat3 R = pose2.rotation();
-      const Vec3 t = pose2.translation();
-      for(int i = 0; i < 3 ; i++)
-      {
-        for(int j = 0;j<3;j++)
-        {
-          decomposehomography_log << R(i,j)<<" ";
-        }
-        decomposehomography_log <<t(i)<<"\n";
-      }
-    }
+    
   }
-  if(bdebug)
-  {
-    decomposehomography_log.close();
-  }
+
   // Check if there is a valid solution:
   const auto iter = std::max_element(cheirality_accumulator.cbegin(), cheirality_accumulator.cend());
   if (*iter == 0)
@@ -296,55 +265,33 @@ bool RelativePoseFromHomography
   return (ratio < positive_depth_solution_ratio);
 }
 
-//openMVG triangulation and CheckCheirality + COLMAP
+
 bool PoseFromHomographyMatrix(const Eigen::Matrix3d& H,
                               const Eigen::Matrix3d& K1,
                               const Eigen::Matrix3d& K2,
-                              //const std::vector<Eigen::Vector2d>& points1,
-                              //const std::vector<Eigen::Vector2d>& points2,
-                              const Eigen::Matrix<double, 2, Eigen::Dynamic>& points1,
-                              const Eigen::Matrix<double, 2, Eigen::Dynamic>& points2,
+
                               const Eigen::Matrix<double, 3, Eigen::Dynamic>& bearing1,
                               const Eigen::Matrix<double, 3, Eigen::Dynamic>& bearing2,
                               Eigen::Matrix3d* R, Eigen::Vector3d* t,
                               Eigen::Vector3d* n,
                               std::vector<Eigen::Vector3d>* points3D) {
   
-  assert(points1.cols() == points2.cols());
   assert(bearing1.cols() == bearing2.cols());
-  assert(points1.cols() == bearing1.cols());
 
+  // Recover plausible relative poses from H.
   std::vector<Eigen::Matrix3d> R_cmbs;
   std::vector<Eigen::Vector3d> t_cmbs;
   std::vector<Eigen::Vector3d> n_cmbs;
   DecomposeHomographyMatrix(H, K1, K2, &R_cmbs, &t_cmbs, &n_cmbs);
-  //bc debug start//
-  bool bdebug  = false;
-  std::ofstream decomposehomography_log;
-  if(bdebug)
-  {
-    decomposehomography_log.open("D:/Microsoft_internship/data/synthetic_data/pharmacy/key_openMVG_seq_recon_of_filtering_phase/decomposehomography.txt");
-  }
-  //bc debug end//
   points3D->clear();
+
+  // Find which solution is the best:
+  // - count how many triangulated observations are in front of the cameras
   int num_Maximum_pose = 0;
   for (size_t i = 0; i < R_cmbs.size(); ++i) {
     std::vector<Eigen::Vector3d> points3D_cmb;
-    
-    
+
     CheckCheirality(R_cmbs[i], t_cmbs[i], bearing1, bearing2, points3D_cmb);
-    if(bdebug)
-    {
-        decomposehomography_log <<"Pose "<<i<<": "<<points3D_cmb.size()<<"\n";
-        for(int k = 0 ;k < 3; k++)
-        {
-          for(int w = 0 ; w < 3 ; w++)
-          {
-            decomposehomography_log << R_cmbs[i](k,w)<<" ";
-          }
-          decomposehomography_log << t_cmbs[i](k)<<"\n";
-        }
-    }
     if (points3D_cmb.size() > points3D->size()) {
       *R = R_cmbs[i];
       *t = t_cmbs[i];
@@ -357,10 +304,7 @@ bool PoseFromHomographyMatrix(const Eigen::Matrix3d& H,
       num_Maximum_pose ++;
     }
   }
-  if(bdebug)
-  {
-    decomposehomography_log.close();
-  }
+  // discard the initial pair that can not be distinguished(i.e. there are multiple best solutions).
   return num_Maximum_pose <= 1;
   //return true;
   
@@ -413,13 +357,6 @@ bool CheiralityTest_COLMAP(const Eigen::Matrix<double,3,4>& proj_matrix1,const E
     return false;
 }
 
-Eigen::Matrix<double,3,4> ComposeProjectionMatrix(const Eigen::Matrix3d& R,
-                                          const Eigen::Vector3d& T) {
-  Eigen::Matrix<double,3,4> proj_matrix;
-  proj_matrix.leftCols<3>() = R;
-  proj_matrix.rightCols<1>() = T;
-  return proj_matrix;
-}
 
 double CalculateDepth(const Eigen::Matrix<double,3,4>& proj_matrix,
                       const Eigen::Vector3d& point3D) {
@@ -450,50 +387,17 @@ Eigen::Matrix3d ComputeHomographyMatrixfromKnownPose(
 {
   ///bearing : the normalized coordinate of features(camera frame)
   ///points: the 2d coordinate of features(image)
-  //////////////////////////////////////////////////
-  ///////////triangulate 3d points ////////////////
-  //////////////////////////////////////////////////
-    std::vector<Eigen::Vector3d> points3D_cmb;
-    assert(bearing1.cols() == bearing2.cols());
-    const geometry::Pose3 & pose_1 = geometry::Pose3(Mat3::Identity(), Vec3::Zero());
-    const geometry::Pose3 & pose_2 = geometry::Pose3(R,-R.transpose() * t);   //Pose3(R,c)
-    //const double kMinDepth = std::numeric_limits<double>::epsilon();
-    //const double max_depth = 1000.0f * (R.transpose() * t).norm();
-    for(size_t i  = 0 ; i < bearing1.cols() ; i++)
-    {
-        Vec3 X;
-        if(Triangulate2View(pose_1.rotation(),pose_1.translation(),bearing1.col(i),
-        pose_2.rotation(), pose_2.translation() ,bearing2.col(i), X)
-        )
-        {
-          if(cameras::CheiralityTest(bearing1.col(i),pose_1,bearing2.col(i),pose_2,X))
-          {
-              points3D_cmb.push_back(X);
-          }
- 
-        }
-    }
-    if(points3D_cmb.size() < 3)
-    {
-        return Eigen::Matrix3d::Zero();
-    }
-    Vec3 a,b,c;
     /* initialize random seed: */
     //srand (time(NULL));
     
     //////////////////////////////////////////////////
     ///////////calculate the best H ////////////////
     //////////////////////////////////////////////////
+    Vec3 a,b,c;
     double minNumNorm = std::numeric_limits<double>::max();
     Eigen::Matrix3d bestH;
-    bool bdebug = false;
-    std::ofstream bestH_log;
-    if(bdebug)
-    {
-        bestH_log.open("D:/Microsoft_internship/data/synthetic_data/pharmacy/key_openMVG_seq_recon_of_filtering_phase/bestH_log.txt");
-    }
-    
-
+    //find which Hmatrix is best in all plausible Hmatrix:
+    //   -calculate the sum of errors according formula(x2 = H * x1)
     for(size_t i = 0; i < bearing1.cols(); i++)
     {
       a = bearing1.col(i);
@@ -520,21 +424,10 @@ Eigen::Matrix3d ComputeHomographyMatrixfromKnownPose(
                                     norm,
                                     d);
         size_t num_validnorm;
-        double norm_ = CalculateNormSum(points1,points2,H,100.0,num_validnorm);
+        double norm_ = CalculateErrorH(points1,points2,H,100.0,num_validnorm);
         size_t num_validerror;
-        double error_ = CalculatePlaneNum(bearing1,norm,d,0.002,num_validerror);
-        if(bdebug)
-        {
-          bestH_log<<"a: "<<a(0)<<" "<<a(1)<<" "<<a(2)<<"\n";
-          bestH_log<<"b: "<<b(0)<<" "<<b(1)<<" "<<b(2)<<"\n";
-          bestH_log<<"c: "<<c(0)<<" "<<c(1)<<" "<<c(2)<<"\n";
-          bestH_log<<"norm: "<<norm(0)<<" "<<norm(1)<<" "<<norm(2)<<"\n";
-          bestH_log<<"d: "<<d<<"\n";
-          bestH_log <<"norm_error:"<<norm_<<"\n";
-          bestH_log<<"num_validnorm: "<<num_validnorm<<"\n";
-          bestH_log <<"error_: "<<error_<<"\n";
-          bestH_log<<"num_validerror: "<<num_validerror<<"\n";
-        }
+        double error_ = CalculateErrorPlane(bearing1,norm,d,0.002,num_validerror);
+        
         if(norm_ < minNumNorm)
         {
           minNumNorm = norm_;
@@ -543,17 +436,13 @@ Eigen::Matrix3d ComputeHomographyMatrixfromKnownPose(
         }
       }
     }
-    if(bdebug)
-    {
-      bestH_log<<"minNumNorm:"<<minNumNorm<<"\n";
-      bestH_log.close();
-    }
+    
     return bestH;
 
 
 }
 
-double CalculatePlaneNum(const Eigen::Matrix<double, 3, Eigen::Dynamic>& x1,
+double CalculateErrorPlane(const Eigen::Matrix<double, 3, Eigen::Dynamic>& x1,
                      const Eigen::Vector3d n,const double d,const double maxErrorThreshold,size_t& num_valid)
 {
   num_valid = 0;
@@ -573,7 +462,7 @@ double CalculatePlaneNum(const Eigen::Matrix<double, 3, Eigen::Dynamic>& x1,
 }
 
 
-double CalculateNormSum(const Eigen::Matrix<double, 2, Eigen::Dynamic>& x1,
+double CalculateErrorH(const Eigen::Matrix<double, 2, Eigen::Dynamic>& x1,
                      const Eigen::Matrix<double, 2, Eigen::Dynamic>& x2,
                      const Eigen::Matrix3d& H,const double maxNormThreshold,size_t& num_valid)
 {

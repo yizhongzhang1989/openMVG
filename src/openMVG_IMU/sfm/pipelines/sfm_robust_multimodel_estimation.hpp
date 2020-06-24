@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #ifndef OPENMVG_IMU_SFM_SFM_ROBUST_MULTIMODEL_ESTIMATION_HPP
 #define OPENMVG_IMU_SFM_SFM_ROBUST_MULTIMODEL_ESTIMATION_HPP
@@ -21,6 +17,7 @@ namespace openMVG { namespace cameras { struct IntrinsicBase; } }
 namespace openMVG {
 namespace sfm {
 
+//(taken from OpenMVG with modification)
   struct RelativePose_MultiInfo
 {
   Mat3 model_matrix;
@@ -39,7 +36,7 @@ namespace sfm {
 
 /**
  * @brief Estimate the Relative pose between two view from point matches and K matrices
- *  by using a multiple geometry model.
+ *  by using a multiple geometry model(owned by BC).
  *
  * @param[in] intrinsics1 camera 1 intrinsics
  * @param[in] intrinsics2 camera 2 intrinsics
@@ -64,7 +61,7 @@ bool robustRelativePose_MultiModel
 
 /**
  * @brief Estimate the Relative pose between two view from point matches and K matrices
- *  by using a robust essential matrix estimation with imu validation.
+ *  by using a robust essential matrix estimation with imu validation(owned by BC).
  *
  * @param[in] intrinsics1 camera 1 intrinsics
  * @param[in] intrinsics2 camera 2 intrinsics
@@ -90,7 +87,7 @@ bool robustRelativePose_IMU(
 );
 /**
  * @brief Estimate the Relative pose between two view from point matches and K matrices
- *  by using a robust homography matrix estimation.
+ *  by using a robust homography matrix estimation(taken from OpenMVG with modification).
  *
  * @param[in] intrinsics1 camera 1 intrinsics
  * @param[in] intrinsics2 camera 2 intrinsics
@@ -114,7 +111,7 @@ int robustRelativePose_Homography
 );
 /**
  * @brief Estimate the Relative pose between two view from point matches and K matrices
- *  by using a robust essential matrix estimation.
+ *  by using a robust essential matrix estimation(taken from OpenMVG::robustRelativePose() without modification).
  *
  * @param[in] intrinsics1 camera 1 intrinsics
  * @param[in] intrinsics2 camera 2 intrinsics

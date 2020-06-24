@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #ifndef OPENMVG_IMU_MATCHING_CASCADE_2_HASHER_HPP
 #define OPENMVG_IMU_MATCHING_CASCADE_2_HASHER_HPP
@@ -74,16 +70,9 @@ namespace matching {
 
 
 
-// This hasher will hash descriptors with a two-step hashing system:
-// 1. it generates a hash code,
-// 2. it determines which buckets the descriptors belong to.
-// Retrieval step is fast since:
-// - only descriptors in the same bucket are likely to be good matches.
-//   - 1. a hamming distance is used for fast neighbor candidate retrieval
-//   - 2. the L2 distance is computed only a reduced selection of approximate neighbor
-//
-// Implementation is based on the paper [1].
-// If you use this matcher, please cite the paper.
+// The class inherit the `CascadeHasher_General` in order to 
+// provide a matching interface that can only perform sift matching 
+// on user specified features of first view.
 class CascadeHasher2:public CascadeHasher_General {
 
 public:
@@ -97,7 +86,7 @@ public:
 	  const MatrixT & descriptions2,
 	  IndMatches * pvec_indices,
 	  std::vector<DistanceType> * pvec_distances,
-	  const std::set<IndexT>& specified_feat1_ids,
+	  const std::set<IndexT>& specified_feat1_ids,  //user specified feature ids
 	  const int NN = 2
   )
   {

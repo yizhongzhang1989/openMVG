@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #include "openMVG_IMU/matching_image_collection/Optical_Flow_Matcher_Regions.hpp"
 #include "openMVG_IMU/utils/myoutput.hpp"
@@ -34,228 +30,43 @@ Optical_Flow_Matcher_Regions
 	float distRatio, std::string bin_dir,double maxDistanceThreshold,const sfm::SfM_Data& sfm_data,
 	std::string sMatches_dir
 ):Matcher(), f_dist_ratio_(distRatio), bin_dir_(bin_dir),MaxDistanceThreshold(maxDistanceThreshold),
-sMatches_dir_(sMatches_dir)
+sMatches_dir_(sMatches_dir), opticalflow_container(bin_dir, maxDistanceThreshold, sfm_data)
 {
-
-	//read binary data of optical flow for every features
-	std::cout << "**read binary features**\n";
-	for (const auto& view_item : sfm_data.GetViews())
-	{
-		const IndexT view_id = view_item.first;
-		std::stringstream ss;
-		Optical_track ot;
-		//ss << std::setw(5) << std::setfill('0') << std::stoi(stlplus::basename_part(view_item.second->s_Img_path)) << ".bin";
-		ss << std::setw(5) << std::setfill('0') << view_id << ".bin";
-		std::string filename = ss.str();
-		std::ifstream file(stlplus::create_filespec(bin_dir, filename), std::ios::binary);
-
-		if (!file.is_open())
-		{
-			std::cerr << stlplus::create_filespec(bin_dir, std::string(filename)) << " can not be read\n";
-			return ;
-		}
-		if (opticaltrack_table.count(view_id))
-		{
-			std::cerr << "Error:duplicate view id\n";
-			return ;
-		}
-		opticaltrack_table.emplace(view_id, std::map<Pair, Optical_track>());
-		std::map<Pair, Optical_track>& map_optrack = opticaltrack_table.at(view_id);
-
-		while (file.read(reinterpret_cast<char*>(&ot), sizeof(Optical_track)))
-		{
-			map_optrack[Pair(ot.view_id, ot.feat_id)] = ot;
-			if (file.peek() == '\n')
-			{
-				file.ignore();
-			}
-		}
-		
-		std::cout << "#features of view  " << view_id << "("<< filename <<"): " << opticaltrack_table.at(view_id).size() << "\n";
-
-	}
-
 	
 }
 
 namespace impl
 {
 
-template <typename MatrixT, typename DistanceType>
-bool Match_OpticalFlow
-(
-	const IndexT view_id_1,
-	const HashedDescriptions& hashed_descriptions1,
-	const MatrixT & descriptions1,
-	const IndexT view_id_2,
-	const HashedDescriptions& hashed_descriptions2,
-	const MatrixT & descriptions2,
-	const std::vector<features::PointFeature>& pts_1,
-	const std::vector<features::PointFeature>& pts_2,
-	const IndexT latter_view,
-	const std::map<Pair, Optical_Flow_Matcher_Regions::Optical_track>& latter_opticaltable,
-	const uint8_t nb_hash_code,
-	IndMatches * pvec_indices,
-	std::vector<DistanceType> * pvec_distances,
-	const double MaxDistanceThreshold,
-	const int NN = 2
-)
-{
-	using MetricT = L2<typename MatrixT::Scalar>;
-	MetricT metric;
-	
-	const int kNumTopCandidates = 10;
-	const double eps = 1e-5;
-	auto double_comp = [&](const double x, const double y)->bool {
+// compute matches in local and for every feature in first view ,find least NN features paired in second view.
+//      view1											view2
+//    -------------------						-------------------
+//	  | feat_id1(view1)-+-----------------------+-feat_id2(view2) |
+//    |        |        |    feature match		|       |---------+---> distance tracked by optical flow
+//    |        ---------+-----------------------+>feat_id1(view1) |
+//    -------------------	optical flow		-------------------
+//                          
+//                         
+//
+// @param[in]  regions_provider           the information of features.
+// @param[in]  pairs                      the view pairs to matching
+// @param[in]  fDistRatio                 Distance ratio to discard non meaningful matches
+// @param[out] map_PutativesMatches       the computed matches
+// @param[in]  opticalflow_container      the optical information 
+// @param[in]  my_progress_bar            progress bar ui
 
-		if (x - y >= -eps&&x - y <= eps)
-		{
-			return 0;
-		}
-		else if (x - y > eps)
-		{
-			return 1;
-		}
-		else
-		{
-			return -1;
-		}
-	};
+// @return                whether the 3d point lies in front of both cameras.
+// (Owned by BC)
 
-	auto cal_dis = [&](double x1, double y1, double x2, double y2)->double {
-		return std::sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2));
-	};
-		//optical flow match
-		//Is the feature id consistent with index of vector<features::PointFeature> and column of descriptor matrix
-		//
-
-	
-	Eigen::MatrixXi candidate_hamming_distances(
-			hashed_descriptions2.hashed_desc.size(), nb_hash_code + 1);
-	
-	Eigen::VectorXi num_descriptors_with_hamming_distance(nb_hash_code + 1);
-	std::vector<std::pair<DistanceType, int>> candidate_euclidean_distances;
-	candidate_euclidean_distances.reserve(kNumTopCandidates);
-
-	using HammingMetricType = matching::Hamming<stl::dynamic_bitset::BlockType>;
-	static const HammingMetricType metricH = {};
-
-	
-	for (size_t i = 0; i < hashed_descriptions1.hashed_desc.size(); i++)
-	{
-		num_descriptors_with_hamming_distance.setZero();
-		candidate_euclidean_distances.clear();
-		size_t feats_selected = 0;
-		// Compute the hamming distance of all feature pair whose distance is less than 10 px
-		// Put the descriptors into buckets corresponding to their hamming distance.
-		if (!latter_opticaltable.count(Pair(view_id_1, i)))
-		{
-			if (latter_view == view_id_1)
-			{
-				std::cout << "Error:feature " << i << "can not be found in the binary file of view " << view_id_1 << "\n";
-				return false;
-			}
-			else
-			{
-				continue;
-			}
-		}
-		const Optical_Flow_Matcher_Regions::Optical_track& ot_1 = latter_opticaltable.at(Pair(view_id_1, i));
-		const auto& hashed_desc = hashed_descriptions1.hashed_desc[i];
-		
-		for (size_t j = 0; j < hashed_descriptions2.hashed_desc.size(); j++)
-		{
-			
-			if (!latter_opticaltable.count(Pair(view_id_2, j)))
-			{
-				if (latter_view == view_id_2)
-				{
-					std::cout << "Error:feature " << j << "can not be found in the binary file of view " << view_id_2 << "\n";
-					return false;
-				}
-				else
-				{
-					
-					continue;
-				}
-			}
-			
-			const Optical_Flow_Matcher_Regions::Optical_track& ot_2 = latter_opticaltable.at(Pair(view_id_2, j));
-			if (double_comp(ot_1.rx, pts_1[i].x()) != 0 ||
-				double_comp(ot_1.ry, pts_1[i].y()) != 0 ||
-				double_comp(ot_2.rx, pts_2[j].x()) != 0 ||
-				double_comp(ot_2.ry, pts_2[j].y()) != 0)
-			{
-				std::cerr << "Error: optical features is inconsistent with raw features\n";
-				return false;
-			}
-			
-			double dis_featpair = cal_dis(ot_1.x, ot_1.y, ot_2.x, ot_2.y);
-		
-			if (dis_featpair <= MaxDistanceThreshold)
-			{
-				const HammingMetricType::ResultType hamming_distance = metricH(
-					hashed_desc.hash_code.data(),
-					hashed_descriptions2.hashed_desc[j].hash_code.data(),
-					hashed_desc.hash_code.num_blocks());
-				candidate_hamming_distances(
-					num_descriptors_with_hamming_distance(hamming_distance)++,
-					hamming_distance) = j;
-				feats_selected++;
-			}
-		}
-
-
-		// Compute the euclidean distance of the k descriptors with the best hamming
-		// distance.
-		candidate_euclidean_distances.reserve(kNumTopCandidates);
-		for (int j = 0; j < candidate_hamming_distances.cols() &&
-			(candidate_euclidean_distances.size() < kNumTopCandidates); ++j)
-		{
-			for (int k = 0; k < num_descriptors_with_hamming_distance(j) &&
-				(candidate_euclidean_distances.size() < kNumTopCandidates); ++k)
-			{
-				const int candidate_id = candidate_hamming_distances(k, j);
-				const DistanceType distance = metric(
-					descriptions2.row(candidate_id).data(),
-					descriptions1.row(i).data(),
-					descriptions1.cols());
-
-				candidate_euclidean_distances.emplace_back(distance, candidate_id);
-			}
-		}
-		// Assert that each query is having at least NN retrieved neighbors
-		if (candidate_euclidean_distances.size() >= NN)
-		{
-			
-			// Find the top NN candidates based on euclidean distance.
-			std::partial_sort(candidate_euclidean_distances.begin(),
-				candidate_euclidean_distances.begin() + NN,
-				candidate_euclidean_distances.end());
-			// save resulting neighbors
-			for (int l = 0; l < NN; ++l)
-			{
-				pvec_distances->emplace_back(candidate_euclidean_distances[l].first);
-				pvec_indices->emplace_back(IndMatch(i, candidate_euclidean_distances[l].second));
-			}
-		}
-	}
-	
-	return true;
-
-}
 template <typename ScalarT>
 bool Match
 (
   const sfm::Regions_Provider & regions_provider,
   const Pair_Set & pairs,
   float fDistRatio,
-  const std::string bin_dir,
-  const std::string sMatches_dir,
   PairWiseMatchesContainer & map_PutativesMatches, // the pairwise photometric corresponding points
   C_Progress * my_progress_bar,
-	const double MaxDistanceThreshold,
-	const std::map<IndexT, std::map<Pair, Optical_Flow_Matcher_Regions::Optical_track>>& opticaltrack_table
+	const OpticalFlow_Container& opticalflow_container
 )
 {
 	
@@ -267,7 +78,7 @@ bool Match
 
   if (!my_progress_bar)
     my_progress_bar = &C_Progress::dummy();
-  my_progress_bar->restart(pairs.size(), "\n- Matching -\n");
+  my_progress_bar->restart(pairs.size(), "\n- Optical Matching -\n");
 
   // Collect used view indexes
   std::set<IndexT> used_index;
@@ -289,7 +100,9 @@ bool Match
 
   using BaseMat = Eigen::Matrix<ScalarT, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
-  // Init the cascade hasher
+  ///////////////////////////////////////
+  ////// Init the cascade hasher  ///////
+  ///////////////////////////////////////
   CascadeHasher_General cascade_hasher;
   if (!used_index.empty())
   {
@@ -351,8 +164,11 @@ bool Match
         std::move(cascade_hasher.CreateHashedDescriptions(mat_I, zero_mean_descriptor));
     }
   }
-  std::cout << "optical threshold: " << MaxDistanceThreshold << "\n";
+  ///////////////////////////////////////////////
+  //////////////optical matching/////////////////
+  ///////////////////////////////////////////////
   // Perform matching between all the pairs
+
   for (const auto & pair_it : map_Pairs)
   {
     if (my_progress_bar->hasBeenCanceled())
@@ -398,13 +214,14 @@ bool Match
       const ScalarT * tabJ = reinterpret_cast<const ScalarT*>(regionsJ->DescriptorRawData());
       Eigen::Map<BaseMat> mat_J( (ScalarT*)tabJ, regionsJ->RegionCount(), dimension);
 
-	  ////find features in global
+	  //////////////a. find features pairs on whole image(global)//////////////
       IndMatches pvec_indices_global;
       using ResultType = typename Accumulator<ScalarT>::Type;
       std::vector<ResultType> pvec_distances_global;
 	  pvec_distances_global.reserve(regionsJ->RegionCount() * 2);
 	  pvec_indices_global.reserve(regionsJ->RegionCount() * 2);
 	  const std::vector<features::PointFeature> pointFeaturesJ = regionsJ->GetRegionsPositions();
+	  // Match the query descriptors to the database
 	  cascade_hasher.Match_HashedDescriptions<BaseMat, ResultType>(
 		  hashed_base_[J], mat_J,
 		  hashed_base_[I], mat_I,
@@ -415,12 +232,13 @@ bool Match
 	  //match by optical flow
 	  //std::cout << "Pair " << I << "-" << J << "\n";
 
-	  //find features in local
+	  ////////////b. optical matching /////////////////////
+	  //        * find feature pairs on local region limited by tracked distance
 	  IndMatches pvec_indices_local;
 	  std::vector<ResultType> pvec_distances_local;
 	  pvec_distances_local.reserve(regionsJ->RegionCount() * 2);
 	  pvec_indices_local.reserve(regionsJ->RegionCount() * 2);
-	  if(!Match_OpticalFlow<BaseMat, ResultType>
+	  bool bofmatching = opticalflow_container.Optical_Matching<BaseMat, ResultType>
 		  (
 			  J,
 			  hashed_base_[J], mat_J,
@@ -430,27 +248,15 @@ bool Match
 			  pointFeaturesJ,
 			  pointFeaturesI,
 			  (I >= J ? I : J),
-			  opticaltrack_table.at((I >= J ? I : J)),
+
 			  cascade_hasher.nb_hash_code_,               //cascade_hasher is initialized with the dimension
 			  &pvec_indices_local,
 			  &pvec_distances_local,
-			  MaxDistanceThreshold,
 			  1
-			  ))
-	  {
-		  std::cout << "Error:in matching\n";
-		  assert(0);
-	  }
+		 );
 	  local_num_matches = pvec_indices_local.size();
 	  //
-	  //std::cout << "number of candidate feat pair found:" << pvec_indices.size()/2 << "\n";
-	  
-      // Match the query descriptors to the database
-      /*cascade_hasher.Match_HashedDescriptions<BaseMat, ResultType>(
-        hashed_base_[J], mat_J,
-        hashed_base_[I], mat_I,
-        &pvec_indices, &pvec_distances);*/
-	  
+	  ////c. select the feature pairs satisfying ratio threshold between local distance and global distance ////
 	  matching::IndMatches vec_putative_matches;
 	  vec_putative_matches.reserve(pvec_indices_local.size());
 	  {
@@ -469,38 +275,7 @@ bool Match
 		  }
 	  }
 	  num_matches_desfiltering = vec_putative_matches.size();
-	  ///openmvg s///
-		  // // Filter the matches using a distance ratio test:
-		  // //   The probability that a match is correct is determined by taking
-		  // //   the ratio of distance from the closest neighbor to the distance
-		  // //   of the second closest.
-		  // matching::NNdistanceRatio(
-			 //pvec_distances.begin(), // distance start
-			 //pvec_distances.end(),   // distance end
-			 //NN, // Number of neighbor in iterator sequence (minimum required 2)
-			 //vec_nn_ratio_idx, // output (indices that respect the distance Ratio)
-			 //  1.1);
-		  // 
-		  // 
-		  // for (size_t k=0; k < vec_nn_ratio_idx.size(); ++k)
-		  // {
-			 //const size_t index = vec_nn_ratio_idx[k];
-			 //vec_putative_matches.emplace_back(pvec_indices[index*2].j_, pvec_indices[index*2].i_);
-		  // }
-
-
-	 
-	  ///openmvg e///
-	 // ////bc s///
-
-	 // matching::IndMatches vec_putative_matches;
-		//vec_putative_matches.reserve(pvec_indices.size());
-		//for (size_t k=0; k < pvec_indices.size(); ++k)
-		//{
-		//	vec_putative_matches.emplace_back(pvec_indices[k].j_, pvec_indices[k].i_);
-		//}
-
-	 // ////bc e///
+	  
       // Remove duplicates
       matching::IndMatch::getDeduplicated(vec_putative_matches);
 
@@ -537,23 +312,15 @@ bool Match
 	  std::cout << "The statistic of local_num_matches:\n";
 	  sort(vec_local_num_matches.begin(), vec_local_num_matches.end());
 	  utils::MinMaxMedianMean<size_t>(std::cout, vec_local_num_matches);
-	  std::ofstream local_num_matches_log(stlplus::create_filespec(sMatches_dir, "local_num_matches.txt"));
-	  utils::MinMaxMedianMean<size_t>(local_num_matches_log, vec_local_num_matches);
-	  local_num_matches_log.close();
 
 	  std::cout << "The statistic of desfiltering_num_matches:\n";
 	  sort(vec_num_matches_desfiltering.begin(), vec_num_matches_desfiltering.end());
-	  utils::MinMaxMedianMean<size_t>(std::cout, vec_num_matches_desfiltering);
-	  std::ofstream desfiltering_num_matches_log(stlplus::create_filespec(sMatches_dir, "desfiltering_num_matches.txt"));
-	  utils::MinMaxMedianMean<size_t>(desfiltering_num_matches_log, vec_num_matches_desfiltering);
-	  desfiltering_num_matches_log.close();
+	  utils::MinMaxMedianMean<size_t>(std::cout, vec_num_matches_desfiltering);  
 
 	  std::cout << "The statistic of last_num_matches:\n";
 	  sort(vec_last_num_matches.begin(), vec_last_num_matches.end());
 	  utils::MinMaxMedianMean<size_t>(std::cout, vec_last_num_matches);
-	  std::ofstream last_num_matches_log(stlplus::create_filespec(sMatches_dir, "last_num_matches.txt"));
-	  utils::MinMaxMedianMean<size_t>(last_num_matches_log, vec_last_num_matches);
-	  last_num_matches_log.close();
+	  
   }
   return flag;
 }
@@ -584,25 +351,20 @@ void Optical_Flow_Matcher_Regions::Match
     impl::Match<unsigned char>(
       *regions_provider.get(),
       pairs,
-      f_dist_ratio_,bin_dir_,
-		sMatches_dir_,
+      f_dist_ratio_,
       map_PutativesMatches,
       my_progress_bar,
-		MaxDistanceThreshold,
-		opticaltrack_table);
+	  opticalflow_container);
   }
-  else
-  if (regions_provider->Type_id() == typeid(float).name())
+  else if (regions_provider->Type_id() == typeid(float).name())
   {
 	  impl::Match<float>(
-      *regions_provider.get(),
-      pairs,
-      f_dist_ratio_, bin_dir_,
-		  sMatches_dir_,
-      map_PutativesMatches,
-      my_progress_bar,
-		  MaxDistanceThreshold,
-		  opticaltrack_table);
+		  *regions_provider.get(),
+		  pairs,
+		  f_dist_ratio_,
+		  map_PutativesMatches,
+		  my_progress_bar,
+		  opticalflow_container);
   }
   else
   {

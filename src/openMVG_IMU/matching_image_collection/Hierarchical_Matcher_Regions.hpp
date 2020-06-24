@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #ifndef OPENMVG_IMU_MATCHING_HIERARCHICAL_MATCHER_REGIONS_HPP
 #define OPENMVG_IMU_MATCHING_HIERARCHICAL_MATCHER_REGIONS_HPP
@@ -21,12 +17,9 @@ namespace openMVG { namespace sfm { struct Regions_Provider; } }
 namespace openMVG {
 namespace matching_image_collection {
 
-/// Implementation of an Image Collection Matcher
-/// Compute putative matches between a collection of pictures
-/// Spurious correspondences are discarded by using the
-///  a threshold over the distance ratio of the 2 nearest neighbours.
-/// Using a Cascade Hashing matching
-/// Cascade hashing tables are computed once and used for all the regions.
+/// Implementation of an Hierarchical Matcher
+/// sift matching (+feature validation) (+static/dynamic optical filtering)
+///                   (+static/dynamic optical matching).
 ///
 class Hierarchical_Matcher_Regions : public Matcher
 {
@@ -35,8 +28,9 @@ class Hierarchical_Matcher_Regions : public Matcher
 	explicit Hierarchical_Matcher_Regions
 	(
 		float distRatio, std::string bin_dir, double maxDistanceThreshold, const sfm::SfM_Data& sfm_data,
-		const std::string sMatches_dir, bool bfeature_validation = true, bool bopticalfiltering = true,
-		bool bdynamicdistance = true, bool bopticalmatching = true, bool bdebug = true
+		bool bfeature_validation = false, bool bopticalfiltering = true,
+		bool bdynamicdistance = false, bool bopticalmatching = false, 
+		bool bnotablefeaturesdetection = false, bool bnotablevalidation = false
 	);
 
   /// Find corresponding points between some pair of view Ids
@@ -47,11 +41,12 @@ class Hierarchical_Matcher_Regions : public Matcher
     C_Progress * progress = nullptr
   ) const override;
 
-  void Hierarchical_Match
-  (const std::shared_ptr<sfm::Regions_Provider> & regions_provider,
+  void Match_Hierarchical
+  (
+	  const std::shared_ptr<sfm::Regions_Provider> & regions_provider,
 	  const Pair_Set & pairs,
 	  matching::PairWiseMatches & map_PutativesMatches, // the pairwise photometric corresponding points
-	  C_Progress * progress = nullptr
+	  C_Progress * my_progress_bar
   );
 
   
@@ -61,14 +56,18 @@ class Hierarchical_Matcher_Regions : public Matcher
  public:
   // Distance ratio used to discard spurious correspondence
   float f_dist_ratio_;
-  std::string sMatches_dir_;  // for debug
+  
+   
+  // Process optical informations
   matching::OpticalFlow_Container opticalflow_container;
+  // notable features
   std::map<IndexT, std::set<IndexT>> notable_features;
   bool bfeature_validation_;
   bool bopticalfiltering_;
   bool bdynamicdistance_;
   bool bopticalmatching_;
-  bool bdebug_;
+  bool bnotablefeaturesdetection_;
+  bool bnotablevalidation_;
   
 };
 

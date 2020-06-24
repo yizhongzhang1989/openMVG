@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2012, 2016 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #include "openMVG/graph/graph.hpp"
 #include "openMVG/graph/graph_stats.hpp"
@@ -61,7 +57,7 @@ enum EPairMode
   PAIR_CONTIGUOUS = 1,
   PAIR_FROM_FILE  = 2
 };
-
+////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
 inline int double_comp(double x, double y)
 {
 	double eps = 1e-5;
@@ -83,19 +79,33 @@ inline double cal_dis(double x1, double y1, double x2, double y2)
 {
 	return std::sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2));
 }
-
+// Filtering the matches not satisfying the distance threshold in optical flow
+//      view1											view2
+//    -------------------						-------------------
+//	  | feat_id1(view1)-+-----------------------+-feat_id2(view2) |
+//    |        |        |    feature match		|       |---------+---> distance tracked by optical flow
+//    |        ---------+-----------------------+>feat_id1(view1) |
+//    -------------------	optical flow		-------------------
+//                          
+//
+// @param[out] map_PutativesMatches       putative matches to be filtered
+// @param[in]  regions_provider           the information of features.
+// @param[in]  bin_dir                    the directory stores the binary file of features tracked in optical flow
+// @param[in]  sfm_data                   the reconstrution file
+// @param[in]  matches_dir                output path where computed are stored
+// @param[in]  MaxDistanceThreshold       the maximum distance threshold between two features tracked by optical flow
+// @param[in]  bnotablefeaturesdetection  enable the detection of notable features
+// @param[in]  bnotablevalidation         enable the validation of notable features
+// @return                whether the 3d point lies in front of both cameras.
+// (Owned by BC)
 
 bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provider* regions_provider,
 					  const std::string bin_dir,const SfM_Data& sfm_data,const std::string matches_dir
-					  ,const double MaxDistanceThreshold, std::map<IndexT, std::set<IndexT>>& notable_features,bool bnotablevalidation = false,bool bdebug = true)
+					  ,const double MaxDistanceThreshold, bool bnotablefeaturesdetection = false,bool bnotablevalidation = false)
 {
-  // std::shared_ptr<features::Regions> feat_0= regions_provider->get(0);
-  // const features::PointFeatures feats = feat_0->GetRegionsPositions();
-  // for(size_t i = 0; i<feats.size(); i++)
-  // {
-  //     std::cout<<"feat "<<i<<" in view 0:("<<feats[i].x()<<","<<feats[i].y()<<") \n";
-  // }
+  
   std::cout << "*****Optical Filtering****\n";
+  //The data format in binary file of optical flow
   struct Optical_track
   {
     unsigned int view_id;
@@ -105,24 +115,30 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 		float rx;
 		float ry;
   };
+  //record the features' positions tracked by optical flow
+  //map{view_id1 -> map{(view_id2,feat_id) -> track_infomation}}
+  //meanning:
+  //     *  the (`feat_id`)feature position on View(`view_id1`)  from View(`view_id2`) is recorded in track_infomation
   std::map<IndexT,std::map<Pair,Optical_track>> opticaltrack_table;
-  //read binary data of optical flow for every features
+  //read binary data of optical flow
   std::cout << "**read binary features**\n";
   for (const auto& view_item:sfm_data.GetViews())
   {
       const IndexT view_id = view_item.first;
-	  std::stringstream ss;
-	  Optical_track ot;
-	  //ss << std::setw(5) << std::setfill('0') << std::stoi(stlplus::basename_part(view_item.second->s_Img_path)) << ".bin";
-	  ss << std::setw(5) << std::setfill('0') << view_id << ".bin";
-	  std::string filename = ss.str();
-	  std::ifstream file(stlplus::create_filespec(bin_dir, filename), std::ios::binary);
+	    std::stringstream ss;
+	    Optical_track ot;
+	    //ss << std::setw(5) << std::setfill('0') << std::stoi(stlplus::basename_part(view_item.second->s_Img_path)) << ".bin";
+	    
+      //read the binary file by view_id
+      ss << std::setw(5) << std::setfill('0') << view_id << ".bin";
+	    std::string filename = ss.str();
+	    std::ifstream file(stlplus::create_filespec(bin_dir, filename), std::ios::binary);
      
-	  if (!file.is_open())
-	  {
-		  std::cerr << stlplus::create_filespec(bin_dir, std::string(filename)) << " can not be read\n";
-		  return false;
-	  }
+	    if (!file.is_open())
+	    {
+		    std::cerr << stlplus::create_filespec(bin_dir, std::string(filename)) << " can not be read\n";
+		    return false;
+	    }
       if(opticaltrack_table.count(view_id))
       {
         std::cerr<<"Error:duplicate view id\n";
@@ -131,6 +147,7 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
       opticaltrack_table.emplace(view_id,std::map<Pair,Optical_track>());
       std::map<Pair,Optical_track>& map_optrack = opticaltrack_table.at(view_id);
 
+      // read the position information from file
       while (file.read(reinterpret_cast<char*>(&ot), sizeof(Optical_track)))
       {
         map_optrack[Pair(ot.view_id,ot.feat_id)] = ot;
@@ -139,14 +156,14 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
           file.ignore();
         }
       }
-	  std::cout << "length of view " << view_id << ": " << opticaltrack_table.at(view_id).size() << "\n";
+	    std::cout << "length of view " << view_id << ": " << opticaltrack_table.at(view_id).size() << "\n";
       
   }
   
   //filter putative matches
   std::cout << "**filter putative matches**\n";
   PairWiseMatches::iterator pwm_iter;
-  std::vector<double> dis_metric;
+
   size_t count_featpairs_untracked = 0;
   size_t count_featpairs_accepted = 0;
   size_t count_featpairs_all = 0;
@@ -155,88 +172,88 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
   {
       const IndexT first_view_id = pwm_iter->first.first;
       const IndexT second_view_id = pwm_iter->first.second;
-	  const IndexT latter_view_id = std::max(first_view_id, second_view_id);
+      //select the back view 
+	    const IndexT latter_view_id = std::max(first_view_id, second_view_id);
       std::shared_ptr<features::Regions> feats_1= regions_provider->get(first_view_id);
       std::shared_ptr<features::Regions> feats_2= regions_provider->get(second_view_id);
 	  
-	  std::cout << "Pair " << first_view_id << "-" << second_view_id << "\n";
-	  
+	    
+      // filter the feature matches whose distance is larger than `MaxDistanceThreshold`
 	  IndMatches::iterator im_iter;
+	  // get the tracked feature information in back view.
 	  const std::map<Pair, Optical_track>& latter_opticaltable = opticaltrack_table.at(latter_view_id);
-	  std::cout << "	#raw feature pairs" << pwm_iter->second.size() << "\n";
-	  for (im_iter = pwm_iter->second.begin(); im_iter!=pwm_iter->second.end();)
-	  {
-		  count_featpairs_all++;
-		  const IndexT first_feat_id = im_iter->i_;
-		  const IndexT second_feat_id = im_iter->j_;
-		  Vec2 first_feat = feats_1->GetRegionPosition(first_feat_id);
-		  Vec2 second_feat = feats_2->GetRegionPosition(second_feat_id);
-		  if (latter_opticaltable.count(Pair(first_view_id, first_feat_id)) == 0 )
-		  {
-			  if (latter_view_id == first_view_id)
-			  {
-				  //the first feature  is not tracked in second view
-				  std::cerr << "Error: feature" << first_view_id << " is losed in view " << first_view_id << "\n";
-				  return false;
-			  }
-			  else
-			  {
-				  //the first feature  is not tracked in second view
-				  im_iter = pwm_iter->second.erase(im_iter);
-				  count_featpairs_untracked++;
-				  continue;
-			  }
-			  
-		  }
-		  if (latter_opticaltable.count(Pair(second_view_id, second_feat_id)) == 0 )
-		  {
-			  if (latter_view_id == second_view_id)
-			  {
-				  //the first feature  is not tracked in second view
-				  std::cerr << "Error: feature" << second_feat_id << " is losed in view " << second_view_id << "\n";
-				  return false;
-			  }
-			  else
-			  {
-				  /*if (debug)
-				  {
-					  filelog << "feature " << first_feat_id << "-" << second_feat_id << " is not be tracked\n";
-				  }*/
-				  //the first feature  is not tracked in second view
-				  im_iter = pwm_iter->second.erase(im_iter);
-				  count_featpairs_untracked++;
-				  continue;
-			  }
-		  }
-			//check the distance of features in second view
-		const Optical_track& ot_1 = latter_opticaltable.at(Pair(first_view_id, first_feat_id));
-		const Optical_track& ot_2 = latter_opticaltable.at(Pair(second_view_id, second_feat_id));
+	  
+      for (im_iter = pwm_iter->second.begin(); im_iter!=pwm_iter->second.end();)
+      {
+        count_featpairs_all++;
+        const IndexT first_feat_id = im_iter->i_;
+        const IndexT second_feat_id = im_iter->j_;
+        Vec2 first_feat = feats_1->GetRegionPosition(first_feat_id);
+        Vec2 second_feat = feats_2->GetRegionPosition(second_feat_id);
+		//check whether the first feature in first view is tracked.
+        if (latter_opticaltable.count(Pair(first_view_id, first_feat_id)) == 0 )
+        {
+          if (latter_view_id == first_view_id)
+          {
+            //the first feature  is not tracked in first view
+            std::cerr << "Error: feature" << first_view_id << " is losed in view " << first_view_id << "\n";
+            return false;
+          }
+          else
+          {
+            //the first feature  is not tracked in second view
+            im_iter = pwm_iter->second.erase(im_iter);
+            count_featpairs_untracked++;
+            continue;
+          }
+          
+        }
+		//check whether the second feature in second view is tracked.
+        if (latter_opticaltable.count(Pair(second_view_id, second_feat_id)) == 0 )
+        {
+          if (latter_view_id == second_view_id)
+          {
+            //the second feature  is not tracked in second view
+            std::cerr << "Error: feature" << second_feat_id << " is losed in view " << second_view_id << "\n";
+            return false;
+          }
+          else
+          {
+            //the second feature  is not tracked in first view
+            im_iter = pwm_iter->second.erase(im_iter);
+            count_featpairs_untracked++;
+            continue;
+          }
+        }
+        //check the correctness of features
+        const Optical_track& ot_1 = latter_opticaltable.at(Pair(first_view_id, first_feat_id));
+        const Optical_track& ot_2 = latter_opticaltable.at(Pair(second_view_id, second_feat_id));
 
-			if (double_comp(ot_1.rx, first_feat[0]) != 0 ||
-				double_comp(ot_1.ry, first_feat[1]) != 0 ||
-				double_comp(ot_2.rx, second_feat[0]) != 0 ||
-				double_comp(ot_2.ry, second_feat[1]) != 0)
-			{
-				std::cerr << "Error: optical features is inconsistent with raw features\n";
-				return false;
-			}
-			
-			double dis_featpair = cal_dis(ot_1.x, ot_1.y, ot_2.x, ot_2.y);
-			dis_metric.push_back(dis_featpair);
-			if (dis_featpair > MaxDistanceThreshold)   //delete the feature pairs whose distance is too large.
-			{
-				count_featpairs_filtered++;
-				im_iter = pwm_iter->second.erase(im_iter);
-			}
-			else
-			{
-				count_featpairs_accepted++;
-				im_iter++;
-			}
-			
-			
+        if (double_comp(ot_1.rx, first_feat[0]) != 0 ||
+          double_comp(ot_1.ry, first_feat[1]) != 0 ||
+          double_comp(ot_2.rx, second_feat[0]) != 0 ||
+          double_comp(ot_2.ry, second_feat[1]) != 0)
+        {
+          std::cerr << "Error: optical features is inconsistent with raw features\n";
+          return false;
+        }
+        // compute the tracked distance of two features
+        double dis_featpair = cal_dis(ot_1.x, ot_1.y, ot_2.x, ot_2.y);
+
+        if (dis_featpair > MaxDistanceThreshold)   //delete the feature pairs whose distance is too large.
+        {
+          count_featpairs_filtered++;
+          im_iter = pwm_iter->second.erase(im_iter);
+        }
+        else
+        {
+          count_featpairs_accepted++;
+          im_iter++;
+        }
+        
+        
       }
-	  std::cout << "	#feature pairs accepted:" << pwm_iter->second.size() << "\n";
+	    std::cout << "	#feature pairs accepted:" << pwm_iter->second.size() << "\n";
       
   }
   std::cout << "# feature pairs untracked:" << count_featpairs_untracked << "\n";
@@ -244,34 +261,17 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
   std::cout << "# feature pairs filtered:" << count_featpairs_filtered << "\n";
   std::cout << "# feature pairs all:" << count_featpairs_all << "\n";
 
-  //output distances
-  std::cout << "**output distances**\n";
-  std::sort(dis_metric.begin(), dis_metric.end());
-  std::ofstream dis_metric_stream(stlplus::create_filespec(matches_dir, "dis_metric.txt"));
-  double sum = 0.0;
-  for (size_t i = 0; i < dis_metric.size(); i++)
-  {
-	  dis_metric_stream << dis_metric[i] << "\n";
-	  sum += dis_metric[i];
-  }
-  
-  dis_metric_stream << "Min:" << dis_metric[0] << "\n";
-  dis_metric_stream << "Max:" << *(dis_metric.rbegin()) << "\n";
-  dis_metric_stream << "Median:" << dis_metric[dis_metric.size() / 2] << "\n";
-  dis_metric_stream << "Mean:" << sum / ((double)dis_metric.size()) << "\n";
 
-  dis_metric_stream << "# feature pairs untracked:" << count_featpairs_untracked << "\n";
-  dis_metric_stream << "# feature pairs accepted:" << count_featpairs_accepted << "\n";
-  dis_metric_stream << "# feature pairs filtered:" << count_featpairs_filtered << "\n";
-  dis_metric_stream << "# feature pairs all:" << count_featpairs_all << "\n";
-  dis_metric_stream.close();
-
-  
+  if(bnotablefeaturesdetection)
   {
-	  /////compute notable features in every frame
+	  std::map<IndexT, std::set<IndexT>> notable_features;
+	  /////compute notable features in every frame that has matches with next 2 frame after optical filtering.
+	  ////		
+    
 	  //map{{view_id}->map{{feature_id}->{status}}}
 	  std::map<int, std::map<int, int>>  notablefeature_records;
 	  const IndexT NumAdjFrames = 2;
+	  //record the matches information of features with next 2 frames.
 	  for (const auto& pairwise_item : map_PutativesMatches)
 	  {
 		  const IndexT I = pairwise_item.first.first;
@@ -289,10 +289,10 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 				  notablefeature_records.at(I).emplace(indmatch.i_, 0);
 			  }
 			  int& mark = notablefeature_records.at(I).at(indmatch.i_);
-			  mark |= 1 << (J - I - 1);
+			  mark |= 1 << (J - I - 1);  //record the matches infomation in bit
 		  }
 	  }
-
+	  //select the notable features whose status is 3.
 	  for (const auto& features_in_view : notablefeature_records)
 	  {
 		  notable_features.emplace(features_in_view.first, std::set<IndexT>());
@@ -304,6 +304,8 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 	  }
 	  if (bnotablevalidation)
 	  {
+		  // filter the matches whose views are within 2 frames by notable features
+		  //		
 		  std::cout << "notable validation for 3 adjacent frames\n";
 		  PairWiseMatches::iterator pm_iter;
 		  size_t num_deleted = 0;
@@ -333,7 +335,10 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 		  std::cout << num_deleted << " are deleted.\n";
 	  }
 	  {
-
+		  // save the notable features
+		  // Format:
+		  //        NameOfImage.txt£º
+		  //              feature_id feature_position(0) feature_position(1)
 		  std::string output_dir(stlplus::create_filespec(matches_dir, "notables_features"));
 		  stlplus::folder_create(output_dir);
 		  std::ofstream notable_info(stlplus::create_filespec(output_dir, "notable_info.txt"));
@@ -363,6 +368,7 @@ bool OpticalFiltering(PairWiseMatches& map_PutativesMatches,const Regions_Provid
 	  }
   }
 }
+//END(Author: BC)===================================================
 
 /// Compute corresponding features between a series of views:
 /// - Load view images description (regions: features & descriptors)
@@ -380,14 +386,17 @@ int main(int argc, char **argv)
   int iMatchingVideoMode = -1;
   std::string sPredefinedPairList = "";
   std::string sNearestMatchingMethod = "AUTO";
-  std::string bin_dir = "";   //bc
+  
   bool bForce = false;
   bool bGuided_matching = false;
   int imax_iteration = 2048;
   unsigned int ui_max_cache_size = 0;
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
+  std::string bin_dir = "";   //bc
   double MaxDistanceThreshold = 10.0;
-
+  bool bnotablefeaturesdetection = false;
   bool bnotablevalidation = false;
+  //END(Author: BC)===================================================
 
   //required
   cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
@@ -402,10 +411,12 @@ int main(int argc, char **argv)
   cmd.add( make_option('m', bGuided_matching, "guided_matching") );
   cmd.add( make_option('I', imax_iteration, "max_iteration") );
   cmd.add( make_option('c', ui_max_cache_size, "cache_size") );
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   cmd.add(make_option('b', bin_dir, "bin_dir"));
   cmd.add(make_option('k', MaxDistanceThreshold, "maxdistancethreshold"));
-
-  cmd.add(make_option('q', bnotablevalidation, "bnotablevalidation"));
+  cmd.add(make_option('p', bnotablefeaturesdetection, "notablefeaturesdetection"));
+  cmd.add(make_option('q', bnotablevalidation, "notablevalidation"));
+  //END(Author: BC)===================================================
 
   try {
       if (argc == 1) throw std::string("Invalid command line parameter.");
@@ -449,10 +460,14 @@ int main(int argc, char **argv)
       << "  Use a regions cache (only cache_size regions will be stored in memory)\n"
       << "  If not used, all regions will be load in memory."
       << "[-b|--bin_dir]\n"
-	    << "  the directory stores the binary file of position of features tracked in optical flow.\n"
+	    << "  the directory stores the binary file of features tracked in optical flow.\n"
 	    << "  It is required for the optical filtering.\n"
       << "[-k|--maxdistancethreshold]\n"
 	    << "  the distance threshold for the optical filtering.\n"
+      << "[-p|--notablefeaturesdetection]\n"
+      << "  Enable detection of notable features.\n"
+      << "[-q|--notablevalidation]\n"
+      << "  Enable filtering matches by notable features.\n"
       << std::endl;
 
       std::cerr << s << std::endl;
@@ -471,7 +486,11 @@ int main(int argc, char **argv)
             << "--pair_list " << sPredefinedPairList << "\n"
             << "--nearest_matching_method " << sNearestMatchingMethod << "\n"
             << "--guided_matching " << bGuided_matching << "\n"
-            << "--cache_size " << ((ui_max_cache_size == 0) ? "unlimited" : std::to_string(ui_max_cache_size)) << std::endl;
+            << "--cache_size " << ((ui_max_cache_size == 0) ? "unlimited" : std::to_string(ui_max_cache_size)) << "\n"
+            << "--bin_dir " << bin_dir << "\n"
+            << "--maxdistancethreshold " << MaxDistanceThreshold<<"\n"
+            << "--notablefeaturesdetection" << bnotablefeaturesdetection << "\n"
+            << "--notablevalidation" << bnotablevalidation << "\n";
 
   EPairMode ePairmode = (iMatchingVideoMode == -1 ) ? PAIR_EXHAUSTIVE : PAIR_CONTIGUOUS;
 
@@ -723,21 +742,19 @@ int main(int argc, char **argv)
       stlplus::create_filespec(sMatchesDirectory, "putative_matches"),
       putativeGraph);
   }
-
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   //---------------------------------------
   // b. Optical filtering of putative matches
-  //    
-  //    
   //---------------------------------------
-  std::map<IndexT, std::set<IndexT>> notable_features;
+  
   if (!OpticalFiltering(map_PutativesMatches, regions_provider.get(),
-	  bin_dir, sfm_data, sMatchesDirectory, MaxDistanceThreshold, notable_features, bnotablevalidation))
+	  bin_dir, sfm_data, sMatchesDirectory, MaxDistanceThreshold, bnotablefeaturesdetection, bnotablevalidation))
   {
 	  return EXIT_FAILURE;
   }
-
+  
   //---------------------------------------
-  //-- Export putative matches
+  //-- Export filtering matches
   //---------------------------------------
   if (!Save(map_PutativesMatches, std::string(sMatchesDirectory + "/matches.opticalfiltering.bin")))
   {
@@ -756,6 +773,7 @@ int main(int argc, char **argv)
       putativeGraph);
   }
   //return EXIT_SUCCESS;
+  //END(Author: BC)===================================================
   //---------------------------------------
   // c. Geometric filtering of putative matches
   //    - AContrario Estimation of the desired geometric model

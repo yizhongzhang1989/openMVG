@@ -1,33 +1,6 @@
-// Copyright (c) 2018, ETH Zurich and UNC Chapel Hill.
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//     * Redistributions of source code must retain the above copyright
-//       notice, this list of conditions and the following disclaimer.
-//
-//     * Redistributions in binary form must reproduce the above copyright
-//       notice, this list of conditions and the following disclaimer in the
-//       documentation and/or other materials provided with the distribution.
-//
-//     * Neither the name of ETH Zurich and UNC Chapel Hill nor the names of
-//       its contributors may be used to endorse or promote products derived
-//       from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
-//
-// Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #ifndef COLMAP_SRC_BASE_HOMOGRAPHY_MATRIX_UTILS_H_
 #define COLMAP_SRC_BASE_HOMOGRAPHY_MATRIX_UTILS_H_
@@ -48,7 +21,7 @@ int SignOfNumber(const T val) {
   return (T(0) < val) - (val < T(0));
 }
 
-// (COLMAP)Decompose an homography matrix into the possible rotations, translations,
+// Decompose an homography matrix into the possible rotations, translations,
 // and plane normal vectors, according to:
 //
 //    Malis, Ezio, and Manuel Vargas. "Deeper understanding of the homography
@@ -58,11 +31,12 @@ int SignOfNumber(const T val) {
 // plane-induced if `R.size() == t.size() == n.size() == 4`. If `R.size() ==
 // t.size() == n.size() == 1` the homography is pure-rotational.
 //
-// @param H          3x3 homography matrix.
-// @param K          3x3 calibration matrix.
-// @param R          Possible 3x3 rotation matrices.
-// @param t          Possible translation vectors.
-// @param n          Possible normal vectors.
+// @param[in] H           3x3 homography matrix.
+// @param[in] K           3x3 calibration matrix.
+// @param[out] R          Possible 3x3 rotation matrices.
+// @param[out] t          Possible translation vectors.
+// @param[out] n          Possible normal vectors.
+// (taken from COLMAP without modification)
 void DecomposeHomographyMatrix(const Eigen::Matrix3d& H,
                                const Eigen::Matrix3d& K1,
                                const Eigen::Matrix3d& K2,
@@ -89,6 +63,7 @@ void DecomposeHomographyMatrix(const Eigen::Matrix3d& H,
 * @param[in] positive_depth_solution_ratio Pourcentage ratio threshold used
 *    to discard if there is two good solution that have many points in front
 *    of the cameras
+* (taken from OpenMVG::RelativePoseFromEssential with modification)
 */
 
 bool RelativePoseFromHomography
@@ -122,6 +97,7 @@ bool RelativePoseFromHomography
 // @param[out] n           Most probable 3x1 normal vector.
 // @param[out] points3D    Triangulated 3D points infront of camera
 //                         (only if homography is not pure-rotational).
+// (taken from COLMAP with modification)
 bool PoseFromHomographyMatrix(const Eigen::Matrix3d& H,
                               const Eigen::Matrix3d& K1,
                               const Eigen::Matrix3d& K2,
@@ -137,12 +113,12 @@ bool PoseFromHomographyMatrix(const Eigen::Matrix3d& H,
 *        This function test if a 3d point can be visible according two camera pose
 *        and two bearing vector taken from COLMAP.
 *
-* @param bearing1 Bearing vector of the first camera
-* @param bearing2 Bearing vector of the second camera
-* @param R rotation of relative pose between first and second camera
-* @param t translation of relative pose between first and second camera
-* @param points3D_cmb The 3d points in "front" of two cameras.
-*
+* @param[in] bearing1 Bearing vector of the first camera
+* @param[in] bearing2 Bearing vector of the second camera
+* @param[in] R rotation of relative pose between first and second camera
+* @param[in] t translation of relative pose between first and second camera
+* @param[out] points3D_cmb The 3d points in "front" of two cameras.
+* (taken from COLMAP with modification)
 */
 void CheckCheirality(const Eigen::Matrix3d& R,const Eigen::Vector3d& t,
                     const Eigen::Matrix<double, 3, Eigen::Dynamic>& bearing1,
@@ -154,11 +130,13 @@ void CheckCheirality(const Eigen::Matrix3d& R,const Eigen::Vector3d& t,
 // lies in front of both cameras.
 // 
 //
-// @param proj_matrix1 3x4 first projection matrix.
-// @param proj_matrix2 3x4 second projection matrix.
-// @param points3D     input 3d points.
-// @param kMinDepth    minimum depth threshold of 3d points.
-// @param max_depth    maximum depth thershold of 3d points.
+// @param[in] proj_matrix1 3x4 first projection matrix.
+// @param[in] proj_matrix2 3x4 second projection matrix.
+// @param[in] points3D     input 3d points.
+// @param[in] kMinDepth    minimum depth threshold of 3d points.
+// @param[in] max_depth    maximum depth thershold of 3d points.
+// @return                whether the 3d point lies in front of both cameras.
+// (taken from COLMAP with modification)
 bool CheiralityTest_COLMAP(const Eigen::Matrix<double,3,4>& proj_matrix1,const Eigen::Matrix<double,3,4>& proj_matrix2,
                            const Eigen::Vector3d& point3D,const double& kMinDepth,const double& max_depth);
 
@@ -168,23 +146,25 @@ bool CheiralityTest_COLMAP(const Eigen::Matrix<double,3,4>& proj_matrix1,const E
 // camera and is positive if the 3D point is in front and negative if
 // behind of the camera.
 //
-// @param proj_matrix     3x4 projection matrix.
-// @param point3D         3D point as 3x1 vector.
+// @param[in] proj_matrix     3x4 projection matrix.
+// @param[in] point3D         3D point as 3x1 vector.
 //
 // @return                Depth of 3D point.
+// (taken from COLMAP without modification)
 double CalculateDepth(const Eigen::Matrix<double,3,4>& proj_matrix,
                       const Eigen::Vector3d& point3D);
 
 // Compose homography matrix from relative pose.
 //
-// @param K1      3x3 calibration matrix of first camera.
-// @param K2      3x3 calibration matrix of second camera.
-// @param R       Most probable 3x3 rotation matrix.
-// @param t       Most probable 3x1 translation vector.
-// @param n       Most probable 3x1 normal vector.
-// @param d       Orthogonal distance from plane.
+// @param[in] K1      3x3 calibration matrix of first camera.
+// @param[in] K2      3x3 calibration matrix of second camera.
+// @param[in] R       Most probable 3x3 rotation matrix.
+// @param[in] t       Most probable 3x1 translation vector.
+// @param[in] n       Most probable 3x1 normal vector.
+// @param[in] d       Orthogonal distance from plane.
 //
 // @return        3x3 homography matrix.
+// (taken from COLMAP with modification)
 Eigen::Matrix3d HomographyMatrixFromPose(const Eigen::Matrix3d& K1,
                                          const Eigen::Matrix3d& K2,
                                          const Eigen::Matrix3d& R,
@@ -193,14 +173,15 @@ Eigen::Matrix3d HomographyMatrixFromPose(const Eigen::Matrix3d& K1,
                                          const double d);
 // select optimal homography matrix from known correspondings.
 //
-// @param K1       3x3 calibration matrix of first camera.
-// @param K2       3x3 calibration matrix of second camera.
-// @param points1  First set of corresponding points(image frame).
-// @param points2  Second set of corresponding points(image frame).
-// @param bearing1 First set of corresponding normalized points(camera frame).
-// @param bearing2 Second set of corresponding normalized points(camera frame).
+// @param[in] K1       3x3 calibration matrix of first camera.
+// @param[in] K2       3x3 calibration matrix of second camera.
+// @param[in] points1  First set of corresponding points(image frame).
+// @param[in] points2  Second set of corresponding points(image frame).
+// @param[in] bearing1 First set of corresponding normalized points(camera frame).
+// @param[in] bearing2 Second set of corresponding normalized points(camera frame).
 //
 // @return        3x3 homography matrix.
+// (owned by BC)
 Eigen::Matrix3d ComputeHomographyMatrixfromKnownPose(
                               const Eigen::Matrix3d& K1,
                               const Eigen::Matrix3d& K2,
@@ -214,26 +195,28 @@ Eigen::Matrix3d ComputeHomographyMatrixfromKnownPose(
 // count the number of points satisfying the input plane.
 // error = abs(n.dot(x1) + d)
 //
-// @param x1                 Points tested.
-// @param n                  3x1 normal vector of plane.
-// @param d                  3x1 bias of plane.
-// @param maxErrorThreshold  Maximum error thershold.
-// @param num_valid          Number of points satisfiying the thershold.
+// @param[in] x1                 Points tested.
+// @param[in] n                  3x1 normal vector of plane.
+// @param[in] d                  3x1 bias of plane.
+// @param[in] maxErrorThreshold  Maximum error thershold.
+// @param[out] num_valid          Number of points satisfiying the thershold.
 //
 // @return        the sum of error of all points.
+// (owned by BC)
 double CalculateErrorPlane(const Eigen::Matrix<double, 3, Eigen::Dynamic>& x1,
                      const Eigen::Vector3d n,const double d,const double maxErrorThreshold,size_t& num_valid);
 
 // count the number of points satisfying the input homography.
 // error = norm(x2 - H * x1)
 //
-// @param x1                 First set of corresponding points(image frame).
-// @param x2                 Second set of corresponding points(image frame).
-// @param H                  homography matrix.
-// @param maxNormThreshold   Maximum error thershold.
-// @param num_valid          Number of points satisfiying the thershold.
+// @param[in] x1                 First set of corresponding points(image frame).
+// @param[in] x2                 Second set of corresponding points(image frame).
+// @param[in] H                  homography matrix.
+// @param[in] maxNormThreshold   Maximum error thershold.
+// @param[out] num_valid          Number of points satisfiying the thershold.
 //
 // @return        the sum of error of all points.
+// (owned by BC)
 double CalculateErrorH(const Eigen::Matrix<double, 2, Eigen::Dynamic>& x1,
                      const Eigen::Matrix<double, 2, Eigen::Dynamic>& x2,
                      const Eigen::Matrix3d& H,const double maxNormThreshold,size_t& num_valid);

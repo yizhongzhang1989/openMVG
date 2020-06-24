@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #include "openMVG_IMU/sfm/pipelines/sfm_robust_multimodel_estimation.hpp"
 #include "openMVG_IMU/multiview/homography_matrix.hpp"
@@ -40,7 +36,7 @@ bool robustRelativePose_MultiModel
   const size_t max_iteration_count
 )
 {
-
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   //recover pose from essential matrix
   RelativePose_MultiInfo relativePose_essential;
   relativePose_essential.b_coplanar = false;
@@ -89,7 +85,7 @@ bool robustRelativePose_MultiModel
     
   
   return true;
-
+  //END(Author: BC)===================================================
 }
 
 bool robustRelativePose_IMU(
@@ -105,6 +101,7 @@ bool robustRelativePose_IMU(
   
 )
 {
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   relativePose_info.b_coplanar = false;
   //recover pose from essential matrix
   bool flag_essential = robustRelativePose_Essential(intrinsics1,intrinsics2,
@@ -125,7 +122,7 @@ bool robustRelativePose_IMU(
 
   }
   return false;
-  
+  //END(Author: BC)===================================================
 }
 
 
@@ -185,7 +182,7 @@ int robustRelativePose_Homography
       return 0; // no sufficient coverage (the model does not support enough samples)
     }
   }
-  
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
    // estimation of the relative poses based on the cheirality test
   Pose3 relative_pose;
   std::vector<uint32_t> vec_selected_points;
@@ -207,7 +204,7 @@ int robustRelativePose_Homography
   }
   relativePose_info.relativePose = relative_pose;
   return 1;  //pair succeed in homography
-
+  //END(Author: BC)===================================================
   
 
 }

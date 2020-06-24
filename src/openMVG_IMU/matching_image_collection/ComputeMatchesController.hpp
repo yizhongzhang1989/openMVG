@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2012, 2016 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #ifndef OPENMVG_IMU_MATCHING_IMAGE_COLLECTION_COMPUTE_MATCHES_CONTROLLER_HPP
 #define OPENMVG_IMU_MATCHING_IMAGE_COLLECTION_COMPUTE_MATCHES_CONTROLLER_HPP

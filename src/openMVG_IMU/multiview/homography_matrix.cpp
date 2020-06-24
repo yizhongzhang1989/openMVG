@@ -1,33 +1,6 @@
-// Copyright (c) 2018, ETH Zurich and UNC Chapel Hill.
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//     * Redistributions of source code must retain the above copyright
-//       notice, this list of conditions and the following disclaimer.
-//
-//     * Redistributions in binary form must reproduce the above copyright
-//       notice, this list of conditions and the following disclaimer in the
-//       documentation and/or other materials provided with the distribution.
-//
-//     * Neither the name of ETH Zurich and UNC Chapel Hill nor the names of
-//       its contributors may be used to endorse or promote products derived
-//       from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
-//
-// Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 
 #include "openMVG_IMU/multiview/homography_matrix.hpp"
@@ -35,7 +8,7 @@
 #include "openMVG/geometry/pose3.hpp"
 #include "openMVG/cameras/Camera_Intrinsics.hpp"
 #include <array>
-#include <fstream>  //bc debug
+#include <fstream>  
 #include <Eigen/Dense>
 #include <stdlib.h>     /* srand, rand */
 #include <time.h>       /* time */
@@ -193,7 +166,7 @@ bool RelativePoseFromHomography
   // Recover plausible relative poses from H.
   std::vector<geometry::Pose3> relative_poses;
   assert(x1.cols() == x2.cols());
-
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   std::vector<Eigen::Matrix3d> R_cmbs;
   std::vector<Eigen::Vector3d> t_cmbs;
   std::vector<Eigen::Vector3d> n_cmbs;
@@ -203,7 +176,7 @@ bool RelativePoseFromHomography
   {
     relative_poses.push_back(geometry::Pose3(R_cmbs[i], -R_cmbs[i].transpose() * t_cmbs[i]));
   }
-  
+  //END(Author: BC)===================================================
   // Accumulator to find the best solution
   std::vector<uint32_t> cheirality_accumulator(relative_poses.size(), 0);
 
@@ -292,6 +265,7 @@ bool PoseFromHomographyMatrix(const Eigen::Matrix3d& H,
     std::vector<Eigen::Vector3d> points3D_cmb;
 
     CheckCheirality(R_cmbs[i], t_cmbs[i], bearing1, bearing2, points3D_cmb);
+    ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
     if (points3D_cmb.size() > points3D->size()) {
       *R = R_cmbs[i];
       *t = t_cmbs[i];
@@ -303,9 +277,12 @@ bool PoseFromHomographyMatrix(const Eigen::Matrix3d& H,
     {
       num_Maximum_pose ++;
     }
+    //END(Author: BC)===================================================
   }
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   // discard the initial pair that can not be distinguished(i.e. there are multiple best solutions).
   return num_Maximum_pose <= 1;
+  //END(Author: BC)===================================================
   //return true;
   
 }
@@ -323,6 +300,7 @@ void CheckCheirality(const Eigen::Matrix3d& R,const Eigen::Vector3d& t,
     //const double max_depth = 1000.0f * (R.transpose() * t).norm();
     for(size_t i  = 0 ; i < bearing1.cols() ; i++)
     {
+        ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
         Vec3 X;
         if(Triangulate2View(pose_1.rotation(),pose_1.translation(),bearing1.col(i),
         pose_2.rotation(), pose_2.translation() ,bearing2.col(i), X)
@@ -339,6 +317,7 @@ void CheckCheirality(const Eigen::Matrix3d& R,const Eigen::Vector3d& t,
           // }
             
         }
+        //END(Author: BC)===================================================
     }
 }
 
@@ -371,7 +350,9 @@ Eigen::Matrix3d HomographyMatrixFromPose(const Eigen::Matrix3d& K1,
                                          const Eigen::Vector3d& n,
                                          const double d) {
   assert(d>=0);
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   return K2 * (R - t * n.transpose() / d) * K1.inverse();
+  //END(Author: BC)===================================================
 }
 
 Eigen::Matrix3d ComputeHomographyMatrixfromKnownPose(
@@ -385,6 +366,7 @@ Eigen::Matrix3d ComputeHomographyMatrixfromKnownPose(
                               const Eigen::Vector3d& t
                     )
 {
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   ///bearing : the normalized coordinate of features(camera frame)
   ///points: the 2d coordinate of features(image)
     /* initialize random seed: */
@@ -408,7 +390,7 @@ Eigen::Matrix3d ComputeHomographyMatrixfromKnownPose(
         {
 
         c = bearing1.col(k);
-
+        // calculate the plane function of point a,b,c
         Vec3 norm = (a-b).cross((c-b));
         //norm = norm.normalized();
         double d= -(norm.dot(a));
@@ -417,17 +399,19 @@ Eigen::Matrix3d ComputeHomographyMatrixfromKnownPose(
           norm = -norm;
           d = -d;
         }
+        // calculate H of the plane
         Eigen::Matrix3d H = HomographyMatrixFromPose(K1,
                                     K2,
                                     R,
                                     t,
                                     norm,
                                     d);
+        // calculate the error of H
         size_t num_validnorm;
         double norm_ = CalculateErrorH(points1,points2,H,100.0,num_validnorm);
-        size_t num_validerror;
-        double error_ = CalculateErrorPlane(bearing1,norm,d,0.002,num_validerror);
-        
+        //size_t num_validerror;
+        //double error_ = CalculateErrorPlane(bearing1,norm,d,0.002,num_validerror);
+        // select H with the minimum error
         if(norm_ < minNumNorm)
         {
           minNumNorm = norm_;
@@ -438,13 +422,14 @@ Eigen::Matrix3d ComputeHomographyMatrixfromKnownPose(
     }
     
     return bestH;
-
+    //END(Author: BC)===================================================
 
 }
 
 double CalculateErrorPlane(const Eigen::Matrix<double, 3, Eigen::Dynamic>& x1,
                      const Eigen::Vector3d n,const double d,const double maxErrorThreshold,size_t& num_valid)
 {
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   num_valid = 0;
   double error_sum = 0;
   for(int i = 0;i<x1.cols();i++)
@@ -459,6 +444,7 @@ double CalculateErrorPlane(const Eigen::Matrix<double, 3, Eigen::Dynamic>& x1,
       }
   }
   return error_sum;
+  //END(Author: BC)===================================================
 }
 
 
@@ -466,6 +452,7 @@ double CalculateErrorH(const Eigen::Matrix<double, 2, Eigen::Dynamic>& x1,
                      const Eigen::Matrix<double, 2, Eigen::Dynamic>& x2,
                      const Eigen::Matrix3d& H,const double maxNormThreshold,size_t& num_valid)
 {
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   double norm_sum = 0.0;
     num_valid = 0;
     for(int i = 0;i<x1.cols();i++)
@@ -485,6 +472,7 @@ double CalculateErrorH(const Eigen::Matrix<double, 2, Eigen::Dynamic>& x1,
 
     }
     return norm_sum;
+    //END(Author: BC)===================================================
 }
 
 

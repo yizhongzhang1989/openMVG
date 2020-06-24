@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 
 #include "openMVG_IMU/sfm/pipelines/sequential/sequential_SfM_robust_initialization.hpp"
@@ -68,7 +64,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_Robust_Ini
 
   if (!InitLandmarkTracks())
     return false;
-  
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   // Initial pair choice
   openMVG::system::Timer initial_timer;
   if (initial_pair_ == Pair(0,0))
@@ -85,6 +81,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::Process_Robust_Ini
   // Initial pair Essential Matrix and [R|t] estimation.
   if (!RobustMakeInitialPair3D(initial_pair_))
     return false;
+  //END(Author: BC)===================================================
   // Compute robust Resection of remaining images
   // - group of images will be selected and resection + scene completion will be tried
   size_t resectionGroupIndex = 0;
@@ -352,7 +349,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustAutomaticIni
             xJ.col(cptIndex) = cam_J->get_ud_pixel(feat);
             ++cptIndex;
           }
-
+          ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
           // Robust estimation of the relative pose
           RelativePose_MultiInfo relativePose_info;
 					
@@ -386,7 +383,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustAutomaticIni
                   initialization_flag = true;
               }
           }
-              
+          //END(Author: BC)===================================================
           if(initialization_flag)
           {
             // Triangulate inliers & compute angle between bearing vectors
@@ -502,7 +499,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustMakeInitialP
     xJ.col(cptIndex) = cam_J->get_ud_pixel(feat);
     ++cptIndex;
   }
-
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   // c. Robust estimation of the relative pose
   RelativePose_MultiInfo relativePose_info;
   
@@ -535,6 +532,7 @@ bool SequentialSfMReconstructionEngine_Robust_Initialization::RobustMakeInitialP
           initialization_flag = true;
       }
   }
+  //END(Author: BC)===================================================
   if (!initialization_flag)
   {
     std::cerr << " /!\\ Robust estimation failed to compute E for this pair"

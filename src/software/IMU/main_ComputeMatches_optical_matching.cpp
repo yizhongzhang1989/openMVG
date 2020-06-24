@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2012, 2016 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #include "openMVG/graph/graph.hpp"
 #include "openMVG/graph/graph_stats.hpp"
@@ -66,11 +62,19 @@ enum EPairMode
   PAIR_FROM_FILE  = 2
 };
 
-/// Compute corresponding features between a series of views:
-/// - Load view images description (regions: features & descriptors)
-/// - Compute putative local feature matches (descriptors matching)
-/// - Compute geometric coherent feature matches (robust model estimation from putative matches)
-/// - Export computed data
+// Apply an exhaustive search(depth-first search) to detect articulation point.
+// Apply a breadth-first search to construct pairs in order to eliminate articulation point.
+//      ***   ***
+//         \ /
+//   *** -- * -- ***  middle point is articulation point(the three asterisks means a connected component)
+//                          
+//
+// @param[in]  map_GeometricMatches       the matches 
+// @param[in]  i_neighbour_count          the parameter of sequential matching
+// @param[out] pairs                      the found pairs to eliminate articulation point.
+
+// (Owned by BC)
+
 
 void SolveArticulationPoint(const PairWiseMatches& map_GeometricMatches, const int i_neighbour_count
 	, Pair_Set& pairs)
@@ -124,7 +128,8 @@ void SolveArticulationPoint(const PairWiseMatches& map_GeometricMatches, const i
 			}
 		}
 	};
-	//find number of connected components in graph
+
+	//find number of connected components in graph by depth first search
 	size_t num_connected = 0;
 	std::vector<bool> vis(num_view);
 	std::fill(vis.begin(), vis.end(), false);
@@ -136,8 +141,9 @@ void SolveArticulationPoint(const PairWiseMatches& map_GeometricMatches, const i
 			num_connected++;
 		}
 	}
-	std::cout << "#biconnected componcents: " << num_connected << "\n";
-	//find articulation point in graph
+	std::cout << "#biconnected : " << num_connected << "\n";
+
+	//detect articulation point in graph
 	std::map<IndexT, int> articulation_points;
 
 	for (size_t i = 0; i < num_view; i++)
@@ -161,30 +167,28 @@ void SolveArticulationPoint(const PairWiseMatches& map_GeometricMatches, const i
 		}
 	}
 
-
+	//solve the articulation point
 	//   *** -- * -- ***  middle point is articulation point
 	// we should add more edges between left nodes and right nodes.
-	//xxxxxPlan1 : pair the articulation views with its neighbour frames (optional)
-	//Plan2 : pair the articulation views according graph
+	//	*	pair the articulation views according graph
 	int num_neighbour = i_neighbour_count < 0 ? 15 : i_neighbour_count;
-
-
 
 	for (const auto& node_item : articulation_points)
 	{
 
 		IndexT node_id = node_item.first;
 		IndexT view_id = reindex_back.at(node_id);
-		//IndexT first_view = view_id > i_neighbour_count ? view_id - i_neighbour_count : 0;
-		//IndexT second_view = view_id + i_neighbour_count < *used_index.rbegin() ? view_id + i_neighbour_count : *used_index.rbegin();
+		
 		std::set<IndexT> searched_views;
 		searched_views.insert(view_id);
-		int minSearchDepth = num_neighbour + 1;
-		int MinSearchNodes = num_neighbour * (node_item.second + 1);
-		//std::cout << "MinSearchNodes:" << MinSearchNodes << "\n";
+		int MaxSearchDepth = num_neighbour + 1;  // the maximum depth reached in breadth-first search
+
+		// the minimum number of nodes allowed for shrinking maximum depth threshold
+		int MinSearchNodes = num_neighbour * (node_item.second + 1);  
+		// construct pairs for components connected by articulation points on breadth-first search
 		{
 			std::queue<IndexT> bfs_queue;
-			std::vector<int> vis_tmp(num_view);
+			std::vector<int> vis_tmp(num_view);  //the depth of nodes in breadth-first search
 			std::fill(vis_tmp.begin(), vis_tmp.end(), 0);
 			bfs_queue.push(node_id);
 			vis_tmp[node_id] = 1;
@@ -197,21 +201,21 @@ void SolveArticulationPoint(const PairWiseMatches& map_GeometricMatches, const i
 					if (vis_tmp[v]) continue;
 
 					vis_tmp[v] = vis_tmp[u] + 1;
-					if (vis_tmp[v] <= minSearchDepth)
+					if (vis_tmp[v] <= MaxSearchDepth)
 					{
 						bfs_queue.push(v);
-						//std::cout << "find view" << reindex_back.at(v) << "in level " << vis_tmp[v] << "\n";
-						//std::cout << "			minSearchDepth:" << minSearchDepth << "\n";
+
 						searched_views.insert(reindex_back.at(v));
-						if (searched_views.size() > MinSearchNodes)
+						if (searched_views.size() > MinSearchNodes)  //shrink the maximum allowed depth
 						{
-							minSearchDepth = vis_tmp[v];
+							MaxSearchDepth = vis_tmp[v];
 						}
 					}
 
 				}
 			}
 		}
+		// collect pairs on all possible combinations of any two nodes 
 		size_t  size_before = pairs.size();
 		for (const auto& view_id1 : searched_views)
 		{
@@ -230,7 +234,11 @@ void SolveArticulationPoint(const PairWiseMatches& map_GeometricMatches, const i
 	std::cout << "#total pairs found : " << pairs.size() << "\n";
 }
 
-
+/// Compute corresponding features between a series of views:
+/// - Load view images description (regions: features & descriptors)
+/// - Compute putative local feature matches (descriptors matching)
+/// - Compute geometric coherent feature matches (robust model estimation from putative matches)
+/// - Export computed data
 
 int main(int argc, char **argv)
 {
@@ -243,15 +251,18 @@ int main(int argc, char **argv)
   int iMatchingVideoMode = -1;
   std::string sPredefinedPairList = "";
   std::string sNearestMatchingMethod = "AUTO";
-  std::string bin_dir = "";   //bc
   bool bForce = false;
   bool bGuided_matching = false;
   int imax_iteration = 2048;
   unsigned int ui_max_cache_size = 0;
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
+  std::string bin_dir = "";   //bc
   double MaxDistanceThreshold = 10.0;
-  bool bfeature_validation = true, bopticalfiltering = true;
+  bool bfeature_validation = false, bopticalfiltering = true;
   bool bdynamicdistance = false, bopticalmatching = false;
-  bool bSolveArticulationPoint = true;
+  bool bSolveArticulationPoint = false;
+  bool bnotablefeaturesdetection = false, bnotablevalidation = false;
+  //END(Author: BC)===================================================
 
   //required
   cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
@@ -266,6 +277,7 @@ int main(int argc, char **argv)
   cmd.add( make_option('m', bGuided_matching, "guided_matching") );
   cmd.add( make_option('I', imax_iteration, "max_iteration") );
   cmd.add( make_option('c', ui_max_cache_size, "cache_size") );
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   cmd.add(make_option('b', bin_dir, "bin_dir"));
   cmd.add(make_option('k', MaxDistanceThreshold, "maxdistancethreshold"));
   cmd.add(make_option('a', bfeature_validation, "bfeature_validation"));
@@ -273,6 +285,9 @@ int main(int argc, char **argv)
   cmd.add(make_option('e', bdynamicdistance, "bdynamicdistance"));
   cmd.add(make_option('h', bopticalmatching, "bopticalmatching"));
   cmd.add(make_option('j', bSolveArticulationPoint, "bSolveArticulationPoint"));
+  cmd.add(make_option('p', bnotablefeaturesdetection, "notablefeaturesdetection"));
+  cmd.add(make_option('q', bnotablevalidation, "notablevalidation"));
+  //END(Author: BC)===================================================
 
 
   try {
@@ -322,18 +337,22 @@ int main(int argc, char **argv)
       << "[-b|--bin_dir]\n"
 	  << "  the directory stores the binary file of position of features tracked in optical flow.\n"
 	  << "  It must be specified if you set nearest matching method as `OPTICALFLOW`.\n"
-    << "[-k|--maxdistancethreshold]\n"
-	    << "  the distance threshold for the optical filtering.\n"
-		  << "[-a|--bfeature_validation]\n"
-		  << "  matching with I to J and J to I.\n"
-		  << "[-d|--bopticalfiltering]\n"
-		  << "  filter matches by optical flow.\n"
-		  << "[-e|--bdynamicdistance]\n"
-		  << "  select a dynamic distance threshold in optical filtering.\n"
-		  << "[-h|--bopticalmatching]\n"
-		  << "  match with local feature according optical flow.\n"
-		  << "[-j|--bSolveArticulationPoint]\n"
-		  << "  detect articulation point and repair the graph.\n"
+	  << "[-k|--maxdistancethreshold]\n"
+	  << "  the distance threshold for optical filtering/matching.\n"
+	  << "[-a|--bfeature_validation]\n"
+	  << " Enable the duplex validation of matches from I to J and J to I.\n"
+	  << "[-d|--bopticalfiltering]\n"
+	  << " Enable optical filtering\n"
+	  << "[-e|--bdynamicdistance]\n"
+	  << " Enable the usage of dynamic distance threshold in optical filtering.\n"
+	  << "[-h|--bopticalmatching]\n"
+	  << "Enable additional matching with local feature according optical flow.\n"
+      << "[-j|--bSolveArticulationPoint]\n"
+	  << " Enable the  detection of articulation point and repair of the graph.\n"
+		<< "[-p|--notablefeaturesdetection]\n"
+		<< "  Enable detection of notable features.\n"
+		<< "[-q|--notablevalidation]\n"
+		<< "  Enable filtering matches by notable features.\n"
       << std::endl;
 
       std::cerr << s << std::endl;
@@ -359,7 +378,9 @@ int main(int argc, char **argv)
 			<< "--bopticalfiltering " << bopticalfiltering << "\n"
 			<< "--bdynamicdistance " << bdynamicdistance << "\n"
 			<< "--bopticalmatching " << bopticalmatching << "\n"
-			<< "--bSolveArticulationPoint " << bSolveArticulationPoint << "\n";
+			<< "--bSolveArticulationPoint " << bSolveArticulationPoint << "\n"
+			<< "--notablefeaturesdetection " << bnotablefeaturesdetection << "\n"
+		    << "--notablevalidation " << bnotablevalidation << "\n";
 				
   EPairMode ePairmode = (iMatchingVideoMode == -1 ) ? PAIR_EXHAUSTIVE : PAIR_CONTIGUOUS;
 
@@ -561,20 +582,24 @@ int main(int argc, char **argv)
       std::cout << "Using FAST_CASCADE_HASHING_L2 matcher" << std::endl;
       collectionMatcher.reset(new Cascade_Hashing_Matcher_Regions(fDistRatio));
     }
-	else if (sNearestMatchingMethod == "OPTICALFLOW" )
-	{
+	else if (sNearestMatchingMethod == "OPTICALFLOW" ) //only optical matching
+	{////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
+		
+		
 		std::cout << "Using Optical_Flow_Matcher_Regions" << std::endl;
 		collectionMatcher.reset(new Optical_Flow_Matcher_Regions(fDistRatio,bin_dir,MaxDistanceThreshold,sfm_data,sMatchesDirectory));
-	}
+		
+	}//END(Author: BC)===================================================
 	else if (sNearestMatchingMethod == "HIERARCHICAL")
-	{
+	{  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
 		std::cout << "Using Hierarchical_Matcher_Regions" << std::endl;
 		hierarchicalMatcher.reset(
-			new Hierarchical_Matcher_Regions(fDistRatio, bin_dir, MaxDistanceThreshold, sfm_data, sMatchesDirectory,
-				bfeature_validation, bopticalfiltering, bdynamicdistance, bopticalmatching));
-		//collectionMatcher.reset(new Hierarchical_Matcher_Regions(fDistRatio, bin_dir, MaxDistanceThreshold, sfm_data,sMatchesDirectory));
-	}
-    if (!collectionMatcher && !hierarchicalMatcher)
+			new Hierarchical_Matcher_Regions(fDistRatio, bin_dir, MaxDistanceThreshold, sfm_data,
+				bfeature_validation, bopticalfiltering, bdynamicdistance, 
+				bopticalmatching, bnotablefeaturesdetection, bnotablevalidation));
+		
+	}//END(Author: BC)===================================================
+    if (!collectionMatcher && !hierarchicalMatcher) //(Author: BC)++++
     {
       std::cerr << "Invalid Nearest Neighbor method: " << sNearestMatchingMethod << std::endl;
       return EXIT_FAILURE;
@@ -596,11 +621,16 @@ int main(int argc, char **argv)
           break;
       }
       // Photometric matching of putative pairs
+	  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
 	  if (sNearestMatchingMethod == "HIERARCHICAL")
 	  {
-		  hierarchicalMatcher->Hierarchical_Match(regions_provider, pairs, map_PutativesMatches, &progress);
+		  hierarchicalMatcher->Match_Hierarchical(regions_provider, pairs, map_PutativesMatches, &progress);
 
-		  //save the notable features
+		  // save the notable features
+		  // Format:
+		  //        NameOfImage.txt£º
+		  //              feature_id feature_position(0) feature_position(1)
+		  if(bnotablefeaturesdetection)
 		  {
 			  std::string output_dir(stlplus::create_filespec(sMatchesDirectory, "notables_features"));
 			  stlplus::folder_create(output_dir);
@@ -633,7 +663,7 @@ int main(int argc, char **argv)
 	  {
 		  collectionMatcher->Match(regions_provider, pairs, map_PutativesMatches, &progress);
 	  }
-      
+	  //END(Author: BC)===================================================
       //---------------------------------------
       //-- Export putative matches
       //---------------------------------------
@@ -740,26 +770,31 @@ int main(int argc, char **argv)
       }
       break;
     }
-
+	////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
 	//////////Detect Articulation Point//////////////
 	if (bSolveArticulationPoint)
 	{
 
 		//---------------------------------------
-		// c. compute matches of pairs for eliminate the articulation point
+		// c. compute matches of pairs for eliminating the articulation point
 		//---------------------------------------
 		Pair_Set additional_pairs;
 		PairWiseMatches art_PutativesMatches;
+		// detect articulation points and find pairs to augmentate the graph(eliminate the points).
 		SolveArticulationPoint(map_GeometricMatches, iMatchingVideoMode, additional_pairs);
 		if (!additional_pairs.empty())
 		{
-			Cascade_Hashing_Matcher_Regions ch_matcher(fDistRatio);
-			ch_matcher.Match(regions_provider, additional_pairs, art_PutativesMatches, &progress);
-			/*Optical_Flow_Matcher_Regions of_matcher(fDistRatio, bin_dir, MaxDistanceThreshold, sfm_data, sMatchesDirectory);
+			//use sift matching to match additional pair
+			/*Cascade_Hashing_Matcher_Regions ch_matcher(fDistRatio);
+			ch_matcher.Match(regions_provider, additional_pairs, art_PutativesMatches, &progress);*/
+
+			// use optical matching to match additional pair
+			Optical_Flow_Matcher_Regions of_matcher(fDistRatio, bin_dir, MaxDistanceThreshold, sfm_data, sMatchesDirectory);
 			std::cout << "Solve Articulation Points\n";
-			of_matcher.Match(regions_provider, additional_pairs, art_PutativesMatches, &progress);*/
+			of_matcher.Match(regions_provider, additional_pairs, art_PutativesMatches, &progress);
 			if (!art_PutativesMatches.empty())
 			{
+				//merge the original matches and additional matches
 				for (const auto& pairwisematch : art_PutativesMatches)
 				{
 					if (!map_PutativesMatches.count(pairwisematch.first))
@@ -787,7 +822,7 @@ int main(int argc, char **argv)
 				}
 
 				//---------------------------------------
-				// d. second Geometric filtering of  new matches
+				// d. second Geometric filtering for new matches
 				//---------------------------------------
 
 				std::unique_ptr<ImageCollectionGeometricFilter> filter_ptr(
@@ -865,7 +900,7 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-	
+	//END(Author: BC)===================================================
 
     //---------------------------------------
     //-- Export geometric filtered matches

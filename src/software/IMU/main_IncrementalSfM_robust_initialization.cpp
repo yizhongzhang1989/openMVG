@@ -1,10 +1,6 @@
-	// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2012, 2013 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #include "openMVG/cameras/Camera_Common.hpp"
 #include "openMVG/cameras/Cameras_Common_command_line_helper.hpp"
@@ -83,6 +79,7 @@ int main(int argc, char **argv)
   int i_User_camera_model = PINHOLE_CAMERA_RADIAL3;
   bool b_use_motion_priors = false;
   int triangulation_method = static_cast<int>(ETriangulationMethod::DEFAULT);
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   //the maximum iteration number of finding automatically initial pair
   size_t initial_max_iteration_count = 4096;
   //the path to a IMU Pose file used for validation of essential matrix.
@@ -90,6 +87,7 @@ int main(int argc, char **argv)
   //Enable usage of imu validation in initialization.
   //Otherwise,enable usage of multiple model in initialization.
   bool b_robust_initialization_of_imu = false;  
+  //END(Author: BC)===================================================
 
   cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
   cmd.add( make_option('m', sMatchesDir, "matchdir") );
@@ -176,7 +174,7 @@ int main(int argc, char **argv)
       << "The input SfM_Data file \""<< sSfM_Data_Filename << "\" cannot be read." << std::endl;
     return EXIT_FAILURE;
   }
-
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   //Load input IMU_Data scene if enable usage of imu validation in initialization
   SfM_Data imu_data;
   if(b_robust_initialization_of_imu && !Load(imu_data, sIMU_Data_Filename, ESfM_Data(ALL)))
@@ -185,6 +183,7 @@ int main(int argc, char **argv)
       << "The input IMU_Data file \""<< sIMU_Data_Filename << "\" cannot be read." << std::endl;
     return EXIT_FAILURE;
   }
+  //END(Author: BC)===================================================
 
   // Init the regions_type from the image describer file (used for image regions extraction)
   using namespace openMVG::features;
@@ -236,6 +235,7 @@ int main(int argc, char **argv)
   //---------------------------------------
 
   openMVG::system::Timer timer;
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   SequentialSfMReconstructionEngine_Robust_Initialization sfmEngine(
     sfm_data,
     sOutDir,
@@ -247,6 +247,7 @@ int main(int argc, char **argv)
   {
       sfmEngine.setIMUData(imu_data);
   }
+  //END(Author: BC)===================================================
   // Configure the features_provider & the matches_provider
   sfmEngine.SetFeaturesProvider(feats_provider.get());
   sfmEngine.SetMatchesProvider(matches_provider.get());
@@ -270,9 +271,10 @@ int main(int argc, char **argv)
     }
     sfmEngine.setInitialPair(initialPairIndex);
   }
-
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   if (sfmEngine.Process_Robust_Initialization())
   {
+  //END(Author: BC)===================================================
     std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
     std::cout << "...Generating SfM_Report.html" << std::endl;

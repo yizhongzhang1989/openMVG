@@ -39,8 +39,7 @@ class Optical_Flow_Matcher_Regions : public Matcher
 	};
 	explicit Optical_Flow_Matcher_Regions
 	(
-		float distRatio, std::string bin_dir, double maxDistanceThreshold, const sfm::SfM_Data& sfm_data,
-		std::string sMatches_dir
+		float distRatio, std::string bin_dir, double maxDistanceThreshold, const sfm::SfM_Data& sfm_data
 	);
 
   /// Find corresponding points between some pair of view Ids
@@ -59,7 +58,7 @@ class Optical_Flow_Matcher_Regions : public Matcher
   std::string bin_dir_;
   // the distance threshold for optical filtering / matching
   double MaxDistanceThreshold;
-  std::string sMatches_dir_;
+
   // Process optical informations
   matching::OpticalFlow_Container opticalflow_container;
 };

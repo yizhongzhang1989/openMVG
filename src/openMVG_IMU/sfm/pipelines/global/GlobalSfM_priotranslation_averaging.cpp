@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #include "openMVG_IMU/sfm/pipelines/global/GlobalSfM_priotranslation_averaging.hpp"  //bc
 
@@ -53,7 +49,7 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::MyRun
 )
 {
   // Compute the relative translations and save them to vec_initialRijTijEstimates
-  
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   for (const auto& pair : extra_matches_provider->getPairs())
   {
 	  extra_pairs_[pair] = "0";
@@ -107,7 +103,7 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::MyRun
     eTranslationAveragingMethod,
     sfm_data,
     map_globalR);
-
+  //END(Author: BC)===================================================
   // Filter matches to keep only them link to view that have valid poses
   // (necessary since multiple components exists before translation averaging)
   std::set<IndexT> valid_view_ids;
@@ -246,7 +242,8 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::PrioTranslation_averaging(
       case TRANSLATION_AVERAGING_SOFTL1:
       {
         std::vector<Vec3> vec_translations;
-		///////BC START////////
+		////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
+		//feed the known translation as the initial value of translation averaging
         std::vector<Vec3> prio_translations;
 		prio_translations.reserve(sfm_data.GetPoses().size());
         
@@ -261,7 +258,7 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::PrioTranslation_averaging(
           std::cerr << "Compute global translations: failed" << std::endl;
           return false;
         }
-		///////BC END//////////
+		//END(Author: BC)===================================================
         // A valid solution was found:
         // - Update the view poses according the found camera translations
         for (size_t i = 0; i < iNview; ++i)
@@ -359,6 +356,7 @@ void GlobalSfM_PrioTranslation_AveragingSolver::PrioCompute_translations
 
 	// Compute relative translations over the graph of global rotations
 	//  thanks to an edge coverage algorithm
+	////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
 	PrioComputePutativeTranslation_EdgesCoverage(
 		sfm_data,
 		map_globalR,
@@ -366,6 +364,7 @@ void GlobalSfM_PrioTranslation_AveragingSolver::PrioCompute_translations
 		matches_provider,
 		vec_relative_motion_,
 		tripletWise_matches);
+	//END(Author: BC)===================================================
 }
 
 //-- Perform a trifocal estimation of the graph contain in vec_triplets with an
@@ -525,10 +524,9 @@ void GlobalSfM_PrioTranslation_AveragingSolver::PrioComputePutativeTranslation_E
 					openMVG::tracks::STLMAPTracks pose_triplet_tracks;
 
 					const std::string sOutDirectory = "./";
-					///BC START///
-					std::string flag;
+					////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
 					Pair edge_pair = std::make_pair(edge.first, edge.second);
-					///BC end////
+
 					const bool bTriplet_estimation = PrioEstimate_T_triplet(
 						sfm_data,
 						map_globalR,
@@ -540,21 +538,9 @@ void GlobalSfM_PrioTranslation_AveragingSolver::PrioComputePutativeTranslation_E
 						vec_inliers,
 						pose_triplet_tracks,
 						sOutDirectory,
-						flag,
 						edge_pair
 						);
-					///BC START///
-					
-					if (extra_pairs_.count(edge_pair))
-					{
-						std::string& sval = extra_pairs_.at(edge_pair);
-						if (sval !="1")
-						{
-							if (bTriplet_estimation) sval = "1";
-							else sval +=  flag;
-						}
-					}
-					///BC end////
+					//END(Author: BC)===================================================
 					if (bTriplet_estimation)
 					{
 						// Since new translation edges have been computed, mark their corresponding edges as estimated
@@ -669,8 +655,7 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::PrioEstimate_T_triplet
 	std::vector<uint32_t> & vec_inliers,
 	openMVG::tracks::STLMAPTracks & tracks,
 	const std::string & sOutDirectory,
-	std::string& flag,    //bc
-	const Pair& edge_pair
+	const Pair& edge_pair   //START(Author: BC)+
 ) const
 {
 	// List matches that belong to the triplet of poses
@@ -695,18 +680,18 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::PrioEstimate_T_triplet
 	tracksBuilder.Build(map_triplet_matches);
 	tracksBuilder.Filter(3);
 	tracksBuilder.ExportToSTL(tracks);
+	////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
 	const int minInlierForExtraPair = 0; //bc
 	if (tracks.size() < 30&& extra_pairs_.count(edge_pair)==0)   //bc
 	{
-		flag = "2("+std::to_string(tracks.size())+")";
 		return false;
 	}
-	else if (tracks.size() < minInlierForExtraPair&& extra_pairs_.count(edge_pair))  //bc
+	else if (tracks.size() < minInlierForExtraPair&& extra_pairs_.count(edge_pair))  //relax the threshold for extra matches
 	{
-		flag = "2(" + std::to_string(tracks.size()) + ")";
+		
 		return false;
 	}
-	
+	//END(Author: BC)===================================================
 	
 
 	// Data conversion
@@ -747,7 +732,6 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::PrioEstimate_T_triplet
 	}
 	if (min_focal == std::numeric_limits<double>::max())
 	{
-		flag = "3"; //bc
 		return false;
 	}
 
@@ -774,7 +758,6 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::PrioEstimate_T_triplet
 	// If robust estimation fails => stop.
 	if (dPrecision == std::numeric_limits<double>::infinity())
 	{
-		flag = "4";  //bc
 		return false;
 	}
 
@@ -870,14 +853,12 @@ bool GlobalSfM_PrioTranslation_AveragingSolver::PrioEstimate_T_triplet
 
 	// Keep the model iff it has a sufficient inlier count
 	bool bTest = (vec_inliers.size() > 30 && 0.33 * tracks.size());  //bc remove const
-	if (extra_pairs_.count(edge_pair))  //bc
+	////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
+	if (extra_pairs_.count(edge_pair))  //relax the threshold for extra matches
 	{
 		bTest = vec_inliers.size() > minInlierForExtraPair;
 	}
-	if (bTest == false)  //bc
-	{
-		flag = "5(v:" + std::to_string(vec_inliers.size()) + ",0.33*"+ std::to_string(tracks.size()) +")";
-	}
+	//END(Author: BC)===================================================
 
 #ifdef DEBUG_TRIPLET
 	{

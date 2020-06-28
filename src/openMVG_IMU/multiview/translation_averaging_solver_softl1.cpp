@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #include "openMVG/multiview/translation_averaging_common.hpp"
 #include "openMVG_IMU/multiview/translation_averaging_solver.hpp"  //BC
@@ -91,7 +87,7 @@ bool solve_priotranslations_problem_softl1
 (
   const std::vector<openMVG::RelativeInfo_Vec > & vec_relative_group_estimates,
   std::vector<Eigen::Vector3d> & translations,
-  const std::vector<Eigen::Vector3d>& prio_translation,    ////BC
+  const std::vector<Eigen::Vector3d>& prio_translation,    ////START(Author: BC)
   const double d_l1_loss_threshold
 )
 {
@@ -136,7 +132,8 @@ bool solve_priotranslations_problem_softl1
       cpt += 3;
     }
   }
-  // ////////////////BC Start///////////////
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
+  //assign the known translation as the initial value of translation averaging
   unsigned int mycpt = 0;
   assert(nb_poses == prio_translation.size());
   std::cout<<"assign initial for translation averaging\n";
@@ -149,7 +146,7 @@ bool solve_priotranslations_problem_softl1
   }
   mycpt = 0;
   
-  // ////////////////BC End/////////////////
+  //END(Author: BC)===================================================
   ceres::LossFunction * loss =
     (d_l1_loss_threshold < 0) ? nullptr : new ceres::SoftLOneLoss(d_l1_loss_threshold);
 

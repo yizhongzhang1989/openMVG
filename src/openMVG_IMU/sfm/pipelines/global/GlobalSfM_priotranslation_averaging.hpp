@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #ifndef OPENMVG_IMU_SFM_GLOBAL_ENGINE_PIPELINES_GLOBAL_PRIOTRANSLATION_AVERAGING_HPP  //BC
 #define OPENMVG_IMU_SFM_GLOBAL_ENGINE_PIPELINES_GLOBAL_PRIOTRANSLATION_AVERAGING_HPP
@@ -31,7 +27,19 @@ class GlobalSfM_PrioTranslation_AveragingSolver: public GlobalSfM_Translation_Av
 {
 
 public:
-	std::map<Pair,std::string>  extra_pairs_;
+	std::map<Pair,std::string>  extra_pairs_;  // record which matches are extra matches,BC
+
+
+// compute translations with novel matches(original + additional)
+//                          
+// @param[in]  eTranslationAveragingMethod              translation averaging method
+// @param[out] sfm_data                                 where translation computed stored
+// @param[in]  features_provider                        features
+// @param[in]  matches_provider                         matches
+// @param[in]  map_globalR                              rotations of every image
+// @param[in]  tripletWise_matches					    triple matches computed 
+// @param[in]  extra_matches_provider                   the additional matches
+// (Taken from OpenMVG with modification)
   bool MyRun
   (
     ETranslationAveragingMethod eTranslationAveragingMethod,
@@ -45,7 +53,13 @@ public:
 
 public:   //BC
   
+// translation averaging with prio translations,which is used as initial value of translation averaging
+//                          
+// @param[in]  eTranslationAveragingMethod              translation averaging method
+// @param[out] sfm_data                                 where translation computed stored
+// @param[in]  map_globalR                              rotations of every image
 
+// (Taken from OpenMVG with modification)
   bool PrioTranslation_averaging(
   ETranslationAveragingMethod eTranslationAveragingMethod,
   sfm::SfM_Data & sfm_data,
@@ -57,6 +71,17 @@ public:   //BC
 	  const sfm::Matches_Provider * matches_provider,
 	  const Hash_Map<IndexT, Mat3> & map_globalR,
 	  matching::PairWiseMatches &tripletWise_matches);
+
+
+  // compute relative translations
+  //                          
+  // @param[in] sfm_data                                 where translation computed stored
+  // @param[in] features_provider                        features
+  // @param[in]  matches_provider                         matches
+  // @param[in]  map_globalR                              rotations of every image
+  // @param[out] vec_triplet_relative_motion			  the triplet computed
+  // @param[out] newpairMatches							  triple matches computed(inlier matches)
+  // (Taken from OpenMVG with modification)
 
   //-- Compute the relative translations on the rotations graph.
   // Compute relative translations by using triplets of poses.
@@ -70,7 +95,16 @@ public:   //BC
 	  std::vector<RelativeInfo_Vec> & vec_triplet_relative_motion,
 	  matching::PairWiseMatches & newpairMatches);
 
-  // Robust estimation and refinement of triplet of translations
+  // Robust estimation and refinement of triplet of translations.
+  // And relax the constraint for additional matches
+  //                          
+  // @param[in] eTranslationAveragingMethod              translation averaging method
+  // @param[in] sfm_data                                 where translation computed stored
+  // @param[in] features_provider                        features
+  // @param[in] matches_provider                         matches
+  // @param[in] edge_pair                                the target image pair to which translation belong
+  // (Taken from OpenMVG with modification)
+  // 
   bool PrioEstimate_T_triplet(
 	  const sfm::SfM_Data & sfm_data,
 	  const Hash_Map<IndexT, Mat3> & map_globalR,
@@ -82,7 +116,6 @@ public:   //BC
 	  std::vector<uint32_t> & vec_inliers,
 	  openMVG::tracks::STLMAPTracks & rig_tracks,
 	  const std::string & sOutDirectory,
-	  std::string& flag,
 	  const Pair& edge_pair) const;
   
 };

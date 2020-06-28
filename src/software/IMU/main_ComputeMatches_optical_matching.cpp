@@ -587,7 +587,7 @@ int main(int argc, char **argv)
 		
 		
 		std::cout << "Using Optical_Flow_Matcher_Regions" << std::endl;
-		collectionMatcher.reset(new Optical_Flow_Matcher_Regions(fDistRatio,bin_dir,MaxDistanceThreshold,sfm_data,sMatchesDirectory));
+		collectionMatcher.reset(new Optical_Flow_Matcher_Regions(fDistRatio,bin_dir,MaxDistanceThreshold,sfm_data));
 		
 	}//END(Author: BC)===================================================
 	else if (sNearestMatchingMethod == "HIERARCHICAL")
@@ -789,7 +789,7 @@ int main(int argc, char **argv)
 			ch_matcher.Match(regions_provider, additional_pairs, art_PutativesMatches, &progress);*/
 
 			// use optical matching to match additional pair
-			Optical_Flow_Matcher_Regions of_matcher(fDistRatio, bin_dir, MaxDistanceThreshold, sfm_data, sMatchesDirectory);
+			Optical_Flow_Matcher_Regions of_matcher(fDistRatio, bin_dir, MaxDistanceThreshold, sfm_data);
 			std::cout << "Solve Articulation Points\n";
 			of_matcher.Match(regions_provider, additional_pairs, art_PutativesMatches, &progress);
 			if (!art_PutativesMatches.empty())

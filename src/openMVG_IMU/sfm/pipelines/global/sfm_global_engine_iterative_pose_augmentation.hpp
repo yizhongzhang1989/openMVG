@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #ifndef OPENMVG_IMU_SFM_GLOBAL_ENGINE_ITERATIVE_POSE_AUGMENTATION_HPP
 #define OPENMVG_IMU_SFM_GLOBAL_ENGINE_ITERATIVE_POSE_AUGMENTATION_HPP
@@ -39,14 +35,37 @@ public:
   ~GlobalSfMReconstructionEngine_IterativePoseAugmentation();
   void SetMatchesDir(const std::string MatchesDir);
 
-  
+  //iterative augmentation by following
+  //	*  loop detection
+  //    *  accept the known rotation and refine translations by translation averaging 
+  //    *  optimize by ba
   bool Run();
+
+  // accept the known rotation and refine translations by translation averaging 
+  // and recompute the structure
+  //                          
+  // @param[in] extra_matches_provider_    the additional matches
+  // the output of function is that update the translation of sfm data.
+  // (Taken from OpenMVG with modification)
   bool Process(std::shared_ptr<Matches_Provider> extra_matches_provider_);
+
+
+  // find the proper camera pair whose angular is less than 25 degree.
+  //                          
+  // @param[out] extra_pairs       container of output paris
+  // @param[in]  tried_pairs       the pairs tried once
+  // (Owned by BC)
   bool LoopDetection(Pair_Set& extra_pairs, const Pair_Set& tried_pairs);
   bool Optimize();
 protected:
 
-  /// Compute/refine relative translations and compute global translations
+  // find the proper camera pair whose angular is less than 25 degree.
+  //                          
+  // @param[in]  global_rotations          global rotation of every image
+  // @param[out] tripletWise_matches       the inlier matches that comfirm to the translations.
+  // @param[in] extra_matches_provider_    the additional matches
+  // the output of function is that update the translation of sfm data.
+  // (Taken from OpenMVG with modification)
   bool Compute_Global_PrioTranslations
   (
     const Hash_Map<IndexT, Mat3> & global_rotations,

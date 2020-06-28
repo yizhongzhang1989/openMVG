@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2014 Pierre MOULON
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 //bc START
 #ifndef OPENMVG_IMU_MULTIVIEW_TRANSLATION_AVERAGING_SOLVER_HPP    
 #define OPENMVG_IMU_MULTIVIEW_TRANSLATION_AVERAGING_SOLVER_HPP
@@ -46,6 +42,7 @@ bool
 * @brief Registration of relative translations to global translations. It implements LInf minimization of  [2]
 *  as a SoftL1 minimization. It can use group of relative translation vectors (bearing, or n-uplets of translations).
 *  All relative motions must be 1 connected component.
+*  Use prio translation as the initial value.(BC)
 *
 * @param[in] vec_initial_estimates group of relative motion information
 *             Each group will have its own optimized scale
@@ -55,7 +52,10 @@ bool
 * @param[out] translations found global camera translations
 * @param[in] d_l1_loss_threshold optional threshold for SoftL1 loss (-1: no loss function)
 * @return True if the registration can be solved
+
+* (Taken from OpenMVG with modification) 
 */
+
 bool
 solve_priotranslations_problem_softl1
 (

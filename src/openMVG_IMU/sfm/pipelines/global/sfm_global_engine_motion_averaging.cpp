@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #include "openMVG_IMU/sfm/pipelines/global/sfm_global_engine_motion_averaging.hpp"
 #include "openMVG_IMU/sfm/pipelines/global/myoutput.hpp"
@@ -99,53 +95,6 @@ bool GlobalSfMReconstructionEngine_MotionAveraging::Process() {
     std::cerr << "GlobalSfM:: Cannot initialize an initial structure!" << std::endl;
     return false;
   }
-  /////////////BC start////////////////
-  //output the view  graph
-  std::cout<<"BC is debuging\n";
-  Output_trajectory(stlplus::create_filespec(sOut_directory_, "view_poses", ".csv"), sfm_data_);
-  Output_TriangulatedCorrespondings(stlplus::create_filespec(sOut_directory_, "triangulated_correspondings", ".csv"), sfm_data_);
-  Output_TriangulatedMatchings(stlplus::create_filespec(sOut_directory_, "triangulated_matchings", ".csv"), matches_provider_, sfm_data_);
-
-  if (!sLogging_file_.empty() && !sOut_directory_.empty())
-  {
-    std::cout<<"saving view graph before final ba\n";
-    std::ofstream viewgraph_file(stlplus::create_filespec(sOut_directory_, "viewgraph.csv"));
-    std::set<IndexT> set_view_ids;
-    Pair_Set relative_view_pairs;
-
-    viewgraph_file<<"image_id1,image_id2,match_num\n";
-    for(const auto& pair_iter : tripletWise_matches)
-    {
-      const auto & imageI = pair_iter.first.first;
-      const auto & imageJ = pair_iter.first.second;
-      size_t match_num = pair_iter.second.size();
-      set_view_ids.insert(imageI);
-      set_view_ids.insert(imageJ);
-      relative_view_pairs.insert(Pair(imageI,imageJ));
-
-      viewgraph_file<<imageI<<","<<imageJ<<","<<match_num<<"\n";
-    } 
-    // Log a relative view graph
-    {
-      const std::string sGraph_name = "viewgraph";
-      graph::indexedGraph putativeGraph(set_view_ids, relative_view_pairs);
-      graph::exportToGraphvizData(
-        stlplus::create_filespec(sOut_directory_, sGraph_name),
-        putativeGraph);
-    }
-	viewgraph_file.close();
-  }
-  //save pose trajectory
-  Save(sfm_data_,
-      stlplus::create_filespec(sOut_directory_, "trajectory_preliminary",".json"),
-      ESfM_Data(VIEWS|EXTRINSICS|INTRINSICS));
-  //save point cloud
-  Save(sfm_data_,
-      stlplus::create_filespec(sOut_directory_, "sfm_data_preliminary",".json"),
-      ESfM_Data(ALL));
-  
-  std::cout<<"Debug complete\n";
-  /////////////BC   end////////////////
   // if (!Adjust())
   // {
   //   std::cerr << "GlobalSfM:: Non-linear adjustment failure!" << std::endl;
@@ -190,42 +139,7 @@ bool GlobalSfMReconstructionEngine_MotionAveraging::Compute_Global_Translations_
     matches_provider_,
     global_rotations,
     tripletWise_matches);
-  /////////////BC start////////////////
-  //output the pose graph
   
-  std::cout<<"BC is debuging\n";
-  if (!sLogging_file_.empty() && !sOut_directory_.empty())
-  {
-    std::cout<<"saving pose graph after translation\n";
-    std::ofstream viewgraph_file(stlplus::create_filespec(sOut_directory_, "posegraph.csv"));
-    std::set<IndexT> set_view_ids;
-    Pair_Set relative_view_pairs;
-
-    viewgraph_file<<"pose_id1,pose_id2\n";
-    
-      for (const openMVG::RelativeInfo_Vec & iter : translation_averaging_solver.Getrelative_motion())
-      {
-          for (const relativeInfo & rel : iter)
-          {
-            relative_view_pairs.insert(rel.first);
-            set_view_ids.insert(rel.first.first);
-            set_view_ids.insert(rel.first.second);
-            viewgraph_file<<rel.first.first<<","<<rel.first.second<<"\n";
-          }
-      }
-    
-    // Log a relative view graph
-    {
-      const std::string sGraph_name = "posegraph";
-      graph::indexedGraph putativeGraph(set_view_ids, relative_view_pairs);
-      graph::exportToGraphvizData(
-        stlplus::create_filespec(sOut_directory_, sGraph_name),
-        putativeGraph);
-    }
-    viewgraph_file.close();
-  }
-  std::cout<<"Debug complete\n";
-  /////////////BC   end////////////////
 
   if (!sLogging_file_.empty())
   {

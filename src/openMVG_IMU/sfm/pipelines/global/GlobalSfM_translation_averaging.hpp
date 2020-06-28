@@ -1,10 +1,6 @@
-// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
-
-// Copyright (c) 2015 Pierre MOULON.
-
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This file is part of OpenMVG_IMU , a branch of OpenMVG
+// Author: Bao Chong
+// Date:2020/06
 
 #ifndef OPENMVG_IMU_SFM_GLOBAL_ENGINE_PIPELINES_GLOBAL_TRANSLATION_AVERAGING_HPP
 #define OPENMVG_IMU_SFM_GLOBAL_ENGINE_PIPELINES_GLOBAL_TRANSLATION_AVERAGING_HPP
@@ -29,14 +25,19 @@ namespace sfm{
 struct SfM_Data;
 struct Matches_Provider;
 struct Features_Provider;
-
+/// Note:the class is created as same as the homonymous class in openMVG,
+///      but the only difference is that all member variables and functions
+///      in the class are declared as public for inheriting.
 class GlobalSfM_Translation_AveragingSolver_General
 {
   
 
 public:
 	std::vector<RelativeInfo_Vec> vec_relative_motion_;
-  const std::vector<RelativeInfo_Vec> & Getrelative_motion() const {return vec_relative_motion_;}  //BC
+	////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
+  const std::vector<RelativeInfo_Vec> & Getrelative_motion() const {return vec_relative_motion_;} 
+  //END(Author: BC)===================================================
+
   bool Run(
 	  ETranslationAveragingMethod eTranslationAveragingMethod,
     openMVG::sfm::SfM_Data & sfm_data,

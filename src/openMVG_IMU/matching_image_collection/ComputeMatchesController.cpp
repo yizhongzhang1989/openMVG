@@ -419,7 +419,7 @@ bool ComputeMatchesController::Process(const SfM_Data& sfm_data, std::string sMa
 		}
 		break;
 		}
-		
+		////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
 		// //---------------------------------------
 		// //-- Export geometric filtered matches
 		// //---------------------------------------
@@ -447,6 +447,7 @@ bool ComputeMatchesController::Process(const SfM_Data& sfm_data, std::string sMa
 			}
 		}
 		matches_provider->pairWise_matches_ = std::move(map_GeometricMatches);   //bc 
+		//END(Author: BC)===================================================
 		std::cout << "Task done in (s): " << timer.elapsed() << std::endl;
 
 		// // -- export Geometric View Graph statistics

@@ -61,11 +61,22 @@ bool computeIndexFromImageNames(
   return (initialPairIndex.first != UndefinedIndexT &&
       initialPairIndex.second != UndefinedIndexT);
 }
+////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
+////////////////////
+//find initial pairs associated with the first view in descending order of their correspondences count
+//                          
+//
+// @param[in]  first_view                 the first view selected as initial pair
+// @param[in]  map_Matches				  information of matches
+// @param[in]  reindex_validview2index    the map from view id to discrete index
+// @param[in]  tried_initialpairs         the initial pairs that have been tried once
 
+// @param[out] initial_pairs              the initial pairs found
+
+// (Owned by BC)
 bool FindSecondImage(const IndexT first_view, const openMVG::matching::PairWiseMatches& map_Matches,
 	const std::map<IndexT, IndexT>& reindex_validview2index,
 	 const Pair_Set& tried_initialpairs,
-	const std::string sOutDir, const int& iteration_i,
 	std::vector<Pair>& initial_pairs)
 {
 	//////////////////////////////////////////////
@@ -73,7 +84,7 @@ bool FindSecondImage(const IndexT first_view, const openMVG::matching::PairWiseM
 	//////////////////////////////////////////////
 	size_t second_image = 0;
 
-	// record views matched with first_image
+	// list views matched with first_image
 	std::vector<uint32_t> vec_NbMatchesPeView_J;
 	std::vector<openMVG::matching::PairWiseMatches::const_iterator> vec_ViewIterator_J;
 	for (openMVG::matching::PairWiseMatches::const_iterator
@@ -90,24 +101,14 @@ bool FindSecondImage(const IndexT first_view, const openMVG::matching::PairWiseM
 			vec_ViewIterator_J.push_back(iter);
 		}
 	}
-	//////bc debug start////
-	std::ofstream view_J_Corresponds_file(stlplus::create_filespec(sOutDir, "view_J_Corresponds_" + std::to_string(iteration_i), ".txt"));
-	view_J_Corresponds_file << "view_i,view_j,numberofmatches\n";
-	for (size_t i = 0; i< vec_ViewIterator_J.size(); i++)
-	{
-		const Pair current_pair = vec_ViewIterator_J[i]->first;
-		view_J_Corresponds_file << current_pair.first << "-" << current_pair.second << ":" << vec_ViewIterator_J[i]->second.size() << "\n";
-	}
-	view_J_Corresponds_file.close();
-	//////bc debug end//////
 
-	// sort the Views in descending order according their correspondences count
+	// sort the Views in descending order of correspondences
 	using namespace stl::indexed_sort;
 	std::vector<sort_index_packet_descend<uint32_t, uint32_t>> packet_vec_J(vec_NbMatchesPeView_J.size());
 	sort_index_helper(packet_vec_J, &vec_NbMatchesPeView_J[0]);
 
 
-	//return the corresponds with first_view in descending order according their correspondences count
+	//return the corresponds with first_view in descending order of their correspondences count
 	for (size_t i = 0; i < vec_NbMatchesPeView_J.size(); ++i)
 	{
 		const uint32_t index = packet_vec_J[i].index;
@@ -117,27 +118,35 @@ bool FindSecondImage(const IndexT first_view, const openMVG::matching::PairWiseM
 
 	return initial_pairs.size() > 0;
 }
+////////////////////
+//find the initial pair according the corresponds
+//    * the first view is selected as the largest connected view among unregistered views
+//    * the second views are the views connected with first view ordered in descending of correspondences.
+//                          
+//
+// @param[in]  sfm_data                   input sfm data to provide views' information
+// @param[in]  registered_views           the view pairs to matching
+// @param[in]  matches_provider           matching information
+// @param[in]  tried_initialpairs         the initial pairs that have been tried once
+// @param[in]  first_initial_tried_images the views that have been selected as first view of initial pair
+// @param[out] initial_pairs              the intial pairs found
 
+// (Owned by BC)
 bool FindInitialImagePairs(const SfM_Data& sfm_data,const std::set<IndexT>& registered_views,
                            const Matches_Provider* matches_provider,const Pair_Set& tried_initialpairs,
 						  std::set<IndexT>& first_initial_tried_images,
-                           const std::string sOutDir, const int& iteration_i,
 						   std::vector<Pair>& initial_pairs)
 {
 
-    ////////////////////
-    //find the initial pair according the corresponds
-    //    * the first view is selected as the largest connected view in not yet registered views
-    //    * the second views are the view connected with first view which are sorted in descending according their correspondences count
-
+    
     // List Views that supports valid intrinsic and are not yet registered
     std::vector<uint32_t> vec_NbMatchesPerView_I;
     std::vector<IndexT> vec_ViewsIterator_I;
     vec_NbMatchesPerView_I.reserve(sfm_data.GetViews().size());
     vec_ViewsIterator_I.reserve(sfm_data.GetViews().size());
-    std::map<IndexT,IndexT> reindex_validview2index;
-    IndexT reindex_cpt = 0;
 
+	std::map<IndexT, IndexT> reindex_validview2index;  	//used for discretization
+	IndexT reindex_cpt = 0;
     for (const auto & view : sfm_data.GetViews())
     {
       const View * v = view.second.get();
@@ -152,19 +161,15 @@ bool FindInitialImagePairs(const SfM_Data& sfm_data,const std::set<IndexT>& regi
       }
     }
     ////////////////////////////////////////////////////
-    /////////////find first initial view////////////////
+    ///////////select first initial view////////////////
     ////////////////////////////////////////////////////
     IndexT first_view = 0;
     
-    
-    
-    
     const openMVG::matching::PairWiseMatches & map_Matches = matches_provider->pairWise_matches_;
 
-    // count the number of corresponds per views
+    // count the number of correspondings per views
     for (openMVG::matching::PairWiseMatches::const_iterator
-      iter = map_Matches.begin();
-      iter != map_Matches.end(); ++iter)
+      iter = map_Matches.begin(); iter != map_Matches.end(); ++iter)
     {
       const Pair current_pair = iter->first;
       if (reindex_validview2index.count(current_pair.first) &&
@@ -176,18 +181,8 @@ bool FindInitialImagePairs(const SfM_Data& sfm_data,const std::set<IndexT>& regi
         vec_NbMatchesPerView_I[index_2] += iter->second.size();
       }
     }
-    //////bc debug start////
-    std::ofstream view_I_Corresponds_file(stlplus::create_filespec(sOutDir, "view_I_Corresponds_"+std::to_string(iteration_i), ".txt"));
-    view_I_Corresponds_file<<"view_i,numberofmatches\n";
-    for(size_t i = 0 ; i< vec_NbMatchesPerView_I.size(); i++)
-    {
-      view_I_Corresponds_file<<vec_ViewsIterator_I[i]<<":"<<vec_NbMatchesPerView_I[i]<<"\n";
-    }
-    view_I_Corresponds_file.close();
-    //////bc debug end//////
 
-
-    // sort the Views in descending order according their correspondences count
+    // sort the Views in descending order of their correspondences count
     using namespace stl::indexed_sort;
     std::vector<sort_index_packet_descend<uint32_t, uint32_t>> packet_vec_I(vec_NbMatchesPerView_I.size());
     sort_index_helper(packet_vec_I, &vec_NbMatchesPerView_I[0]);
@@ -205,7 +200,6 @@ bool FindInitialImagePairs(const SfM_Data& sfm_data,const std::set<IndexT>& regi
 			&& FindSecondImage(view_i,map_Matches,
 				reindex_validview2index,
 				tried_initialpairs,
-				sOutDir,iteration_i,
 				initial_pairs)) {
           first_view = view_i;
           find_firstview = true;
@@ -218,13 +212,13 @@ bool FindInitialImagePairs(const SfM_Data& sfm_data,const std::set<IndexT>& regi
     }
 
     first_initial_tried_images.insert(first_view);
-    std::cout<<"find the first initial view: "<<first_view<<"\n";
+
 	return true;
     
 
 
 }
-
+//END(Author: BC)===================================================
 
 
 int main(int argc, char **argv)
@@ -373,14 +367,14 @@ int main(int argc, char **argv)
   //---------------------------------------
   // Iterative Sequential reconstruction process
   //---------------------------------------
-
+  ////START(Author: BC)++++++++++++++++++++++++++++++++++++++++++++++
   openMVG::system::Timer timer;
-  std::set<IndexT> registered_views;  //record the views have been registered
-  Pair_Set initial_tried_pairs;   //record the initial pairs have been tried once
-  std::set<IndexT> first_initial_tried_images;
-  Pair_Set tried_initialpairs;
-  int iteration_i = 1;
-  size_t pose_before = 0;
+  std::set<IndexT> registered_views;            //record the views have been registered
+
+  std::set<IndexT> first_initial_tried_images;  //record the views have been tried as first view
+  Pair_Set tried_initialpairs;                  //record the initial pairs have been tried once
+  int iteration_i = 1;                          
+                   
   const size_t num_views = raw_sfm_data.GetViews().size();
   size_t num_reconstructions = 0;
   while(num_views - registered_views.size() > 3)
@@ -389,9 +383,9 @@ int main(int argc, char **argv)
              <<"///////iteration "<<iteration_i<<"///////\n"
              <<"/////////////////////////\n";
     
-    // find the initial pairs in not yet registered views
+    // find the initial pairs among  unregistered views
     std::vector<Pair> initial_pairs;
-    if(iteration_i==1)  //In the first iteration ,we tend to let system automatically find initial pairs.
+    if(iteration_i==1)  //In the first iteration ,we let OpenMVG automatically find initial pairs.
     {
         initial_pairs.push_back(Pair(0,0)); 
     }
@@ -400,14 +394,14 @@ int main(int argc, char **argv)
       if(!FindInitialImagePairs(raw_sfm_data,registered_views,
                                 matches_provider.get(),tried_initialpairs, 
                                 first_initial_tried_images,
-                                sOutDir, iteration_i,initial_pairs))
+                                initial_pairs))
       {
         std::cout<<"There are not good initial pairs for next reconstruction\n";
         break;
       }
     }
 
-
+	//create output directory
 	std::string iteration_sOutDir = stlplus::create_filespec(sOutDir, std::to_string(iteration_i));
 	if (!stlplus::folder_exists(iteration_sOutDir))
 	{
@@ -418,13 +412,13 @@ int main(int argc, char **argv)
 	}
 
     //try to reconstruction with initial pair
-    //  * If reconstruct successfully,exit loop and find next initial pairs for not yet registered views
+    //  * If reconstruct successfully,exit loop and find next initial pairs for unregistered views
 	bool brecons = false;
     for(const Pair& initial_pair:initial_pairs)
     {
       openMVG::system::Timer re_timer;
       SequentialSfMReconstructionEngine sfmEngine(
-        raw_sfm_data,
+        raw_sfm_data,                             //pass by value
         iteration_sOutDir,
         stlplus::create_filespec(iteration_sOutDir, "Reconstruction_Report.html"));
 
@@ -461,32 +455,37 @@ int main(int argc, char **argv)
          sfmEngine.setInitialPair(initial_pair);
          tried_initialpairs.insert(initial_pair);   //record the initial pairs used.
       }
+	  //start reconstruction
 	  bool bProcess = sfmEngine.Process();
+	   
       if (bProcess && sfmEngine.Get_SfM_Data().GetPoses().size() > 3)
       {
-		  brecons = true;
+		const SfM_Data& iteration_sfm_data = sfmEngine.Get_SfM_Data();
+		brecons = true;
         num_reconstructions ++;
         std::cout << "...Generating SfM_Report.html" << std::endl;
-        Generate_SfM_Report(sfmEngine.Get_SfM_Data(),
+        Generate_SfM_Report(iteration_sfm_data,
           stlplus::create_filespec(iteration_sOutDir, "SfMReconstruction_Report.html"));
 
         //-- Export to disk computed scene (data & visualizable results)
         std::cout << "...Export SfM_Data to disk." << std::endl;
-        Save(sfmEngine.Get_SfM_Data(),
+        Save(iteration_sfm_data,
           stlplus::create_filespec(iteration_sOutDir, "sfm_data", ".bin"),
           ESfM_Data(ALL));
 
-        Save(sfmEngine.Get_SfM_Data(),
+        Save(iteration_sfm_data,
           stlplus::create_filespec(iteration_sOutDir, "cloud_and_poses", ".ply"),
           ESfM_Data(ALL));
+
+		//assure the value of raw_sfm_data is not modified.
         if(raw_sfm_data.GetPoses().size() > 0)
         {
           std::cout<<"Error:raw_sfm_data has been modified\n";
           return EXIT_SUCCESS;
         }
 
-        //update the views registered into `registered_views`
-        const SfM_Data& iteration_sfm_data = sfmEngine.Get_SfM_Data();
+        //insert the views registered into `registered_views`
+        
         size_t newviews = 0;
         for(const auto& view_item : iteration_sfm_data.GetViews())
         {
@@ -509,6 +508,7 @@ int main(int argc, char **argv)
       }
 
     }
+	//delete the directory already created.
 	if (!brecons)
 	{
 		if (!stlplus::folder_delete(iteration_sOutDir, true))
@@ -527,7 +527,7 @@ int main(int argc, char **argv)
   std::cout<<"#Images not yet registered:"<<num_views - registered_views.size()<<"\n";
   std::cout << std::endl << " Total Ac-Sfm took (s): " <<timer.elapsed() << std::endl;
   std::cout<<"/////////////////////\n";
-
+  //END(Author: BC)===================================================
   return EXIT_SUCCESS;
 }
 

@@ -73,6 +73,7 @@ namespace matching {
 // The class inherit the `CascadeHasher_General` in order to 
 // provide a matching interface that can only perform sift matching 
 // on user specified features of first view.
+//(Inherit from openMVG with modification)
 class CascadeHasher2:public CascadeHasher_General {
 
 public:
@@ -120,7 +121,7 @@ public:
 		  static const HammingMetricType metricH = {};
 		  for (int i = 0; i < hashed_descriptions1.hashed_desc.size(); ++i)
 		  {
-			  if (!specified_feat1_ids.count(i)) continue;   //bc
+			  if (!specified_feat1_ids.count(i)) continue;   ////(Author: BC)+++++++++++++
 			  candidate_descriptors.clear();
 			  num_descriptors_with_hamming_distance.setZero();
 			  candidate_euclidean_distances.clear();

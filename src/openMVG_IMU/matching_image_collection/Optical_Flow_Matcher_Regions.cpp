@@ -27,10 +27,9 @@ using namespace openMVG::features;
 Optical_Flow_Matcher_Regions
 ::Optical_Flow_Matcher_Regions
 (
-	float distRatio, std::string bin_dir,double maxDistanceThreshold,const sfm::SfM_Data& sfm_data,
-	std::string sMatches_dir
-):Matcher(), f_dist_ratio_(distRatio), bin_dir_(bin_dir),MaxDistanceThreshold(maxDistanceThreshold),
-sMatches_dir_(sMatches_dir), opticalflow_container(bin_dir, maxDistanceThreshold, sfm_data)
+	float distRatio, std::string bin_dir,double maxDistanceThreshold,const sfm::SfM_Data& sfm_data
+):Matcher(), f_dist_ratio_(distRatio), bin_dir_(bin_dir),MaxDistanceThreshold(maxDistanceThreshold)
+, opticalflow_container(bin_dir, maxDistanceThreshold, sfm_data)
 {
 	
 }

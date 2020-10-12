@@ -1,0 +1,48 @@
+// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
+
+// Copyright (c) 2015 Pierre MOULON.
+
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+#ifndef OPENMVG_SFM_LOCALIZATION_SEQUENTIAL_SFM_IMU_HPP
+#define OPENMVG_SFM_LOCALIZATION_SEQUENTIAL_SFM_IMU_HPP
+
+#include "openMVG/sfm/pipelines/sequential/sequential_SfM.hpp"
+#include "sfm_imu.hpp"
+#include "imu_integrator/imu_integrator/imu_integrator.h"
+
+namespace openMVG {
+namespace sfm {
+
+/// Sequential SfM Pipeline Reconstruction Engine with IMU.
+class SequentialSfMReconstructionEngineIMU : public SequentialSfMReconstructionEngine
+{
+public:
+    using ViewStamps = Hash_Map<IndexT, double>;
+
+    SequentialSfMReconstructionEngineIMU(
+            const SfM_Data & sfm_data,
+            const std::string & soutDirectory,
+            const std::string & loggingFile = "");
+    SequentialSfMReconstructionEngineIMU(
+            const SfM_Data & sfm_data,
+            const SfM_IMU & imu_data,
+            const ViewStamps & view_stamps,
+            const std::string & soutDirectory,
+            const std::string & loggingFile = "");
+    virtual bool Process() override;
+
+private:
+    SfM_IMU imu_data_;
+    ViewStamps view_stamps_;
+    IMUDynamics::IMUIntegrator* integrator;
+    Pair initial_pair_;
+};
+
+}  // namespace sfm
+}  // namespace openMVG
+
+
+#endif  // OPENMVG_SFM_LOCALIZATION_SEQUENTIAL_SFM_IMU_HPP

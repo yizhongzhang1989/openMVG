@@ -1,0 +1,161 @@
+// This file is part of OpenMVG, an Open Multiple View Geometry C++ library.
+
+// Copyright (c) 2015 Pierre MOULON.
+
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+
+#include "sequential_SfM_IMU.hpp"
+#include <iostream>
+
+namespace openMVG {
+namespace sfm {
+
+SequentialSfMReconstructionEngineIMU::SequentialSfMReconstructionEngineIMU(
+    const SfM_Data & sfm_data,
+    const std::string & soutDirectory,
+    const std::string & loggingFile)
+    : SequentialSfMReconstructionEngine(sfm_data,soutDirectory,loggingFile),
+      initial_pair_(0,0)
+{
+    integrator = nullptr;
+}
+
+SequentialSfMReconstructionEngineIMU::SequentialSfMReconstructionEngineIMU(
+        const SfM_Data & sfm_data,
+        const SfM_IMU & imu_data,
+        const ViewStamps & view_stamps,
+        const std::string & soutDirectory,
+        const std::string & loggingFile)
+        : SequentialSfMReconstructionEngine(sfm_data,soutDirectory,loggingFile),
+          initial_pair_(0,0)
+{
+    imu_data_ = imu_data;
+    view_stamps_ = view_stamps;
+    integrator = new IMUDynamics::IMUIntegrator();
+
+    using namespace std;
+    cout<<"[Inside SequentialSfMReconstructionEngineIMU Constructor]"<<endl;
+    for(size_t i=0;i<imu_data.Size();i++)
+    {
+        cout<<"acc # "<<i<<": "<<imu_data.getAcceleration(IndexT(i)).transpose()<<endl;
+        cout<<"gyro # "<<i<<": "<<imu_data.getOmega(IndexT(i)).transpose()<<endl;
+        if(i>=100)
+            break;
+    }
+}
+
+bool SequentialSfMReconstructionEngineIMU::Process() {
+
+    //-------------------
+    //-- Incremental reconstruction
+    //-------------------
+
+    if (!InitLandmarkTracks())
+        return false;
+
+    // Initial pair choice
+    if (initial_pair_ == Pair(0,0))
+    {
+        if (!AutomaticInitialPairChoice(initial_pair_))
+        {
+            // Cannot find a valid initial pair, try to set it by hand?
+            if (!ChooseInitialPair(initial_pair_))
+            {
+                return false;
+            }
+        }
+    }
+    // Else a starting pair was already initialized before
+
+    // Initial pair Essential Matrix and [R|t] estimation.
+    if (!MakeInitialPair3D(initial_pair_))
+        return false;
+
+    // Compute robust Resection of remaining images
+    // - group of images will be selected and resection + scene completion will be tried
+    size_t resectionGroupIndex = 0;
+    std::vector<uint32_t> vec_possible_resection_indexes;
+    while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
+    {
+        bool bImageAdded = false;
+        // Add images to the 3D reconstruction
+        for (const auto & iter : vec_possible_resection_indexes)
+        {
+            bImageAdded |= Resection(iter);
+            set_remaining_view_id_.erase(iter);
+        }
+
+        if (bImageAdded)
+        {
+            // Scene logging as ply for visual debug
+            std::ostringstream os;
+            os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
+            Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+
+            // Perform BA until all point are under the given precision
+            do
+            {
+                BundleAdjustment();
+            }
+            while (badTrackRejector(4.0, 50));
+            eraseUnstablePosesAndObservations(sfm_data_);
+        }
+        ++resectionGroupIndex;
+    }
+    // Ensure there is no remaining outliers
+    if (badTrackRejector(4.0, 0))
+    {
+        eraseUnstablePosesAndObservations(sfm_data_);
+    }
+
+    //-- Reconstruction done.
+    //-- Display some statistics
+    std::cout << "\n\n-------------------------------" << "\n"
+              << "-- Structure from Motion (statistics):\n"
+              << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+              << " from " << sfm_data_.GetViews().size() << " input images.\n"
+              << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "\n"
+              << "-------------------------------" << "\n";
+
+    Histogram<double> h;
+    ComputeResidualsHistogram(&h);
+    std::cout << "\nHistogram of residuals:\n" << h.ToString() << std::endl;
+
+    if (!sLogging_file_.empty())
+    {
+        using namespace htmlDocument;
+        std::ostringstream os;
+        os << "Structure from Motion process finished.";
+        html_doc_stream_->pushInfo("<hr>");
+        html_doc_stream_->pushInfo(htmlMarkup("h1",os.str()));
+
+        os.str("");
+        os << "-------------------------------" << "<br>"
+           << "-- Structure from Motion (statistics):<br>"
+           << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+           << " from " <<sfm_data_.GetViews().size() << " input images.<br>"
+           << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "<br>"
+           << "-------------------------------" << "<br>";
+        html_doc_stream_->pushInfo(os.str());
+
+        html_doc_stream_->pushInfo(htmlMarkup("h2","Histogram of reprojection-residuals"));
+
+        const std::vector<double> xBin = h.GetXbinsValue();
+        const auto range = autoJSXGraphViewport<double>(xBin, h.GetHist());
+
+        htmlDocument::JSXGraphWrapper jsxGraph;
+        jsxGraph.init("3DtoImageResiduals",600,300);
+        jsxGraph.addXYChart(xBin, h.GetHist(), "line,point");
+        jsxGraph.UnsuspendUpdate();
+        jsxGraph.setViewport(range);
+        jsxGraph.close();
+        html_doc_stream_->pushInfo(jsxGraph.toStr());
+    }
+    return true;
+}
+
+}  // namespace sfm
+}  // namespace openMVG

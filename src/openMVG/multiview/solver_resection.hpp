@@ -12,6 +12,12 @@
 namespace openMVG {
 namespace resection {
 
+enum class SelectionMethod
+{
+    ORI = 0,
+    DEFAULT = ORI
+};
+
 enum class SolverType
 {
   DLT_6POINTS = 0,

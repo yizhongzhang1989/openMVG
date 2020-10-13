@@ -21,6 +21,17 @@
 namespace openMVG {
 namespace sfm {
 
+
+struct IMU_DataBase
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    Eigen::Vector3d ba, bg, v;
+};
+
+using Imus = Hash_Map<IndexT, IMU_DataBase>;
+
+using Timestamps = Hash_Map<IndexT, double>;
+
 /// Define a collection of IntrinsicParameter (indexed by View::id_intrinsic)
 using Intrinsics = Hash_Map<IndexT, std::shared_ptr<cameras::IntrinsicBase>>;
 
@@ -38,6 +49,10 @@ struct SfM_Data
   Views views;
   /// Considered poses (indexed by view.id_pose)
   Poses poses;
+
+  Imus imus;
+
+  Timestamps timestamps;
   /// Considered camera intrinsics (indexed by view.id_intrinsic)
   Intrinsics intrinsics;
   /// Structure (3D points with their 2D observations)
@@ -73,6 +88,18 @@ struct SfM_Data
   {
     return poses.at(view->id_pose);
   }
+};
+
+struct IMU_Data
+{
+    Imus imus;
+    Timestamps timestamps;
+};
+
+struct VISfM_Data : public SfM_Data
+{
+    Imus imus;
+    Timestamps timestamps;
 };
 
 } // namespace sfm

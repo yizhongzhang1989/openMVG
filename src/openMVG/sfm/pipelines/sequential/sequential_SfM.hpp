@@ -44,6 +44,8 @@ public:
 
   virtual bool Process() override;
 
+  bool VI_Init( const IndexT start, const IndexT end );
+
   void setInitialPair(const Pair & initialPair)
   {
     initial_pair_ = initialPair;
@@ -89,6 +91,9 @@ private:
   /// List the images that the greatest number of matches to the current 3D reconstruction.
   bool FindImagesWithPossibleResection(std::vector<uint32_t> & vec_possible_indexes);
 
+
+  bool FindImagesWithPossibleResection(std::vector<uint32_t> & vec_possible_indexes, const IndexT start, const IndexT end  );
+
   /// Add a single Image to the scene and triangulate new possible tracks.
   bool Resection(const uint32_t imageIndex);
 
@@ -123,6 +128,8 @@ private:
   Hash_Map<IndexT, double> map_ACThreshold_; // Per camera confidence (A contrario estimated threshold error)
 
   std::set<uint32_t> set_remaining_view_id_;     // Remaining camera index that can be used for resection
+
+  std::set<uint32_t> set_remaining_view_id_vi_init_;     // Remaining camera index that can be used for resection
 
   ETriangulationMethod triangulation_method_ = ETriangulationMethod::DEFAULT;
 };

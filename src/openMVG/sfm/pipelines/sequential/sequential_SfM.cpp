@@ -200,6 +200,122 @@ bool SequentialSfMReconstructionEngine::Process() {
   return true;
 }
 
+bool SequentialSfMReconstructionEngine::VI_Init(const IndexT start, const IndexT end)
+{
+    //-------------------
+    //-- Incremental reconstruction
+    //-------------------
+
+    if (!InitLandmarkTracks())
+        return false;
+
+    // Initial pair choice
+    if (initial_pair_ == Pair(0,0))
+    {
+        // Initial pair must be choice already
+        assert( 1 );
+
+//        if (!AutomaticInitialPairChoice(initial_pair_))
+//        {
+//            // Cannot find a valid initial pair, try to set it by hand?
+//            if (!ChooseInitialPair(initial_pair_))
+//            {
+//                return false;
+//            }
+//        }
+    }
+    // Else a starting pair was already initialized before
+
+    // Initial pair Essential Matrix and [R|t] estimation.
+    if (!MakeInitialPair3D(initial_pair_))
+    {
+        std::cerr << "initial pair solve error" << std::endl;
+        return false;
+    }
+
+    // Compute robust Resection of remaining images
+    // - group of images will be selected and resection + scene completion will be tried
+    size_t resectionGroupIndex = 0;
+    std::vector<uint32_t> vec_possible_resection_indexes;
+    while (FindImagesWithPossibleResection(vec_possible_resection_indexes, start, end))
+    {
+        bool bImageAdded = false;
+        // Add images to the 3D reconstruction
+        for (const auto & iter : vec_possible_resection_indexes)
+        {
+            bImageAdded |= Resection(iter);
+            set_remaining_view_id_.erase(iter);
+        }
+
+        if (bImageAdded)
+        {
+            // Scene logging as ply for visual debug
+            std::ostringstream os;
+            os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
+            Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+
+            // Perform BA until all point are under the given precision
+            do
+            {
+                BundleAdjustment();
+            }
+            while (badTrackRejector(4.0, 50));
+            eraseUnstablePosesAndObservations(sfm_data_);
+        }
+        ++resectionGroupIndex;
+    }
+    // Ensure there is no remaining outliers
+    if (badTrackRejector(4.0, 0))
+    {
+        eraseUnstablePosesAndObservations(sfm_data_);
+    }
+
+    //-- Reconstruction done.
+    //-- Display some statistics
+    std::cout << "\n\n-------------------------------" << "\n"
+              << "-- Structure from Motion (statistics):\n"
+              << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+              << " from " << sfm_data_.GetViews().size() << " input images.\n"
+              << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "\n"
+              << "-------------------------------" << "\n";
+
+    Histogram<double> h;
+    ComputeResidualsHistogram(&h);
+    std::cout << "\nHistogram of residuals:\n" << h.ToString() << std::endl;
+
+    if (!sLogging_file_.empty())
+    {
+        using namespace htmlDocument;
+        std::ostringstream os;
+        os << "Structure from Motion process finished.";
+        html_doc_stream_->pushInfo("<hr>");
+        html_doc_stream_->pushInfo(htmlMarkup("h1",os.str()));
+
+        os.str("");
+        os << "-------------------------------" << "<br>"
+           << "-- Structure from Motion (statistics):<br>"
+           << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+           << " from " <<sfm_data_.GetViews().size() << " input images.<br>"
+           << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "<br>"
+           << "-------------------------------" << "<br>";
+        html_doc_stream_->pushInfo(os.str());
+
+        html_doc_stream_->pushInfo(htmlMarkup("h2","Histogram of reprojection-residuals"));
+
+        const std::vector<double> xBin = h.GetXbinsValue();
+        const auto range = autoJSXGraphViewport<double>(xBin, h.GetHist());
+
+        htmlDocument::JSXGraphWrapper jsxGraph;
+        jsxGraph.init("3DtoImageResiduals",600,300);
+        jsxGraph.addXYChart(xBin, h.GetHist(), "line,point");
+        jsxGraph.UnsuspendUpdate();
+        jsxGraph.setViewport(range);
+        jsxGraph.close();
+        html_doc_stream_->pushInfo(jsxGraph.toStr());
+    }
+    return true;
+}
+
 /// Select a candidate initial pair
 bool SequentialSfMReconstructionEngine::ChooseInitialPair(Pair & initialPairIndex) const
 {
@@ -859,6 +975,101 @@ bool SequentialSfMReconstructionEngine::FindImagesWithPossibleResection(
     vec_possible_indexes.push_back(vec_putative[i].first);
   }
   return true;
+}
+
+/**
+ * @brief Estimate images on which we can compute the resectioning safely.
+ *
+ * @param[out] vec_possible_indexes: list of indexes we can use for resectioning.
+ * @param[in] start: start index that we can use for resectioning.
+ * @param[in] end: end index that we can use for resectioning.
+ * @return False if there is no possible resection.
+ *
+ * Sort the images by the number of features id shared with the reconstruction.
+ * Select the image I that share the most of correspondences.
+ * Then keep all the images that have at least:
+ *  0.75 * #correspondences(I) common correspondences to the reconstruction.
+ */
+bool SequentialSfMReconstructionEngine::FindImagesWithPossibleResection(
+        std::vector<uint32_t> & vec_possible_indexes, const IndexT start, const IndexT end)
+{
+    // Threshold used to select the best images
+    static const float dThresholdGroup = 0.75f;
+
+    vec_possible_indexes.clear();
+
+    if (set_remaining_view_id_vi_init_.empty() || sfm_data_.GetLandmarks().empty())
+        return false;
+
+    // Collect tracksIds
+    std::set<uint32_t> reconstructed_trackId;
+    std::transform(sfm_data_.GetLandmarks().cbegin(), sfm_data_.GetLandmarks().cend(),
+                   std::inserter(reconstructed_trackId, reconstructed_trackId.begin()),
+                   stl::RetrieveKey());
+
+    Pair_Vec vec_putative; // ImageId, NbPutativeCommonPoint
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp parallel
+#endif
+    for (std::set<uint32_t>::const_iterator iter = set_remaining_view_id_vi_init_.begin();
+         iter != set_remaining_view_id_vi_init_.end(); ++iter)
+    {
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp single nowait
+#endif
+        {
+            const uint32_t viewId = *iter;
+
+            // Compute 2D - 3D possible content
+            openMVG::tracks::STLMAPTracks map_tracksCommon;
+            shared_track_visibility_helper_->GetTracksInImages({viewId}, map_tracksCommon);
+
+            if (!map_tracksCommon.empty())
+            {
+                std::set<uint32_t> set_tracksIds;
+                tracks::TracksUtilsMap::GetTracksIdVector(map_tracksCommon, &set_tracksIds);
+
+                // Count the common possible putative point
+                //  with the already 3D reconstructed trackId
+                std::vector<uint32_t> vec_trackIdForResection;
+                std::set_intersection(set_tracksIds.cbegin(), set_tracksIds.cend(),
+                                      reconstructed_trackId.cbegin(), reconstructed_trackId.cend(),
+                                      std::back_inserter(vec_trackIdForResection));
+
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp critical
+#endif
+                {
+                    vec_putative.emplace_back(viewId, vec_trackIdForResection.size());
+                }
+            }
+        }
+    }
+
+    // Sort by the number of matches to the 3D scene.
+    std::sort(vec_putative.begin(), vec_putative.end(), sort_pair_second<uint32_t, uint32_t, std::greater<uint32_t>>());
+
+    // If the list is empty or if the list contains images with no correspdences
+    // -> (no resection will be possible)
+    if (vec_putative.empty() || vec_putative[0].second == 0)
+    {
+        // All remaining images cannot be used for pose estimation
+        set_remaining_view_id_vi_init_.clear();
+        return false;
+    }
+
+    // Add the image view index that share the most of 2D-3D correspondences
+    vec_possible_indexes.push_back(vec_putative[0].first);
+
+    // Then, add all the image view indexes that have at least N% of the number of the matches of the best image.
+    const IndexT M = vec_putative[0].second; // Number of 2D-3D correspondences
+    const size_t threshold = static_cast<uint32_t>(dThresholdGroup * M);
+    for (size_t i = 1; i < vec_putative.size() &&
+                       vec_putative[i].second > threshold; ++i)
+    {
+        vec_possible_indexes.push_back(vec_putative[i].first);
+    }
+    return true;
 }
 
 /**

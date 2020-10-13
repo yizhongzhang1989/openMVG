@@ -116,5 +116,52 @@ bool Save(const SfM_Data & sfm_data, const std::string & filename, ESfM_Data fla
   return false;
 }
 
+//bool Load(SfM_Data_IMU & sfm_data, const std::string & filename, ESfM_Data flags_part)
+//{
+//    bool bStatus = false;
+//    const std::string ext = stlplus::extension_part(filename);
+//    if (ext == "json")
+//        bStatus = Load_Cereal<cereal::JSONInputArchive>(sfm_data, filename, flags_part);
+//    else if (ext == "bin")
+//        bStatus = Load_Cereal<cereal::PortableBinaryInputArchive>(sfm_data, filename, flags_part);
+//    else if (ext == "xml")
+//        bStatus = Load_Cereal<cereal::XMLInputArchive>(sfm_data, filename, flags_part);
+//    else
+//    {
+//        std::cerr << "Unknown sfm_data input format: " << ext << std::endl;
+//        return false;
+//    }
+//
+//    // Assert that loaded intrinsics | extrinsics are linked to valid view
+//    if ( bStatus &&
+//         (flags_part & VIEWS) == VIEWS && (
+//                 (flags_part & INTRINSICS) == INTRINSICS ||
+//                 (flags_part & EXTRINSICS) == EXTRINSICS))
+//    {
+//        return ValidIds(sfm_data, flags_part);
+//    }
+//    return bStatus;
+//}
+//
+//bool Save(const SfM_Data_IMU & sfm_data, const std::string & filename, ESfM_Data flags_part)
+//{
+//    const std::string ext = stlplus::extension_part(filename);
+//    if (ext == "json")
+//        return Save_Cereal<cereal::JSONOutputArchive>(sfm_data, filename, flags_part);
+//    else if (ext == "bin")
+//        return Save_Cereal<cereal::PortableBinaryOutputArchive>(sfm_data, filename, flags_part);
+//    else if (ext == "xml")
+//        return Save_Cereal<cereal::XMLOutputArchive>(sfm_data, filename, flags_part);
+//    else if (ext == "ply")
+//        return Save_PLY(sfm_data, filename, flags_part);
+//    else if (ext == "baf") // Bundle Adjustment file
+//        return Save_BAF(sfm_data, filename, flags_part);
+//    else
+//    {
+//        std::cerr << "Unknown sfm_data export format: " << ext << std::endl;
+//    }
+//    return false;
+//}
+
 } // namespace sfm
 } // namespace openMVG

@@ -268,6 +268,8 @@ int main(int argc, char **argv)
   std::vector<std::string> vec_image = stlplus::folder_files( sImageDir );
   std::sort(vec_image.begin(), vec_image.end());
 
+  // TODO xinli must check image sequnce
+
   // Configure an empty scene with Views and their corresponding cameras
   SfM_Data sfm_data;
   sfm_data.s_root_path = sImageDir; // Setup main image root_path

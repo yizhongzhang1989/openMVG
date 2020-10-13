@@ -18,6 +18,7 @@ namespace openMVG {
 namespace sfm {
 
 struct SfM_Data;
+struct SfM_Data_IMU;
 
 enum ESfM_Data
 {
@@ -38,6 +39,12 @@ bool Load(SfM_Data & sfm_data, const std::string & filename, ESfM_Data flags_par
 
 /// Save SfM_Data SfM scene to a file
 bool Save(const SfM_Data & sfm_data, const std::string & filename, ESfM_Data flags_part);
+
+///// Load SfM_Data SfM scene from a file
+//bool Load( SfM_Data_IMU& sfm_data, const std::string & filename, ESfM_Data flags_part);
+//
+///// Save SfM_Data SfM scene to a file
+//bool Save(const SfM_Data_IMU & sfm_data, const std::string & filename, ESfM_Data flags_part);
 
 } // namespace sfm
 } // namespace openMVG

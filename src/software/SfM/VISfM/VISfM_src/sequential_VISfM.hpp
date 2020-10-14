@@ -46,11 +46,14 @@ public:
 
     void solveGyroscopeBias();
     bool solve_vgs( double& correct_scale, Eigen::Vector3d& correct_g );
+    static Eigen::MatrixXd TangentBasis( Eigen::Vector3d& g0 );
     void RefineGravity( double& correct_scale, Eigen::Vector3d& correct_g );
 
     bool VI_align();
     void update_imu_inte();
     void update_imu_time();
+    void rota_pose();
+    void recover_g_s(const Eigen::Vector3d& correct_g, const double correct_scale);
 
     void preintegrate();
 

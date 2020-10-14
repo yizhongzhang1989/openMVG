@@ -25,10 +25,10 @@ class Pose3
   protected:
 
     /// Orientation matrix
-    Mat3 rotation_;
+    Mat3 rotation_; // Rcw
 
     /// Center of rotation
-    Vec3 center_;
+    Vec3 center_; // twc
 
   public:
 
@@ -45,6 +45,16 @@ class Pose3
     )
     : rotation_( r ), center_( c ) {}
 
+    void SetRoation( const Mat3& _rotation )
+    {
+        rotation_ = _rotation;
+    }
+
+    void SetCenter(const Vec3& _center)
+    {
+        center_ = _center;
+    }
+
     /**
     * @brief Get Rotation matrix
     * @return Rotation matrix
@@ -55,7 +65,7 @@ class Pose3
     }
 
     /**
-    * @brief Get Rotation matrix
+    * @brief Get Rotation matrix (Rcw)
     * @return Rotation matrix
     */
     Mat3& rotation()
@@ -64,7 +74,7 @@ class Pose3
     }
 
     /**
-    * @brief Get center of rotation
+    * @brief Get center of rotation (twc)
     * @return center of rotation
     */
     const Vec3& center() const
@@ -82,7 +92,7 @@ class Pose3
     }
 
     /**
-    * @brief Get translation vector
+    * @brief Get translation vector (tcw)
     * @return translation vector
     * @note t = -RC
     */

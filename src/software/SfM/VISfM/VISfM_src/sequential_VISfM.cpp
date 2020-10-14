@@ -279,6 +279,105 @@ namespace sfm{
         }
     }
 
+    void SequentialVISfMReconstructionEngine::rota_pose()
+    {
+        Mat3 Ric;
+        Ric << -0.00268725, -0.99990988, -0.0131532,
+                -0.99995582, 0.00280539, -0.00897172,
+                0.00900781, 0.01312851, -0.99987324;
+        for( auto& it_pose:sfm_data_.poses )
+        {
+            Mat3 Rcw = it_pose.second.rotation();
+            Rcw = Ric * Rcw;
+            it_pose.second.SetRoation(Rcw);
+        }
+    }
+
+    template <typename Derived>
+    static Eigen::Matrix<typename Derived::Scalar, 3, 3> ypr2R(const Eigen::MatrixBase<Derived> &ypr)
+    {
+        typedef typename Derived::Scalar Scalar_t;
+
+        Scalar_t y = ypr(0) / 180.0 * M_PI;
+        Scalar_t p = ypr(1) / 180.0 * M_PI;
+        Scalar_t r = ypr(2) / 180.0 * M_PI;
+
+        Eigen::Matrix<Scalar_t, 3, 3> Rz;
+        Rz << cos(y), -sin(y), 0,
+                sin(y), cos(y), 0,
+                0, 0, 1;
+
+        Eigen::Matrix<Scalar_t, 3, 3> Ry;
+        Ry << cos(p), 0., sin(p),
+                0., 1., 0.,
+                -sin(p), 0., cos(p);
+
+        Eigen::Matrix<Scalar_t, 3, 3> Rx;
+        Rx << 1., 0., 0.,
+                0., cos(r), -sin(r),
+                0., sin(r), cos(r);
+
+        return Rz * Ry * Rx;
+    }
+    static Eigen::Vector3d R2ypr(const Eigen::Matrix3d &R)
+    {
+        Eigen::Vector3d n = R.col(0);
+        Eigen::Vector3d o = R.col(1);
+        Eigen::Vector3d a = R.col(2);
+
+        Eigen::Vector3d ypr(3);
+        double y = atan2(n(1), n(0));
+        double p = atan2(-n(2), n(0) * cos(y) + n(1) * sin(y));
+        double r = atan2(a(0) * sin(y) - a(1) * cos(y), -o(0) * sin(y) + o(1) * cos(y));
+        ypr(0) = y;
+        ypr(1) = p;
+        ypr(2) = r;
+
+        return ypr / M_PI * 180.0;
+    }
+
+    static Eigen::Matrix3d g2R(const Eigen::Vector3d &g)
+    {
+        Eigen::Matrix3d R0;
+        Eigen::Vector3d ng1 = g.normalized();
+        Eigen::Vector3d ng2{0, 0, 1.0};
+        R0 = Eigen::Quaterniond::FromTwoVectors(ng1, ng2).toRotationMatrix();
+        double yaw = R2ypr(R0).x();
+        R0 = ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
+        // R0 = Utility::ypr2R(Eigen::Vector3d{-90, 0, 0}) * R0;
+        return R0;
+    }
+    void SequentialVISfMReconstructionEngine::recover_g_s(const Eigen::Vector3d& correct_g, const double correct_scale)
+    {
+        Eigen::Matrix3d R0 = g2R(correct_g);
+
+        Mat3 Rw0 = sfm_data_.poses.begin()->second.rotation().transpose();
+
+        double yaw = R2ypr(R0 * Rw0).x();
+        R0 = ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
+//        std::cout << "correct_g = " << correct_g.transpose() << std::endl;
+//        correct_g = R0 * correct_g;
+//        std::cout << "correct_g = " << correct_g.transpose() << std::endl;
+        //Matrix3d rot_diff = R0 * Rs[0].transpose();
+        Eigen::Quaterniond rot_diff( R0 );
+
+        for( auto& it_pose:sfm_data_.poses )
+        {
+            Mat3 Rcw = it_pose.second.rotation();
+            Rcw = Rcw * rot_diff.inverse();
+            it_pose.second.SetRoation(Rcw);
+
+            Vec3 twc = it_pose.second.center();
+            twc = correct_scale*(rot_diff * twc);
+            it_pose.second.SetCenter(twc);
+        }
+
+        for( auto&landmark:sfm_data_.structure )
+        {
+            landmark.second.X = correct_scale*(rot_diff * landmark.second.X);
+        }
+    }
+
     void SequentialVISfMReconstructionEngine::update_imu_time()
     {
         sfm_data_.imus.clear();
@@ -300,11 +399,25 @@ namespace sfm{
     {
         update_imu_time();
         update_imu_inte();
+        rota_pose();
         double correct_scale;
         Eigen::Vector3d correct_g;
         solveGyroscopeBias();
         if( !solve_vgs(correct_scale, correct_g) ) return false;
-        RefineGravity(correct_scale, correct_g);
+        recover_g_s( correct_g, correct_scale );
+
+        // init pre not very good
+//        {
+//            auto it_pose = sfm_data_.poses.begin();
+//            auto tw0 = it_pose->second.center();
+//            auto it0 = it_pose->first;
+//            while( std::next(it_pose) != sfm_data_.poses.end() ) it_pose++;
+//            auto tw1 = it_pose->second.center();
+//            auto it1 = it_pose->first;
+//            std::cout << "it0 = " << it0 << std::endl;
+//            std::cout << "it1 = " << it1 << std::endl;
+//            std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
+//        }
 
         return true;
     }
@@ -316,17 +429,209 @@ namespace sfm{
 
     void SequentialVISfMReconstructionEngine::solveGyroscopeBias()
     {
-        //TODO xinli
+        Eigen::Matrix3d A;
+        Eigen::Vector3d b;
+        Eigen::Vector3d delta_bg;
+        A.setZero();
+        b.setZero();
+
+        auto pose_it_i = sfm_data_.poses.begin();
+        auto pose_it_j = sfm_data_.poses.begin(); pose_it_j++;
+        for( ; pose_it_j != sfm_data_.poses.end(); pose_it_i++, pose_it_j++ )
+        {
+            Mat3 tmp_A;
+            tmp_A.setZero();
+            Eigen::Vector3d tmp_b;
+            tmp_b.setZero();
+
+            Mat3 Riw = pose_it_i->second.rotation();
+//            Mat3 Rwi = Riw.transpose();
+            Mat3 Rjw = pose_it_j->second.rotation();
+            Mat3 Rwj = Rjw.transpose();
+
+            auto imu_inte = sfm_data_.imus.at( pose_it_j->first );
+
+            Eigen::Quaterniond q_ij(Riw * Rwj);
+            tmp_A = imu_inte.GetBg();
+            tmp_b = 2 * ( imu_inte.delta_q_.inverse() * q_ij).vec();
+            A += tmp_A.transpose() * tmp_A;
+            b += tmp_A.transpose() * tmp_b;
+        }
+        delta_bg = A.ldlt().solve(b);
+
+        for( auto&it_imu:sfm_data_.imus )
+        {
+            it_imu.second.repropagate( Eigen::Vector3d::Zero(), delta_bg );
+        }
+        std::cout << "delta_bg = " << delta_bg.transpose() << std::endl;
     }
 
     bool SequentialVISfMReconstructionEngine::solve_vgs(double &correct_scale, Eigen::Vector3d &correct_g)
     {
-        //TODO xinli
+        Eigen::Vector3d tic( 0.01903381, -0.02204486, 0.00402214 );
+
+        int n_state = sfm_data_.imus.size() * 3 + 3 + 1;
+        Eigen::MatrixXd A{n_state, n_state};
+        A.setZero();
+        Eigen::VectorXd b{n_state};
+        b.setZero();
+
+        int index = 0;
+        auto pose_it_i = sfm_data_.poses.begin();
+        auto pose_it_j = sfm_data_.poses.begin(); pose_it_j++;
+        for( ; pose_it_j != sfm_data_.poses.end(); pose_it_i++, pose_it_j++, index++ )
+        {
+            Eigen::MatrixXd tmp_A(6, 10);
+            tmp_A.setZero();
+            Eigen::VectorXd tmp_b(6);
+            tmp_b.setZero();
+
+            Mat3 Riw = pose_it_i->second.rotation();
+            Mat3 Rwi = Riw.transpose();
+            Mat3 Rjw = pose_it_j->second.rotation();
+            Mat3 Rwj = Rjw.transpose();
+            Vec3 twi = pose_it_i->second.center();
+            Vec3 twj = pose_it_j->second.center();
+
+            auto imu_inte = sfm_data_.imus.at( pose_it_j->first );
+
+            double dt = imu_inte.sum_dt_;
+            tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
+            tmp_A.block<3, 3>(0, 6) = Rwi.transpose() * dt * dt / 2 * Eigen::Matrix3d::Identity();
+            tmp_A.block<3, 1>(0, 9) = Rwi.transpose() * (twj - twi) / 100.;
+            tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Rwi.transpose() * Rwj * tic - tic;
+            //cout << "delta_p   " << frame_j->second.pre_integratfion->delta_p.transpose() << endl;
+            tmp_A.block<3, 3>(3, 0) = -Eigen::Matrix3d::Identity();
+            tmp_A.block<3, 3>(3, 3) = Rwi.transpose() * Rwj;
+            tmp_A.block<3, 3>(3, 6) = Rwi.transpose() * dt * Eigen::Matrix3d::Identity();
+            tmp_b.block<3, 1>(3, 0) = imu_inte.delta_v_;
+            //cout << "delta_v   " << frame_j->second.pre_integration->delta_v.transpose() << endl;
+
+            Eigen::Matrix<double, 6, 6> cov_inv = Eigen::Matrix<double, 6, 6>::Zero();
+            //cov.block<6, 6>(0, 0) = IMU_cov[i + 1];
+            //MatrixXd cov_inv = cov.inverse();
+            cov_inv.setIdentity();
+
+            Eigen::MatrixXd r_A = tmp_A.transpose() * cov_inv * tmp_A;
+            Eigen::VectorXd r_b = tmp_A.transpose() * cov_inv * tmp_b;
+
+            A.block<6, 6>(index * 3, index * 3) += r_A.topLeftCorner<6, 6>();
+            b.segment<6>(index * 3) += r_b.head<6>();
+
+            A.bottomRightCorner<4, 4>() += r_A.bottomRightCorner<4, 4>();
+            b.tail<4>() += r_b.tail<4>();
+
+            A.block<6, 4>(index * 3, n_state - 4) += r_A.topRightCorner<6, 4>();
+            A.block<4, 6>(n_state - 4, index * 3) += r_A.bottomLeftCorner<4, 6>();
+        }
+        A = A * 1000.0;
+        b = b * 1000.0;
+        Eigen::VectorXd x = A.ldlt().solve(b);
+        correct_scale = x(n_state - 1) / 100.;
+        correct_g = x.segment<3>(n_state - 4);
+
+        if(/*fabs(correct_g.norm() - G.norm()) > 1.0 ||*/ correct_scale < 0)
+        {
+            return false;
+        }
+        std::cout << "correct_scale = " << correct_scale << std::endl;
+        std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
+
+        RefineGravity(correct_scale, correct_g);
+        std::cout << "correct_scale = " << correct_scale << std::endl;
+        std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
+        return true;
+    }
+
+    Eigen::MatrixXd SequentialVISfMReconstructionEngine::TangentBasis(Eigen::Vector3d &g0)
+    {
+        Eigen::Vector3d b, c;
+        Eigen::Vector3d a = g0.normalized();
+        Eigen::Vector3d tmp(0, 0, 1);
+        if(a == tmp)
+            tmp << 1, 0, 0;
+        b = (tmp - a * (a.transpose() * tmp)).normalized();
+        c = a.cross(b);
+        Eigen::MatrixXd bc(3, 2);
+        bc.block<3, 1>(0, 0) = b;
+        bc.block<3, 1>(0, 1) = c;
+        return bc;
     }
 
     void SequentialVISfMReconstructionEngine::RefineGravity(double &correct_scale, Eigen::Vector3d &correct_g)
     {
-        //TODO xinli
+        Eigen::Vector3d tic( 0.01903381, -0.02204486, 0.00402214 );
+        const Eigen::Vector3d G(0.,0.,9.8107);
+        Eigen::Vector3d g0 = correct_g.normalized() * G.norm();
+        Eigen::Vector3d lx, ly;
+
+        int n_state = sfm_data_.imus.size() * 3 + 2 + 1;
+
+        Eigen::MatrixXd A{n_state, n_state};
+        A.setZero();
+        Eigen::VectorXd b{n_state};
+        b.setZero();
+        for(int k = 0; k < 4; k++)
+        {
+            Eigen::MatrixXd lxly(3, 2);
+            lxly = TangentBasis(g0);
+            int index = 0;
+            auto pose_it_i = sfm_data_.poses.begin();
+            auto pose_it_j = sfm_data_.poses.begin(); pose_it_j++;
+            for( ; pose_it_j != sfm_data_.poses.end(); pose_it_i++, pose_it_j++, index++ )
+            {
+                Eigen::MatrixXd tmp_A(6, 9);
+                tmp_A.setZero();
+                Eigen::VectorXd tmp_b(6);
+                tmp_b.setZero();
+
+                Mat3 Riw = pose_it_i->second.rotation();
+                Mat3 Rwi = Riw.transpose();
+                Mat3 Rjw = pose_it_j->second.rotation();
+                Mat3 Rwj = Rjw.transpose();
+                Vec3 twi = pose_it_i->second.center();
+                Vec3 twj = pose_it_j->second.center();
+
+                auto imu_inte = sfm_data_.imus.at( pose_it_j->first );
+                double dt = imu_inte.sum_dt_;
+
+                tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
+                tmp_A.block<3, 2>(0, 6) = Riw * dt * dt / 2 * Eigen::Matrix3d::Identity() * lxly;
+                tmp_A.block<3, 1>(0, 8) = Riw * (twj - twi) / 100.0;
+                tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Riw * Rwj * tic - tic - Riw * dt * dt / 2 * g0;
+
+                tmp_A.block<3, 3>(3, 0) = - Eigen::Matrix3d::Identity();
+                tmp_A.block<3, 3>(3, 3) = Riw * Rwj;
+                tmp_A.block<3, 2>(3, 6) = Riw * dt * Eigen::Matrix3d::Identity() * lxly;
+                tmp_b.block<3, 1>(3, 0) = imu_inte.delta_v_- Riw * dt * Eigen::Matrix3d::Identity() * g0;
+
+
+                Eigen::Matrix<double, 6, 6> cov_inv = Eigen::Matrix<double, 6, 6>::Zero();
+                //cov.block<6, 6>(0, 0) = IMU_cov[i + 1];
+                //MatrixXd cov_inv = cov.inverse();
+                cov_inv.setIdentity();
+
+                Eigen::MatrixXd r_A = tmp_A.transpose() * cov_inv * tmp_A;
+                Eigen::VectorXd r_b = tmp_A.transpose() * cov_inv * tmp_b;
+
+                A.block<6, 6>(index * 3, index * 3) += r_A.topLeftCorner<6, 6>();
+                b.segment<6>(index * 3) += r_b.head<6>();
+
+                A.bottomRightCorner<3, 3>() += r_A.bottomRightCorner<3, 3>();
+                b.tail<3>() += r_b.tail<3>();
+
+                A.block<6, 3>(index * 3, n_state - 3) += r_A.topRightCorner<6, 3>();
+                A.block<3, 6>(n_state - 3, index * 3) += r_A.bottomLeftCorner<3, 6>();
+            }
+            A = A * 1000.0;
+            b = b * 1000.0;
+            Eigen::VectorXd x = A.ldlt().solve(b);
+            Eigen::VectorXd dg = x.segment<2>(n_state - 3);
+            g0 = (g0 + lxly * dg).normalized() * G.norm();
+//            correct_scale = x(n_state-1) / 100.;
+            //double s = x(n_state - 1);
+        }
+        correct_g = g0;
     }
 
     /// Bundle adjustment to refine Structure; Motion and Intrinsics

@@ -217,7 +217,7 @@ public:
     IMU_InteBase(const IndexT _t0, const IndexT _t1)
             :
             jacobian{Eigen::Matrix<double, 15, 15>::Identity()}, covariance{Eigen::Matrix<double, 15, 15>::Zero()},
-            linearized_ba_(Eigen::Vector3d(0.,0.,0.)), linearized_bg_{Eigen::Vector3d(0.,0.,0.)}, sum_dt_( _t1 - _t0 ), t0_(_t0), t1_(_t1),
+            linearized_ba_(Eigen::Vector3d(0.,0.,0.)), linearized_bg_{Eigen::Vector3d(0.,0.,0.)}, t0_(_t0), t1_(_t1),
             delta_p_{Eigen::Vector3d::Zero()}, delta_q_{Eigen::Quaterniond::Identity()}, delta_v_{Eigen::Vector3d::Zero()}
 
     {
@@ -239,7 +239,9 @@ public:
         last_t /= 1000.;
         linearized_acc_ = _accs[0];
         linearized_gyr_ = _gyrs[0];
-        for( size_t index = 0; index < _times_T.size(); ++index )
+        acc_0_ = _accs[0];
+        gyr_0_ = _gyrs[0];
+        for( size_t index = 1; index < _times_T.size(); ++index )
         {
             double time = static_cast<double>(_times_T[index]);
             time /= 1000.;
@@ -254,7 +256,6 @@ public:
 
     void repropagate(const Eigen::Vector3d &_linearized_ba, const Eigen::Vector3d &_linearized_bg)
     {
-        sum_dt_ = 0.0;
         acc_0_ = linearized_acc_;
         gyr_0_ = linearized_gyr_;
         delta_p_.setZero();
@@ -288,7 +289,6 @@ public:
         delta_p_ = result_delta_p;
         delta_q_ = result_delta_q;
         delta_v_ = result_delta_v;
-        sum_dt_ += dt;
         acc_0_ = acc_1;
         gyr_0_ = gyro_1;
     }
@@ -372,9 +372,18 @@ public:
         }
     }
 
+    Eigen::Matrix3d GetBg()
+    {
+        return jacobian.block(3, 12, 3, 3);
+    }
+
     double sum_dt_; // scond
     IndexT t0_;  // second * 1000
     IndexT t1_;  // second * 1000
+
+    Eigen::Vector3d delta_p_;
+    Eigen::Vector3d delta_v_;
+    Eigen::Quaterniond delta_q_;
 
 private:
 
@@ -387,9 +396,6 @@ private:
     Eigen::Vector3d acc_0_, gyr_0_;
     Eigen::Vector3d acc_1_, gyr_1_;
 
-    Eigen::Vector3d delta_p_;
-    Eigen::Vector3d delta_v_;
-    Eigen::Quaterniond delta_q_;
 
     Eigen::Matrix<double, 15, 15> jacobian, covariance;
     Eigen::Matrix<double, 18, 18> noise;

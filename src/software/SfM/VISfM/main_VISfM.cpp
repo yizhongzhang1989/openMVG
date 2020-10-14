@@ -252,9 +252,10 @@ int main(int argc, char **argv)
         std::cerr << "not input sSfM_IMU_Filename " << std::endl;
         return EXIT_FAILURE;
     }
+    // TODO xinli check IMU image dt
     std::shared_ptr<IMU_Dataset> imu_dataset = std::make_shared<IMU_Dataset>(sSfM_IMU_Filename);
-    imu_dataset->corect_time( times.back() );
-    imu_dataset->corect_dt( 2 );
+//    imu_dataset->corect_time( times.back() );
+//    imu_dataset->corect_dt( 2 );
 
     //---------------------------------------
     // Sequential reconstruction process
@@ -296,10 +297,16 @@ int main(int argc, char **argv)
 
     if(visfmEngine.VI_Init(  ))
     {
+//        Save(visfmEngine.Get_SfM_Data(),
+//             "/home/xinli/work/data/VI_visual_init.bin",
+//             ESfM_Data(ALL));
         if(!visfmEngine.VI_align())
         {
             std::cerr << "VI sfm align fail" << std::endl;
             return EXIT_FAILURE;
+        }
+        {
+            return EXIT_SUCCESS;
         }
     }
     else

@@ -15,7 +15,7 @@
 #include "openMVG/system/timer.hpp"
 #include "openMVG/types.hpp"
 
-#include "../addIMU/sfm_imu.hpp"
+#include "software/SfM/addIMU/imu_integrator/sfm_imu.hpp"
 #include "VISfM_src/sequential_VISfM.hpp"
 
 #include "third_party/cmdLine/cmdLine.h"
@@ -225,6 +225,27 @@ int main(int argc, char **argv)
         }
     }
 
+    std::vector<IndexT> times;
+    {
+
+        std::ifstream fin(sSfM_Stamp_Filename, std::ifstream::in);
+        int i=1;
+        while( !fin.eof() )
+        {
+            std::string line;
+            getline(fin, line);
+            if( line.empty() )
+            {
+//                std::cerr << "WTF"<< line << "WTF" << std::endl;
+                break;
+            }
+            double time = std::stod(line);
+            times.emplace_back( static_cast<IndexT>(time * 1000) ); // second * 1000
+//            std::cout << i++ << " " ;
+//            std::cout << time << std::endl;
+        }
+        fin.close();
+    }
 
     IMU_Data imuData;
 
@@ -241,6 +262,7 @@ int main(int argc, char **argv)
     // Configure the features_provider & the matches_provider
     visfmEngine.SetFeaturesProvider(feats_provider.get());
     visfmEngine.SetMatchesProvider(matches_provider.get());
+    visfmEngine.SetTimeStamp(times);
 
     // Configure reconstruction parameters
     visfmEngine.Set_Intrinsics_Refinement_Type(intrinsic_refinement_options);

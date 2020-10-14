@@ -10,7 +10,7 @@
 #define OPENMVG_SFM_LOCALIZATION_SEQUENTIAL_SFM_IMU_HPP
 
 #include "openMVG/sfm/pipelines/sequential/sequential_SfM.hpp"
-#include "sfm_imu.hpp"
+#include "software/SfM/addIMU/imu_integrator/sfm_imu.hpp"
 #include "imu_integrator/imu_integrator/imu_integrator.h"
 
 namespace openMVG {

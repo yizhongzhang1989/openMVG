@@ -85,6 +85,17 @@ namespace sfm{
         matches_provider_ = provider;
     }
 
+    void SequentialVISfMReconstructionEngine::SetTimeStamp(std::vector<IndexT> &times)
+    {
+        int index = 0;
+        for( auto&Id_View:sfm_data_.views )
+        {
+            assert( index < times.size() );
+            auto Id = Id_View.first;
+            sfm_data_.timestamps.emplace( Id, times[index++] );
+        }
+    }
+
     bool SequentialVISfMReconstructionEngine::Process()
     {
         return true;
@@ -245,6 +256,39 @@ namespace sfm{
             set_remaining_view_id_.erase(v_id);
         }
         return true;
+    }
+
+    bool SequentialVISfMReconstructionEngine::VI_align()
+    {
+
+        double  correct_scale;
+        Eigen::Vector3d correct_g;
+
+        solveGyroscopeBias();
+        if( !solve_vgs(correct_scale, correct_g) ) return false;
+        RefineGravity(correct_scale, correct_g);
+
+        return true;
+    }
+
+    void SequentialVISfMReconstructionEngine::preintegrate()
+    {
+        //TODO xinli
+    }
+
+    void SequentialVISfMReconstructionEngine::solveGyroscopeBias()
+    {
+        //TODO xinli
+    }
+
+    bool SequentialVISfMReconstructionEngine::solve_vgs(double &correct_scale, Eigen::Vector3d &correct_g)
+    {
+        //TODO xinli
+    }
+
+    void SequentialVISfMReconstructionEngine::RefineGravity(double &correct_scale, Eigen::Vector3d &correct_g)
+    {
+        //TODO xinli
     }
 
     /// Bundle adjustment to refine Structure; Motion and Intrinsics

@@ -5,7 +5,7 @@ include_directories(${CERES_INCLUDE_DIRS})
 add_executable(openMVG_main_IncrementalSfM_IMU 
     main_IncrementalSfM_IMU.cpp 
     sequential_SfM_IMU.cpp
-    sfm_imu.cpp)
+        imu_integrator/sfm_imu.cpp)
 
 target_link_libraries(openMVG_main_IncrementalSfM_IMU
   PRIVATE

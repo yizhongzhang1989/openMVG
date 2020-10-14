@@ -37,10 +37,19 @@ public:
 
     void SetFeaturesProvider(Features_Provider * provider);
     void SetMatchesProvider(Matches_Provider * provider);
+    void SetTimeStamp( std::vector<IndexT>& times );
 
     virtual bool Process() override;
 
     bool VI_Init( );
+
+    void solveGyroscopeBias();
+    bool solve_vgs( double& correct_scale, Eigen::Vector3d& correct_g );
+    void RefineGravity( double& correct_scale, Eigen::Vector3d& correct_g );
+
+    bool VI_align();
+
+    void preintegrate();
 
     void setInitialPair(const Pair & initialPair)
     {

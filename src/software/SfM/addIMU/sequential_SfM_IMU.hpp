@@ -19,7 +19,7 @@
 #include "openMVG/multiview/triangulation_method.hpp"
 #include "openMVG/tracks/tracks.hpp"
 
-#include "sfm_imu.hpp"
+#include "software/SfM/addIMU/imu_integrator/sfm_imu.hpp"
 #include "imu_integrator/imu_integrator/imu_integrator.h"
 
 namespace htmlDocument { class htmlDocumentStream; }

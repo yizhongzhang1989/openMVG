@@ -18,7 +18,7 @@
 #include "openMVG/sfm/sfm_view.hpp"
 #include "openMVG/system/timer.hpp"
 #include "openMVG/types.hpp"
-#include "sfm_imu.hpp"
+#include "software/SfM/addIMU/imu_integrator/sfm_imu.hpp"
 
 #include "third_party/cmdLine/cmdLine.h"
 #include "third_party/stlplus3/filesystemSimplified/file_system.hpp"

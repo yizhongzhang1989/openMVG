@@ -247,7 +247,14 @@ int main(int argc, char **argv)
         fin.close();
     }
 
-    IMU_Data imuData;
+    if( sSfM_IMU_Filename.empty() )
+    {
+        std::cerr << "not input sSfM_IMU_Filename " << std::endl;
+        return EXIT_FAILURE;
+    }
+    std::shared_ptr<IMU_Dataset> imu_dataset = std::make_shared<IMU_Dataset>(sSfM_IMU_Filename);
+    imu_dataset->corect_time( times.back() );
+    imu_dataset->corect_dt( 2 );
 
     //---------------------------------------
     // Sequential reconstruction process
@@ -263,6 +270,7 @@ int main(int argc, char **argv)
     visfmEngine.SetFeaturesProvider(feats_provider.get());
     visfmEngine.SetMatchesProvider(matches_provider.get());
     visfmEngine.SetTimeStamp(times);
+    visfmEngine.SetIMUDataset(imu_dataset);
 
     // Configure reconstruction parameters
     visfmEngine.Set_Intrinsics_Refinement_Type(intrinsic_refinement_options);
@@ -288,11 +296,16 @@ int main(int argc, char **argv)
 
     if(visfmEngine.VI_Init(  ))
     {
-
+        if(!visfmEngine.VI_align())
+        {
+            std::cerr << "VI sfm align fail" << std::endl;
+            return EXIT_FAILURE;
+        }
     }
     else
     {
         std::cerr << "VI sfm init fail" << std::endl;
+        return EXIT_FAILURE;
     }
 
 

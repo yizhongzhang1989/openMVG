@@ -38,6 +38,7 @@ public:
     void SetFeaturesProvider(Features_Provider * provider);
     void SetMatchesProvider(Matches_Provider * provider);
     void SetTimeStamp( std::vector<IndexT>& times );
+    void SetIMUDataset( std::shared_ptr<IMU_Dataset> imudataset_ );
 
     virtual bool Process() override;
 
@@ -48,6 +49,8 @@ public:
     void RefineGravity( double& correct_scale, Eigen::Vector3d& correct_g );
 
     bool VI_align();
+    void update_imu_inte();
+    void update_imu_time();
 
     void preintegrate();
 

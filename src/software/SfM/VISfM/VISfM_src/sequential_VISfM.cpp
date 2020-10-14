@@ -87,13 +87,19 @@ namespace sfm{
 
     void SequentialVISfMReconstructionEngine::SetTimeStamp(std::vector<IndexT> &times)
     {
+        assert( times.size() == sfm_data_.views.size() );
         int index = 0;
         for( auto&Id_View:sfm_data_.views )
         {
             assert( index < times.size() );
-            auto Id = Id_View.first;
+            auto Id = Id_View.second->id_pose;
             sfm_data_.timestamps.emplace( Id, times[index++] );
         }
+    }
+
+    void SequentialVISfMReconstructionEngine::SetIMUDataset(std::shared_ptr<IMU_Dataset> imudataset_)
+    {
+        sfm_data_.imu_dataset = std::move(imudataset_);
     }
 
     bool SequentialVISfMReconstructionEngine::Process()
@@ -258,12 +264,44 @@ namespace sfm{
         return true;
     }
 
+    void SequentialVISfMReconstructionEngine::update_imu_inte()
+    {
+        for( auto & id_imubase:sfm_data_.imus )
+        {
+            IndexT t0 = id_imubase.second.t0_;
+            IndexT t1 = id_imubase.second.t1_;
+            std::vector< IndexT > times;
+            std::vector<Eigen::Vector3d> accs;
+            std::vector<Eigen::Vector3d> gyrs;
+
+            std::tie( times, accs, gyrs ) = sfm_data_.imu_dataset->GetMeasure(t0, t1);
+            id_imubase.second.integrate(accs, gyrs, times);
+        }
+    }
+
+    void SequentialVISfMReconstructionEngine::update_imu_time()
+    {
+        sfm_data_.imus.clear();
+        auto it_pose = sfm_data_.poses.begin();
+        IndexT last_t = sfm_data_.timestamps.at( it_pose->first );
+        it_pose++;
+        while( it_pose != sfm_data_.poses.end() )
+        {
+            IndexT cur_t = sfm_data_.timestamps.at( it_pose->first );
+            auto id_pose = it_pose->first;
+            IMU_InteBase imubase( last_t, cur_t );
+            sfm_data_.imus.insert( std::make_pair( id_pose,  imubase) );
+            last_t = cur_t;
+            it_pose++;
+        }
+    }
+
     bool SequentialVISfMReconstructionEngine::VI_align()
     {
-
-        double  correct_scale;
+        update_imu_time();
+        update_imu_inte();
+        double correct_scale;
         Eigen::Vector3d correct_g;
-
         solveGyroscopeBias();
         if( !solve_vgs(correct_scale, correct_g) ) return false;
         RefineGravity(correct_scale, correct_g);

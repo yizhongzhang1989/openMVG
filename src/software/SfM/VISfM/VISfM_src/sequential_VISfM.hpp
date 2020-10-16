@@ -112,6 +112,9 @@ private:
     /// Add a single Image to the scene and triangulate new possible tracks.
     bool Resection(const uint32_t imageIndex);
 
+
+    bool BundleAdjustmentVisualInit();
+
     /// Bundle adjustment to refine Structure; Motion and Intrinsics
     bool BundleAdjustment();
 

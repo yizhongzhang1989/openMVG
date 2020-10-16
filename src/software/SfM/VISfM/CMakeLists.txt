@@ -1,5 +1,5 @@
 add_executable(openMVG_main_VISfM main_VISfM.cpp
-        VISfM_src/sequential_VISfM.cpp VISfM_src/sequential_VISfM.hpp VISfM_src/visfm_data_BA_ceres.cpp VISfM_src/visfm_data_BA_ceres.hpp)
+        VISfM_src/sequential_VISfM.cpp VISfM_src/sequential_VISfM.hpp VISfM_src/visfm_data_BA_ceres.cpp VISfM_src/visfm_data_BA_ceres.hpp VISfM_src/VISfM_ceres_facotr.cpp VISfM_src/VISfM_ceres_facotr.h VISfM_src/VISfM_ceres_param.cpp VISfM_src/VISfM_ceres_param.h)
 target_link_libraries(openMVG_main_VISfM
         PRIVATE
         openMVG_system

@@ -9,6 +9,9 @@
 #include "openMVG/sfm/sfm_data_BA.hpp"
 #include "openMVG/sfm/sfm_data_BA_ceres.hpp"
 
+#include "VISfM_ceres_facotr.h"
+#include "VISfM_ceres_param.h"
+
 namespace ceres { class CostFunction; }
 namespace openMVG { namespace cameras { struct IntrinsicBase; } }
 namespace openMVG { namespace sfm { struct SfM_Data; } }
@@ -60,6 +63,13 @@ namespace openMVG {
                             // tell which parameter needs to be adjusted
                             const Optimize_Options & options
                     ) override;
+
+            bool Adjust_onlyvisual(
+                    // the SfM scene to refine
+                    sfm::SfM_Data & sfm_data,
+                    // tell which parameter needs to be adjusted
+                    const Optimize_Options & options
+                    );
         };
 
     } // namespace sfm

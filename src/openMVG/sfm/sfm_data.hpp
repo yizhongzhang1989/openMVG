@@ -438,12 +438,16 @@ struct SfM_Data
   /// Considered poses (indexed by view.id_pose)
   Poses poses;
 
-  Imus imus;
 
+  Imus imus;
   // indexed by view.id_pose
   Timestamps timestamps;
-
   std::shared_ptr<IMU_Dataset> imu_dataset;
+  Mat3 IG_Ric;
+  Vec3 IG_tic;
+  Vec3 IG_G_;
+
+
   /// Considered camera intrinsics (indexed by view.id_intrinsic)
   Intrinsics intrinsics;
   /// Structure (3D points with their 2D observations)

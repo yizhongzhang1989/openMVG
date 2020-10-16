@@ -285,7 +285,7 @@ namespace sfm{
                 // Perform BA until all point are under the given precision
                 do
                 {
-                    BundleAdjustment();
+                    BundleAdjustmentVisualInit();
                 }
                 while (badTrackRejector(4.0, 50));
                 eraseUnstablePosesAndObservations(sfm_data_);
@@ -352,14 +352,10 @@ namespace sfm{
 
     void SequentialVISfMReconstructionEngine::rota_pose()
     {
-        Mat3 Ric;
-        Ric << -0.00268725, -0.99990988, -0.0131532,
-                -0.99995582, 0.00280539, -0.00897172,
-                0.00900781, 0.01312851, -0.99987324;
         for( auto& it_pose:sfm_data_.poses )
         {
             Mat3 Rcw = it_pose.second.rotation();
-            Rcw = Ric * Rcw;
+            Rcw = sfm_data_.IG_Ric * Rcw;
             it_pose.second.SetRoation(Rcw);
         }
 //        for( auto&landmark:sfm_data_.structure )
@@ -438,48 +434,120 @@ namespace sfm{
         //Matrix3d rot_diff = R0 * Rs[0].transpose();
         Eigen::Quaterniond rot_diff( R0 );
 
-        Mat3 Ric;
-        Ric << -0.00268725, -0.99990988, -0.0131532,
-                -0.99995582, 0.00280539, -0.00897172,
-                0.00900781, 0.01312851, -0.99987324;
-        for( auto& it_pose:sfm_data_.poses )
-        {
-            Mat3 Rcw = it_pose.second.rotation();
-            Rcw = Ric.transpose() * Rcw;
-            it_pose.second.SetRoation(Rcw);
-        }
-
 //        for( auto& it_pose:sfm_data_.poses )
 //        {
 //            Mat3 Rcw = it_pose.second.rotation();
-//            Rcw = Rcw * rot_diff.inverse();
+//            Rcw = sfm_data_.IG_Ric.transpose() * Rcw;
 //            it_pose.second.SetRoation(Rcw);
-//
-//            Vec3 twc = it_pose.second.center();
-//            twc = correct_scale*(rot_diff * twc);
-//            it_pose.second.SetCenter(twc);
-//        }
-//
-//        for( auto&landmark:sfm_data_.structure )
-//        {
-//            landmark.second.X = correct_scale*(rot_diff * landmark.second.X);
 //        }
 
+        /*{
+            for (auto & structure_landmark_it : sfm_data_.structure)
+            {
+                const Observations & obs = structure_landmark_it.second.obs;
 
+                Vec3 Point3D =structure_landmark_it.second.X;
 
+                for (const auto & obs_it : obs)
+                {
+                    // Build the residual block corresponding to the track observation:
+                    const View * view = sfm_data_.views.at(obs_it.first).get();
+                    Vec3 tiw = sfm_data_.poses[view->id_pose].translation();
+                    Mat3 Riw = sfm_data_.poses[view->id_pose].rotation();
 
+                    Mat3 Rci = sfm_data_.IG_Ric.transpose();
+                    Vec3 tci = -Rci * sfm_data_.IG_tic;
 
-//        for( auto& it_pose:sfm_data_.poses )
-//        {
-//            Vec3 twc = it_pose.second.center();
-//            twc = correct_scale*twc;
-//            it_pose.second.SetCenter(twc);
-//        }
-//
-//        for( auto&landmark:sfm_data_.structure )
-//        {
-//            landmark.second.X = correct_scale*landmark.second.X;
-//        }
+                    std::vector<double> intri = sfm_data_.intrinsics[0]->getParams();
+                    Vec3 PointI = Riw * Point3D + tiw;
+                    Vec3 PointC = Rci * PointI;
+                    PointC /= PointC(2);
+
+                    const double &focal = intri[0];
+                    const double &principal_point_x = intri[1];
+                    const double &principal_point_y = intri[2];
+                    const double &k1 = intri[3];
+                    const double &k2 = intri[4];
+                    const double &k3 = intri[5];
+
+                    // Apply distortion (xd,yd) = disto(x_u,y_u)
+                    const double r2 = PointC.head(2).squaredNorm();
+                    const double r4 = r2 * r2;
+                    const double r6 = r4 * r2;
+                    const double r_coeff = (1.0 + k1 * r2 + k2 * r4 + k3 * r6);
+
+                    Vec2 residuals;
+                    residuals << principal_point_x + (PointC.x() * r_coeff) * focal - obs_it.second.x.x(),
+                            principal_point_y + (PointC.y() * r_coeff) * focal - obs_it.second.x.y();
+
+                    std::cout << "residuals = " << residuals.transpose() << std::endl;
+
+                }
+            }
+        }*/
+
+        std::cout <<"-=------=-=-=-=-=-=-=-=" << std::endl;
+
+        for( auto& it_pose:sfm_data_.poses )
+        {
+            Mat3 Riw = it_pose.second.rotation();
+            Riw = Riw * rot_diff.inverse();
+            it_pose.second.SetRoation(Riw);
+
+            Vec3 twi = it_pose.second.center();
+            twi = correct_scale*(rot_diff * twi) - Riw.transpose() * sfm_data_.IG_tic;
+            it_pose.second.SetCenter(twi);
+        }
+
+        for( auto&landmark:sfm_data_.structure )
+        {
+            landmark.second.X = correct_scale*(rot_diff * landmark.second.X);
+        }
+
+        /*{
+            for (auto & structure_landmark_it : sfm_data_.structure)
+            {
+                const Observations & obs = structure_landmark_it.second.obs;
+
+                Vec3 Point3D =structure_landmark_it.second.X;
+
+                for (const auto & obs_it : obs)
+                {
+                    // Build the residual block corresponding to the track observation:
+                    const View * view = sfm_data_.views.at(obs_it.first).get();
+                    Vec3 tiw = sfm_data_.poses[view->id_pose].translation();
+                    Mat3 Riw = sfm_data_.poses[view->id_pose].rotation();
+
+                    Mat3 Rci = sfm_data_.IG_Ric.transpose();
+                    Vec3 tci = -Rci * sfm_data_.IG_tic;
+
+                    std::vector<double> intri = sfm_data_.intrinsics[0]->getParams();
+                    Vec3 PointI = Riw * Point3D + tiw;
+                    Vec3 PointC = Rci * PointI + tci;
+                    PointC /= PointC(2);
+
+                    const double &focal = intri[0];
+                    const double &principal_point_x = intri[1];
+                    const double &principal_point_y = intri[2];
+                    const double &k1 = intri[3];
+                    const double &k2 = intri[4];
+                    const double &k3 = intri[5];
+
+                    // Apply distortion (xd,yd) = disto(x_u,y_u)
+                    const double r2 = PointC.head(2).squaredNorm();
+                    const double r4 = r2 * r2;
+                    const double r6 = r4 * r2;
+                    const double r_coeff = (1.0 + k1 * r2 + k2 * r4 + k3 * r6);
+
+                    Vec2 residuals;
+                    residuals << principal_point_x + (PointC.x() * r_coeff) * focal - obs_it.second.x.x(),
+                            principal_point_y + (PointC.y() * r_coeff) * focal - obs_it.second.x.y();
+
+                    std::cout << "residuals = " << residuals.transpose() << std::endl;
+
+                }
+            }
+        }*/
         BundleAdjustment();
     }
 
@@ -604,8 +672,6 @@ namespace sfm{
 
     bool SequentialVISfMReconstructionEngine::solve_vgs(double &correct_scale, Eigen::Vector3d &correct_g)
     {
-        Eigen::Vector3d tic( 0.01903381, -0.02204486, 0.00402214 );
-
         int n_state = sfm_data_.imus.size() * 3 + 3 + 1;
         Eigen::MatrixXd A{n_state, n_state};
         A.setZero();
@@ -635,7 +701,7 @@ namespace sfm{
             tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
             tmp_A.block<3, 3>(0, 6) = Rwi.transpose() * dt * dt / 2 * Eigen::Matrix3d::Identity();
             tmp_A.block<3, 1>(0, 9) = Rwi.transpose() * (twj - twi) / 100.;
-            tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Rwi.transpose() * Rwj * tic - tic;
+            tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Rwi.transpose() * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic;
             //cout << "delta_p   " << frame_j->second.pre_integratfion->delta_p.transpose() << endl;
             tmp_A.block<3, 3>(3, 0) = -Eigen::Matrix3d::Identity();
             tmp_A.block<3, 3>(3, 3) = Rwi.transpose() * Rwj;
@@ -696,9 +762,7 @@ namespace sfm{
 
     void SequentialVISfMReconstructionEngine::RefineGravity(double &correct_scale, Eigen::Vector3d &correct_g)
     {
-        Eigen::Vector3d tic( 0.01903381, -0.02204486, 0.00402214 );
-        const Eigen::Vector3d G(0.,0.,9.8107);
-        Eigen::Vector3d g0 = correct_g.normalized() * G.norm();
+        Eigen::Vector3d g0 = correct_g.normalized() * sfm_data_.IG_G_.norm();
         Eigen::Vector3d lx, ly;
 
         int n_state = sfm_data_.imus.size() * 3 + 2 + 1;
@@ -734,7 +798,7 @@ namespace sfm{
                 tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
                 tmp_A.block<3, 2>(0, 6) = Riw * dt * dt / 2 * Eigen::Matrix3d::Identity() * lxly;
                 tmp_A.block<3, 1>(0, 8) = Riw * (twj - twi) / 100.0;
-                tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Riw * Rwj * tic - tic - Riw * dt * dt / 2 * g0;
+                tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Riw * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic - Riw * dt * dt / 2 * g0;
 
                 tmp_A.block<3, 3>(3, 0) = - Eigen::Matrix3d::Identity();
                 tmp_A.block<3, 3>(3, 3) = Riw * Rwj;
@@ -763,14 +827,14 @@ namespace sfm{
             b = b * 1000.0;
             Eigen::VectorXd x = A.ldlt().solve(b);
             Eigen::VectorXd dg = x.segment<2>(n_state - 3);
-            g0 = (g0 + lxly * dg).normalized() * G.norm();
+            g0 = (g0 + lxly * dg).normalized() * sfm_data_.IG_G_.norm();
 //            correct_scale = x(n_state-1) / 100.;
             //double s = x(n_state - 1);
         }
         correct_g = g0;
     }
 
-    bool SequentialVISfMReconstructionEngine::BundleAdjustment()
+    bool SequentialVISfMReconstructionEngine::BundleAdjustmentVisualInit()
     {
         Bundle_Adjustment_Ceres::BA_Ceres_options options;
         if ( sfm_data_.GetPoses().size() > 100 &&
@@ -796,6 +860,34 @@ namespace sfm{
                   this->b_use_motion_prior_
                 );
         return bundle_adjustment_obj.Adjust(sfm_data_, ba_refine_options);
+    }
+
+    bool SequentialVISfMReconstructionEngine::BundleAdjustment()
+    {
+        Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
+        if ( sfm_data_.GetPoses().size() > 100 &&
+             (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::CX_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::EIGEN_SPARSE))
+                )
+            // Enable sparse BA only if a sparse lib is available and if there more than 100 poses
+        {
+            options.preconditioner_type_ = ceres::JACOBI;
+            options.linear_solver_type_ = ceres::SPARSE_SCHUR;
+        }
+        else
+        {
+            options.linear_solver_type_ = ceres::DENSE_SCHUR;
+        }
+        Bundle_Adjustment_IMU_Ceres bundle_adjustment_obj(options);
+        const Optimize_Options ba_refine_options
+                ( ReconstructionEngine::intrinsic_refinement_options_,
+                  Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
+                  Structure_Parameter_Type::ADJUST_ALL, // Adjust scene structure
+                  Control_Point_Parameter(),
+                  this->b_use_motion_prior_
+                );
+        return bundle_adjustment_obj.Adjust_onlyvisual(sfm_data_, ba_refine_options);
     }
 
     /// Bundle adjustment to refine Structure; Motion and Intrinsics

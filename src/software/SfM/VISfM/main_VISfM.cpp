@@ -173,6 +173,16 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    Mat3 Ric;
+    Ric << -0.00268725, -0.99990988, -0.0131532,
+            -0.99995582, 0.00280539, -0.00897172,
+            0.00900781, 0.01312851, -0.99987324;
+    Vec3 tic( 0.01903381, -0.02204486, 0.00402214 );
+    Vec3 G(0.,0.,9.8107);
+    sfMData.IG_G_ = G;
+    sfMData.IG_Ric = Ric;
+    sfMData.IG_tic = tic;
+
 //    // Load input imu_Data
 //    SfM_IMU imu_data;
 //    if(!sSfM_IMU_Filename.empty() && stlplus::file_exists(sSfM_IMU_Filename))

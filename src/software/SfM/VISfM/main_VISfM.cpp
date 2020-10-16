@@ -297,16 +297,38 @@ int main(int argc, char **argv)
 
     if(visfmEngine.VI_Init(  ))
     {
-//        Save(visfmEngine.Get_SfM_Data(),
-//             "/home/xinli/work/data/VI_visual_init.bin",
-//             ESfM_Data(ALL));
+
         if(!visfmEngine.VI_align())
         {
             std::cerr << "VI sfm align fail" << std::endl;
             return EXIT_FAILURE;
         }
-        {
+        else{
+            Save(visfmEngine.Get_SfM_Data(),
+                 "/home/xinli/work/data/VI_visual_init.bin",
+                 ESfM_Data(ALL));
             return EXIT_SUCCESS;
+            if(visfmEngine.Process())
+            {
+                std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
+
+                std::cout << "...Generating SfM_Report.html" << std::endl;
+                Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
+                                    stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
+
+                //-- Export to disk computed scene (data & visualizable results)
+                std::cout << "...Export SfM_Data to disk." << std::endl;
+                Save(visfmEngine.Get_SfM_Data(),
+                     stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
+                     ESfM_Data(ALL));
+
+                Save(visfmEngine.Get_SfM_Data(),
+                     stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
+                     ESfM_Data(ALL));
+
+                return EXIT_SUCCESS;
+            }
+//            return EXIT_SUCCESS;
         }
     }
     else
@@ -315,26 +337,5 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-
-//    if (sfmEngine.Process())
-//    {
-//        std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
-//
-//        std::cout << "...Generating SfM_Report.html" << std::endl;
-//        Generate_SfM_Report(sfmEngine.Get_SfM_Data(),
-//                            stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
-//
-//        //-- Export to disk computed scene (data & visualizable results)
-//        std::cout << "...Export SfM_Data to disk." << std::endl;
-//        Save(sfmEngine.Get_SfM_Data(),
-//             stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
-//             ESfM_Data(ALL));
-//
-//        Save(sfmEngine.Get_SfM_Data(),
-//             stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
-//             ESfM_Data(ALL));
-//
-//        return EXIT_SUCCESS;
-//    }
     return EXIT_FAILURE;
 }

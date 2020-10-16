@@ -61,7 +61,7 @@ namespace sfm{
         for (Views::const_iterator itV = sfm_data.GetViews().begin();
           itV != sfm_data.GetViews().end(); ++itV)
         {
-         set_remaining_view_id_.insert(itV->second->id_view);
+            set_remaining_view_id_.insert(itV->second->id_view);
         }
     }
 
@@ -104,7 +104,94 @@ namespace sfm{
 
     bool SequentialVISfMReconstructionEngine::Process()
     {
+        // Compute robust Resection of remaining images
+        // - group of images will be selected and resection + scene completion will be tried
+        size_t resectionGroupIndex = 0;
+        std::vector<uint32_t> vec_possible_resection_indexes;
+        while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
+        {
+            bool bImageAdded = false;
+            // Add images to the 3D reconstruction
+            for (const auto & iter : vec_possible_resection_indexes)
+            {
+                bImageAdded |= Resection(iter);
+                set_remaining_view_id_.erase(iter);
+            }
+
+            if (bImageAdded)
+            {
+                // Scene logging as ply for visual debug
+                std::ostringstream os;
+                os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
+                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+
+                // Perform BA until all point are under the given precision
+                do
+                {
+                    update_imu_time();
+                    update_imu_inte();
+                    BundleAdjustment();
+                }
+                while (badTrackRejector(4.0, 50));
+                eraseUnstablePosesAndObservations(sfm_data_);
+            }
+            ++resectionGroupIndex;
+        }
+        // Ensure there is no remaining outliers
+        if (badTrackRejector(4.0, 0))
+        {
+            eraseUnstablePosesAndObservations(sfm_data_);
+        }
+
+        //-- Reconstruction done.
+        //-- Display some statistics
+        std::cout << "\n\n-------------------------------" << "\n"
+                  << "-- Structure from Motion (statistics):\n"
+                  << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+                  << " from " << sfm_data_.GetViews().size() << " input images.\n"
+                  << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "\n"
+                  << "-------------------------------" << "\n";
+
+        Histogram<double> h;
+        ComputeResidualsHistogram(&h);
+        std::cout << "\nHistogram of residuals:\n" << h.ToString() << std::endl;
+
+        if (!sLogging_file_.empty())
+        {
+            using namespace htmlDocument;
+            std::ostringstream os;
+            os << "Structure from Motion process finished.";
+            html_doc_stream_->pushInfo("<hr>");
+            html_doc_stream_->pushInfo(htmlMarkup("h1",os.str()));
+
+            os.str("");
+            os << "-------------------------------" << "<br>"
+               << "-- Structure from Motion (statistics):<br>"
+               << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+               << " from " <<sfm_data_.GetViews().size() << " input images.<br>"
+               << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "<br>"
+               << "-------------------------------" << "<br>";
+            html_doc_stream_->pushInfo(os.str());
+
+            html_doc_stream_->pushInfo(htmlMarkup("h2","Histogram of reprojection-residuals"));
+
+            const std::vector<double> xBin = h.GetXbinsValue();
+            const auto range = autoJSXGraphViewport<double>(xBin, h.GetHist());
+
+            htmlDocument::JSXGraphWrapper jsxGraph;
+            jsxGraph.init("3DtoImageResiduals",600,300);
+            jsxGraph.addXYChart(xBin, h.GetHist(), "line,point");
+            jsxGraph.UnsuspendUpdate();
+            jsxGraph.setViewport(range);
+            jsxGraph.close();
+            html_doc_stream_->pushInfo(jsxGraph.toStr());
+        }
         return true;
+    }
+
+    bool SequentialVISfMReconstructionEngine::Process_onlyvisual()
+    {
+
     }
 
     bool SequentialVISfMReconstructionEngine::VI_Init()
@@ -152,7 +239,6 @@ namespace sfm{
                     right = sfm_data_.GetViews().size() -1;
                     assert( left < 0 );
                 }
-                set_remaining_view_id_vi_init_;
 
                 // Init remaining image list
                 for (Views::const_iterator itV = sfm_data_.GetViews().begin();
@@ -264,21 +350,6 @@ namespace sfm{
         return true;
     }
 
-    void SequentialVISfMReconstructionEngine::update_imu_inte()
-    {
-        for( auto & id_imubase:sfm_data_.imus )
-        {
-            IndexT t0 = id_imubase.second.t0_;
-            IndexT t1 = id_imubase.second.t1_;
-            std::vector< IndexT > times;
-            std::vector<Eigen::Vector3d> accs;
-            std::vector<Eigen::Vector3d> gyrs;
-
-            std::tie( times, accs, gyrs ) = sfm_data_.imu_dataset->GetMeasure(t0, t1);
-            id_imubase.second.integrate(accs, gyrs, times);
-        }
-    }
-
     void SequentialVISfMReconstructionEngine::rota_pose()
     {
         Mat3 Ric;
@@ -291,6 +362,10 @@ namespace sfm{
             Rcw = Ric * Rcw;
             it_pose.second.SetRoation(Rcw);
         }
+//        for( auto&landmark:sfm_data_.structure )
+//        {
+//            landmark.second.X = ( Ric.transpose() * landmark.second.X );
+//        }
     }
 
     template <typename Derived>
@@ -319,6 +394,7 @@ namespace sfm{
 
         return Rz * Ry * Rx;
     }
+
     static Eigen::Vector3d R2ypr(const Eigen::Matrix3d &R)
     {
         Eigen::Vector3d n = R.col(0);
@@ -347,6 +423,7 @@ namespace sfm{
         // R0 = Utility::ypr2R(Eigen::Vector3d{-90, 0, 0}) * R0;
         return R0;
     }
+
     void SequentialVISfMReconstructionEngine::recover_g_s(const Eigen::Vector3d& correct_g, const double correct_scale)
     {
         Eigen::Matrix3d R0 = g2R(correct_g);
@@ -361,26 +438,69 @@ namespace sfm{
         //Matrix3d rot_diff = R0 * Rs[0].transpose();
         Eigen::Quaterniond rot_diff( R0 );
 
+        Mat3 Ric;
+        Ric << -0.00268725, -0.99990988, -0.0131532,
+                -0.99995582, 0.00280539, -0.00897172,
+                0.00900781, 0.01312851, -0.99987324;
         for( auto& it_pose:sfm_data_.poses )
         {
             Mat3 Rcw = it_pose.second.rotation();
-            Rcw = Rcw * rot_diff.inverse();
+            Rcw = Ric.transpose() * Rcw;
             it_pose.second.SetRoation(Rcw);
-
-            Vec3 twc = it_pose.second.center();
-            twc = correct_scale*(rot_diff * twc);
-            it_pose.second.SetCenter(twc);
         }
 
-        for( auto&landmark:sfm_data_.structure )
+//        for( auto& it_pose:sfm_data_.poses )
+//        {
+//            Mat3 Rcw = it_pose.second.rotation();
+//            Rcw = Rcw * rot_diff.inverse();
+//            it_pose.second.SetRoation(Rcw);
+//
+//            Vec3 twc = it_pose.second.center();
+//            twc = correct_scale*(rot_diff * twc);
+//            it_pose.second.SetCenter(twc);
+//        }
+//
+//        for( auto&landmark:sfm_data_.structure )
+//        {
+//            landmark.second.X = correct_scale*(rot_diff * landmark.second.X);
+//        }
+
+
+
+
+
+//        for( auto& it_pose:sfm_data_.poses )
+//        {
+//            Vec3 twc = it_pose.second.center();
+//            twc = correct_scale*twc;
+//            it_pose.second.SetCenter(twc);
+//        }
+//
+//        for( auto&landmark:sfm_data_.structure )
+//        {
+//            landmark.second.X = correct_scale*landmark.second.X;
+//        }
+        BundleAdjustment();
+    }
+
+    void SequentialVISfMReconstructionEngine::update_imu_inte()
+    {
+        for( auto & id_imubase:sfm_data_.imus )
         {
-            landmark.second.X = correct_scale*(rot_diff * landmark.second.X);
+            IndexT t0 = id_imubase.second.t0_;
+            IndexT t1 = id_imubase.second.t1_;
+            std::vector< IndexT > times;
+            std::vector<Eigen::Vector3d> accs;
+            std::vector<Eigen::Vector3d> gyrs;
+
+            std::tie( times, accs, gyrs ) = sfm_data_.imu_dataset->GetMeasure(t0, t1);
+            id_imubase.second.integrate(accs, gyrs, times);
         }
     }
 
     void SequentialVISfMReconstructionEngine::update_imu_time()
     {
-        sfm_data_.imus.clear();
+//        sfm_data_.imus.clear();
         auto it_pose = sfm_data_.poses.begin();
         IndexT last_t = sfm_data_.timestamps.at( it_pose->first );
         it_pose++;
@@ -388,8 +508,24 @@ namespace sfm{
         {
             IndexT cur_t = sfm_data_.timestamps.at( it_pose->first );
             auto id_pose = it_pose->first;
-            IMU_InteBase imubase( last_t, cur_t );
-            sfm_data_.imus.insert( std::make_pair( id_pose,  imubase) );
+            if( sfm_data_.imus.count( id_pose ) == 0 )
+            {
+                //todo xinli ba bg
+                IMU_InteBase imubase( last_t, cur_t );
+                sfm_data_.imus.insert( std::make_pair( id_pose,  imubase) );
+            }
+            last_t = cur_t;
+            it_pose++;
+        }
+
+        it_pose = sfm_data_.poses.begin();
+        last_t = sfm_data_.timestamps.at( it_pose->first );
+        it_pose++;
+        while( it_pose != sfm_data_.poses.end() )
+        {
+            IndexT cur_t = sfm_data_.timestamps.at( it_pose->first );
+            auto id_pose = it_pose->first;
+            sfm_data_.imus[id_pose].change_time(last_t, cur_t);
             last_t = cur_t;
             it_pose++;
         }
@@ -407,17 +543,17 @@ namespace sfm{
         recover_g_s( correct_g, correct_scale );
 
         // init pre not very good
-//        {
-//            auto it_pose = sfm_data_.poses.begin();
-//            auto tw0 = it_pose->second.center();
-//            auto it0 = it_pose->first;
-//            while( std::next(it_pose) != sfm_data_.poses.end() ) it_pose++;
-//            auto tw1 = it_pose->second.center();
-//            auto it1 = it_pose->first;
-//            std::cout << "it0 = " << it0 << std::endl;
-//            std::cout << "it1 = " << it1 << std::endl;
-//            std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
-//        }
+        {
+            auto it_pose = sfm_data_.poses.begin();
+            auto tw0 = it_pose->second.center();
+            auto it0 = it_pose->first;
+            while( std::next(it_pose) != sfm_data_.poses.end() ) it_pose++;
+            auto tw1 = it_pose->second.center();
+            auto it1 = it_pose->first;
+            std::cout << "it0 = " << it0 << std::endl;
+            std::cout << "it1 = " << it1 << std::endl;
+            std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
+        }
 
         return true;
     }
@@ -634,7 +770,6 @@ namespace sfm{
         correct_g = g0;
     }
 
-    /// Bundle adjustment to refine Structure; Motion and Intrinsics
     bool SequentialVISfMReconstructionEngine::BundleAdjustment()
     {
         Bundle_Adjustment_Ceres::BA_Ceres_options options;
@@ -653,6 +788,36 @@ namespace sfm{
             options.linear_solver_type_ = ceres::DENSE_SCHUR;
         }
         Bundle_Adjustment_Ceres bundle_adjustment_obj(options);
+        const Optimize_Options ba_refine_options
+                ( ReconstructionEngine::intrinsic_refinement_options_,
+                  Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
+                  Structure_Parameter_Type::ADJUST_ALL, // Adjust scene structure
+                  Control_Point_Parameter(),
+                  this->b_use_motion_prior_
+                );
+        return bundle_adjustment_obj.Adjust(sfm_data_, ba_refine_options);
+    }
+
+    /// Bundle adjustment to refine Structure; Motion and Intrinsics
+    bool SequentialVISfMReconstructionEngine::BundleAdjustmentWithIMU()
+    {
+        Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
+        if ( sfm_data_.GetPoses().size() > 100 &&
+             (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::CX_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::EIGEN_SPARSE))
+                )
+            // Enable sparse BA only if a sparse lib is available and if there more than 100 poses
+        {
+            options.preconditioner_type_ = ceres::JACOBI;
+            options.linear_solver_type_ = ceres::SPARSE_SCHUR;
+        }
+        else
+        {
+            options.linear_solver_type_ = ceres::DENSE_SCHUR;
+        }
+        Bundle_Adjustment_IMU_Ceres bundle_adjustment_obj(options);
+//        Bundle_Adjustment_Ceres bundle_adjustment_obj(options);
         const Optimize_Options ba_refine_options
                 ( ReconstructionEngine::intrinsic_refinement_options_,
                   Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
@@ -1012,7 +1177,6 @@ namespace sfm{
         return !sfm_data_.structure.empty();
     }
 
-
     bool SequentialVISfMReconstructionEngine::AutomaticInitialPairChoice(Pair & initial_pair) const
     {
         // select a pair that have the largest baseline (mean angle between its bearing vectors).
@@ -1057,6 +1221,7 @@ namespace sfm{
 
                 const uint32_t I = std::min(current_pair.first, current_pair.second);
                 const uint32_t J = std::max(current_pair.first, current_pair.second);
+                if( (J - I) < 20 )  // xinli
                 if (valid_views.count(I) && valid_views.count(J))
                 {
                     const View
@@ -1238,7 +1403,6 @@ namespace sfm{
         return true;
     }
 
-
     /// Functor to sort a vector of pair given the pair's second value
     template<class T1, class T2, class Pred = std::less<T2>>
     struct sort_pair_second {
@@ -1269,6 +1433,26 @@ namespace sfm{
 
         vec_possible_indexes.clear();
 
+        // check index view == index pose
+        IndexT left_view_id, right_view_id;
+        IndexT left_pose_id, right_pose_id;
+        {
+            auto it = sfm_data_.views.begin();
+            left_view_id = it->first;
+            while( std::next(it) == sfm_data_.views.end() ) it++;
+            right_view_id = it->first;
+        }
+        {
+            auto it = sfm_data_.poses.begin();
+            left_pose_id = it->first;
+            while( std::next(it) == sfm_data_.poses.end() ) it++;
+            right_pose_id = it->first;
+            if( (left_pose_id - left_view_id) < 10 ) left_pose_id = left_view_id;
+            else left_pose_id -= 10;
+            if( (right_view_id - right_pose_id) < 10 ) right_pose_id = right_view_id;
+            else right_pose_id += 10;
+        }
+
         if (set_remaining_view_id_.empty() || sfm_data_.GetLandmarks().empty())
             return false;
 
@@ -1291,29 +1475,34 @@ namespace sfm{
             {
                 const uint32_t viewId = *iter;
 
-                // Compute 2D - 3D possible content
-                openMVG::tracks::STLMAPTracks map_tracksCommon;
-                shared_track_visibility_helper_->GetTracksInImages({viewId}, map_tracksCommon);
-
-                if (!map_tracksCommon.empty())
+                if( viewId >= left_pose_id && viewId <= right_pose_id )
                 {
-                    std::set<uint32_t> set_tracksIds;
-                    tracks::TracksUtilsMap::GetTracksIdVector(map_tracksCommon, &set_tracksIds);
+                    // Compute 2D - 3D possible content
+                    openMVG::tracks::STLMAPTracks map_tracksCommon;
+                    shared_track_visibility_helper_->GetTracksInImages({viewId}, map_tracksCommon);
 
-                    // Count the common possible putative point
-                    //  with the already 3D reconstructed trackId
-                    std::vector<uint32_t> vec_trackIdForResection;
-                    std::set_intersection(set_tracksIds.cbegin(), set_tracksIds.cend(),
-                                          reconstructed_trackId.cbegin(), reconstructed_trackId.cend(),
-                                          std::back_inserter(vec_trackIdForResection));
+                    if (!map_tracksCommon.empty())
+                    {
+                        std::set<uint32_t> set_tracksIds;
+                        tracks::TracksUtilsMap::GetTracksIdVector(map_tracksCommon, &set_tracksIds);
+
+                        // Count the common possible putative point
+                        //  with the already 3D reconstructed trackId
+                        std::vector<uint32_t> vec_trackIdForResection;
+                        std::set_intersection(set_tracksIds.cbegin(), set_tracksIds.cend(),
+                                              reconstructed_trackId.cbegin(), reconstructed_trackId.cend(),
+                                              std::back_inserter(vec_trackIdForResection));
 
 #ifdef OPENMVG_USE_OPENMP
 #pragma omp critical
 #endif
-                    {
-                        vec_putative.emplace_back(viewId, vec_trackIdForResection.size());
+                        {
+                            vec_putative.emplace_back(viewId, vec_trackIdForResection.size());
+                        }
                     }
                 }
+
+
             }
         }
 
@@ -1434,7 +1623,6 @@ namespace sfm{
         }
         return true;
     }
-
 
     /**
      * @brief Add one image to the 3D reconstruction. To the resectioning of

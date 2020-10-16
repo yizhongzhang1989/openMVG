@@ -80,10 +80,10 @@ else (OpenMVG_BUILD_SHARED)
 endif()
 
 # For both regular Clang and AppleClang
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  message("clang detected: using std::unordered_map for Hash_Map")
-  register_definitions(-DOPENMVG_STD_UNORDERED_MAP)
-endif()
+#if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+#  message("clang detected: using std::unordered_map for Hash_Map")
+#  register_definitions(-DOPENMVG_STD_UNORDERED_MAP)
+#endif()
 
 # ==============================================================================
 # Check that submodule have been initialized and updated

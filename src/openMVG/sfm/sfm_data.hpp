@@ -211,7 +211,10 @@ private:
 class IMU_InteBase
 {
 public:
-    IMU_InteBase() = delete;
+    IMU_InteBase()
+    {
+        std::runtime_error("should not be here");
+    }
     ~IMU_InteBase() = default;
 
     IMU_InteBase(const IndexT _t0, const IndexT _t1)
@@ -375,6 +378,18 @@ public:
     Eigen::Matrix3d GetBg()
     {
         return jacobian.block(3, 12, 3, 3);
+    }
+
+    void change_time(const IndexT _t0, const IndexT _t1)
+    {
+        t0_ = _t0;
+        t1_ = _t1;
+        sum_dt_ = (static_cast<double>(t1_) - static_cast<double>(t0_)) / 1000.;
+        delta_p_.setZero();
+        delta_v_.setZero();
+        delta_q_.setIdentity();
+        jacobian.setIdentity();
+        covariance.setZero();
     }
 
     double sum_dt_; // scond

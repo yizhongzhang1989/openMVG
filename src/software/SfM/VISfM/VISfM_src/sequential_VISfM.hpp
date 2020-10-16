@@ -14,6 +14,8 @@
 #include "openMVG/multiview/triangulation_method.hpp"
 #include "openMVG/tracks/tracks.hpp"
 
+#include "visfm_data_BA_ceres.hpp"
+
 namespace htmlDocument { class htmlDocumentStream; }
 namespace { template <typename T> class Histogram; }
 
@@ -41,6 +43,8 @@ public:
     void SetIMUDataset( std::shared_ptr<IMU_Dataset> imudataset_ );
 
     virtual bool Process() override;
+
+    bool Process_onlyvisual();
 
     bool VI_Init( );
 
@@ -110,6 +114,8 @@ private:
 
     /// Bundle adjustment to refine Structure; Motion and Intrinsics
     bool BundleAdjustment();
+
+    bool BundleAdjustmentWithIMU();
 
     /// Discard track with too large residual error
     bool badTrackRejector(double dPrecision, size_t count = 0);

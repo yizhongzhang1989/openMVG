@@ -55,6 +55,11 @@ namespace openMVG
                     getline( readStr, part, split_ );
                     data_[i] = std::strtod( part.c_str(), nullptr );
                 }
+
+                data_[0] -= 1403715 * 1e12;
+                data_[0] /= 1e6;
+                data_[0] = static_cast<int>(data_[0]);
+
                 if( last_data_[0] != 0 )
                 {
                     if( (data_[0] - last_data_[0]) != 5 )
@@ -82,8 +87,11 @@ namespace openMVG
                 while(reader.readline())
                 {
                     vec_times.push_back(reader.data_[0]);
-                    vec_acc.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
-                    vec_gyr.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
+                    vec_gyr.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
+                    vec_acc.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
+//                    vec_times.push_back(reader.data_[0]);
+//                    vec_acc.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
+//                    vec_gyr.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
                 }
             }
 
@@ -216,10 +224,11 @@ namespace openMVG
         class IMU_InteBase
         {
         public:
-            IMU_InteBase()
-            {
-                std::runtime_error("should not be here");
-            }
+            EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+            IMU_InteBase() = delete;
+//            {
+//                std::runtime_error("should not be here");
+//            }
             ~IMU_InteBase() = default;
 
             IMU_InteBase(const IndexT _t0, const IndexT _t1)
@@ -433,18 +442,18 @@ namespace openMVG
             IndexT t0_;  // second * 1000
             IndexT t1_;  // second * 1000
 
-            Eigen::Vector3d delta_p_;
-            Eigen::Vector3d delta_v_;
+            Vec3 delta_p_;
+            Vec3 delta_v_;
             Eigen::Quaterniond delta_q_;
 
             std::vector<double> dt_buf_;
-            std::vector<Vec3> acc_buf_;
-            std::vector<Vec3> gyr_buf_;
-            Eigen::Vector3d linearized_ba_, linearized_bg_;
-            Eigen::Vector3d linearized_acc_, linearized_gyr_;
+            std::vector< Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > acc_buf_;
+            std::vector< Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > gyr_buf_;
+            Vec3 linearized_ba_, linearized_bg_;
+            Vec3 linearized_acc_, linearized_gyr_;
 
-            Eigen::Vector3d acc_0_, gyr_0_;
-            Eigen::Vector3d acc_1_, gyr_1_;
+            Vec3 acc_0_, gyr_0_;
+            Vec3 acc_1_, gyr_1_;
 
 
             Eigen::Matrix<double, 15, 15> jacobian, covariance;

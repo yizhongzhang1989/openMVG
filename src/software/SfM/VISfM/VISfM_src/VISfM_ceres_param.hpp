@@ -2,8 +2,8 @@
 // Created by root on 10/16/20.
 //
 
-#ifndef OPENMVG_VISFM_CERES_PARAM_H
-#define OPENMVG_VISFM_CERES_PARAM_H
+#ifndef OPENMVG_VISFM_CERES_PARAM_HPP
+#define OPENMVG_VISFM_CERES_PARAM_HPP
 
 #include <eigen3/Eigen/Dense>
 #include <ceres/ceres.h>
@@ -19,4 +19,4 @@ class PoseLocalParameterization : public ceres::LocalParameterization
     virtual int LocalSize() const { return 6; };
 };
 
-#endif //OPENMVG_VISFM_CERES_PARAM_H
+#endif //OPENMVG_VISFM_CERES_PARAM_HPP

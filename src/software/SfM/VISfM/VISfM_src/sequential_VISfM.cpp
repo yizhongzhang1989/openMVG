@@ -130,7 +130,7 @@ namespace sfm{
                 {
                     update_imu_time();
                     update_imu_inte();
-                    BundleAdjustment();
+                    BundleAdjustmentWithIMU();
                 }
                 while (badTrackRejector(4.0, 50));
                 eraseUnstablePosesAndObservations(sfm_data_);
@@ -465,7 +465,7 @@ namespace sfm{
 
         for( auto&speed:sfm_data_.Speeds )
         {
-            speed.second.speedbias = rot_diff * speed.second.speedbias;
+            speed.second.speed_ = rot_diff * speed.second.speed_;
         }
 
         /*{
@@ -543,23 +543,24 @@ namespace sfm{
             if( sfm_data_.imus.count( id_pose ) == 0 )
             {
                 //todo xinli ba bg
-                std::shared_ptr<IMU_InteBase> imubase_ptr = std::make_shared<IMU_InteBase>(last_t, cur_t);
-                sfm_data_.imus.insert( std::make_pair( id_pose,  imubase_ptr) );
-                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.));
-                sfm_data_.Speeds.insert( std::make_pair(id_pose, speed) );
-            }
-            last_t = cur_t;
-            it_pose++;
-        }
+                std::cout << "start insert imu" << std::endl;
 
-        it_pose = sfm_data_.poses.begin();
-        last_t = sfm_data_.timestamps.at( it_pose->first );
-        it_pose++;
-        while( it_pose != sfm_data_.poses.end() )
-        {
-            IndexT cur_t = sfm_data_.timestamps.at( it_pose->first );
-            auto id_pose = it_pose->first;
-            sfm_data_.imus[id_pose]->change_time(last_t, cur_t);
+                std::cout << "start construction imubase_ptr" << std::endl;
+                std::shared_ptr<IMU_InteBase> imubase_ptr = std::make_shared<IMU_InteBase>(last_t, cur_t);
+                std::cout << "end construction imubase_ptr" << std::endl;
+                sfm_data_.imus.insert( std::make_pair( id_pose,  imubase_ptr) );
+
+
+//                std::cout << "start construction IMU_Speed" << std::endl;
+                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.));
+//                std::cout << "end construction IMU_Speed" << std::endl;
+                sfm_data_.Speeds.insert( std::make_pair(id_pose, speed) );
+                std::cout << "end insert imu" << std::endl;
+            }
+            else
+            {
+                sfm_data_.imus[id_pose]->change_time(last_t, cur_t);
+            }
             last_t = cur_t;
             it_pose++;
         }
@@ -567,14 +568,27 @@ namespace sfm{
 
     bool SequentialVISfMReconstructionEngine::VI_align()
     {
+        std::cout << "start VI align" << std::endl;
+        std::cout << "start update_imu_time" << std::endl;
         update_imu_time();
+        std::cout << "start update_imu_inte" << std::endl;
         update_imu_inte();
+        std::cout << "start rota_pose" << std::endl;
         rota_pose();
         Eigen::VectorXd speeds_scale;
         Eigen::Vector3d correct_g;
+        std::cout << "start solveGyroscopeBias" << std::endl;
         solveGyroscopeBias();
+        std::cout << "end solveGyroscopeBias" << std::endl;
+
+        std::cout << "start solve_vgs" << std::endl;
         if( !solve_vgs(speeds_scale, correct_g) ) return false;
+        std::cout << "end solve_vgs" << std::endl;
+
+
+        std::cout << "start recover_g_s" << std::endl;
         recover_g_s( correct_g, speeds_scale );
+        std::cout << "end recover_g_s" << std::endl;
 
         // init pre not very good
         {

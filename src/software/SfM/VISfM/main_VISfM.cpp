@@ -250,7 +250,8 @@ int main(int argc, char **argv)
                 break;
             }
             double time = std::stod(line);
-            times.emplace_back( static_cast<IndexT>(time * 1000) ); // second * 1000
+            time -= 1403715 * 1e12;
+            times.emplace_back( static_cast<IndexT>(time / 1e6) ); // second * 1000
 //            std::cout << i++ << " " ;
 //            std::cout << time << std::endl;
         }

@@ -2,8 +2,8 @@
 // Created by root on 10/16/20.
 //
 
-#ifndef OPENMVG_VISFM_CERES_FACOTR_H
-#define OPENMVG_VISFM_CERES_FACOTR_H
+#ifndef OPENMVG_VISFM_CERES_FACOTR_HPP
+#define OPENMVG_VISFM_CERES_FACOTR_HPP
 
 #include <memory>
 #include <utility>
@@ -18,7 +18,7 @@
 #include "openMVG/cameras/Camera_Pinhole_Fisheye.hpp"
 #include "openMVG/cameras/Camera_Spherical.hpp"
 
-#include "VISfM_ceres_param.h"
+#include "VISfM_ceres_param.hpp"
 #include "openMVG/sfm/sfm_data.hpp"
 #include "Utility.hpp"
 #include "VI_static_Parm.hpp"
@@ -160,7 +160,7 @@ namespace openMVG {
         public:
             IMUFactor() = delete;
             IMUFactor(std::shared_ptr<IMU_InteBase> _pre_integration)
-            :pre_integration(std::move(_pre_integration))
+            :pre_integration(_pre_integration)
             {
             }
             virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
@@ -280,4 +280,4 @@ namespace openMVG {
 }
 
 
-#endif //OPENMVG_VISFM_CERES_FACOTR_H
+#endif //OPENMVG_VISFM_CERES_FACOTR_HPP

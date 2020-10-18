@@ -421,9 +421,28 @@ namespace openMVG
 
             ceres::Problem problem;
 
+            double ex_paparm[7];
+            {
+                Mat3 Ric = sfm_data.IG_Ric.transpose();
+                Eigen::Quaterniond Qic(Ric);
+                Vec3 tic = sfm_data.IG_tic;
+                ex_paparm[0] = tic(0);
+                ex_paparm[1] = tic(1);
+                ex_paparm[2] = tic(2);
+                ex_paparm[3] = Qic.x();
+                ex_paparm[4] = Qic.y();
+                ex_paparm[5] = Qic.z();
+                ex_paparm[6] = Qic.w();
+
+                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+                problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
+            }
+
             // Data wrapper for refinement:
             Hash_Map<IndexT, std::vector<double>> map_intrinsics;
             Hash_Map<IndexT, std::vector<double>> map_poses;
+
+            Hash_Map<IndexT, std::vector<double>> map_speed;
 
             // Setup Poses data & subparametrization
             for (const auto & pose_it : sfm_data.poses)
@@ -431,16 +450,25 @@ namespace openMVG
                 const IndexT indexPose = pose_it.first;
 
                 const Pose3 & pose = pose_it.second;
-                const Mat3 R = pose.rotation();
-                const Vec3 t = pose.translation();
+                const Mat3 Rwi = pose.rotation().transpose();
+                Eigen::Quaterniond Qwi(Rwi);
+                const Vec3 twi = pose.center();
 
-                double angleAxis[3];
-                ceres::RotationMatrixToAngleAxis((const double*)R.data(), angleAxis);
                 // angleAxis + translation
-                map_poses[indexPose] = {angleAxis[0], angleAxis[1], angleAxis[2], t(0), t(1), t(2)};
+                map_poses[indexPose] = {
+                        twi(0),
+                        twi(1),
+                        twi(2),
+                        Qwi.x(),
+                        Qwi.y(),
+                        Qwi.z(),
+                        Qwi.w()
+                };
 
                 double * parameter_block = &map_poses.at(indexPose)[0];
-                problem.AddParameterBlock(parameter_block, 6);
+                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+                problem.AddParameterBlock(parameter_block, 7, local_parameterization);  // p,q
+//                problem.AddParameterBlock(parameter_block, 6);
                 if (options.extrinsics_opt == Extrinsic_Parameter_Type::NONE)
                 {
                     // set the whole parameter block as constant for best performance
@@ -459,15 +487,43 @@ namespace openMVG
                     if (options.extrinsics_opt == Extrinsic_Parameter_Type::ADJUST_ROTATION)
                     {
                         // Subset translation parametrization
-                        vec_constant_extrinsic.insert(vec_constant_extrinsic.end(), {3,4,5});
+                        vec_constant_extrinsic.insert(vec_constant_extrinsic.end(), {3,4,5,6});
                     }
                     if (!vec_constant_extrinsic.empty())
                     {
+                        assert(0);
                         ceres::SubsetParameterization *subset_parameterization =
-                                new ceres::SubsetParameterization(6, vec_constant_extrinsic);
+                                new ceres::SubsetParameterization(7, vec_constant_extrinsic);
+//                        auto sssssssson =
+//                                new ceres::SubsetParameterization(7, vec_constant_extrinsic, local_parameterization);
                         problem.SetParameterization(parameter_block, subset_parameterization);
                     }
                 }
+            }
+
+            for( const auto& speed:sfm_data.Speeds )
+            {
+                const IndexT indexSpd = speed.first;
+                Vec3 speedV3d = speed.second.speed_;
+                Vec3 Ba = sfm_data.imus.at(indexSpd)->linearized_ba_;
+                Vec3 Bg = sfm_data.imus.at(indexSpd)->linearized_bg_;
+                map_speed[indexSpd] = {
+                        speedV3d(0),
+                        speedV3d(1),
+                        speedV3d(2),
+
+                        Ba(0),
+                        Ba(1),
+                        Ba(2),
+
+                        Bg(0),
+                        Bg(1),
+                        Bg(2)
+
+                };
+
+                double * parameter_block = &map_poses.at(indexSpd)[0];
+                problem.AddParameterBlock(parameter_block, map_intrinsics.at(indexSpd).size());
             }
 
             // Setup Intrinsics data & subparametrization
@@ -527,9 +583,15 @@ namespace openMVG
                     // Each Residual block takes a point and a camera as input and outputs a 2
                     // dimensional residual. Internally, the cost function stores the observed
                     // image location and compares the reprojection against the observation.
-                    ceres::CostFunction* cost_function =
-                            IntrinsicsToCostFunction(sfm_data.intrinsics.at(view->id_intrinsic).get(),
-                                                     obs_it.second.x);
+//                    ceres::CostFunction* cost_function =
+//                            (new ceres::AutoDiffCostFunction
+//                                    <ResidualVISUALWithIMUErrorFunctor_Pinhole_Intrinsic_Radial_K3, 2, 6, 6, 6, 3>(
+//                                    new ResidualVISUALWithIMUErrorFunctor_Pinhole_Intrinsic_Radial_K3(obs_it.second.x.data())));
+//                            assert( sfm_data.intrinsics.at(view->id_intrinsic).get()->getType() == PINHOLE_CAMERA_RADIAL3 );
+//                            IntrinsicsToCostFunction(sfm_data.intrinsics.at(view->id_intrinsic).get(),
+//                                                     obs_it.second.x);
+                    Eigen::Vector2d ob_i = obs_it.second.x;
+                    VISfM_Projection* cost_function = new VISfM_Projection( ob_i );
 
                     if (cost_function)
                     {
@@ -537,16 +599,25 @@ namespace openMVG
                         {
                             problem.AddResidualBlock(cost_function,
                                                      p_LossFunction,
-                                                     &map_intrinsics.at(view->id_intrinsic)[0],
                                                      &map_poses.at(view->id_pose)[0],
+                                                     ex_paparm,
+                                                     &map_intrinsics.at(view->id_intrinsic)[0],
                                                      structure_landmark_it.second.X.data());
+
+//                            problem.AddResidualBlock(cost_function,
+//                                                     p_LossFunction,
+//                                                     &map_intrinsics.at(view->id_intrinsic)[0],
+//                                                     &map_poses.at(view->id_pose)[0],
+//                                                     ex_paparm,
+//                                                     structure_landmark_it.second.X.data());
                         }
                         else
                         {
-                            problem.AddResidualBlock(cost_function,
-                                                     p_LossFunction,
-                                                     &map_poses.at(view->id_pose)[0],
-                                                     structure_landmark_it.second.X.data());
+                            assert(0);
+//                            problem.AddResidualBlock(cost_function,
+//                                                     p_LossFunction,
+//                                                     &map_poses.at(view->id_pose)[0],
+//                                                     structure_landmark_it.second.X.data());
                         }
                     }
                     else
@@ -557,6 +628,23 @@ namespace openMVG
                 }
                 if (options.structure_opt == Structure_Parameter_Type::NONE)
                     problem.SetParameterBlockConstant(structure_landmark_it.second.X.data());
+            }
+
+            {
+                auto pose_i = sfm_data.poses.begin();
+                auto pose_j = std::next(pose_i);
+                for(; pose_j != sfm_data.poses.end(); pose_j++, pose_i++)
+                {
+                    const IndexT indexPose = pose_j->first;
+                    auto imu_ptr = sfm_data.imus.at(indexPose);
+
+                    IMUFactor* imu_factor = new IMUFactor(imu_ptr);
+                    problem.AddResidualBlock(imu_factor, nullptr,
+                                             &map_poses.at(pose_i->first)[0],
+                                             &map_speed.at(pose_i->first)[0],
+                                             &map_poses.at(pose_j->first)[0],
+                                             &map_speed.at(pose_j->first)[0]);
+                }
             }
 
             if (options.control_point_opt.bUse_control_points)
@@ -619,13 +707,20 @@ namespace openMVG
                     for (auto &pose_it : sfm_data.poses) {
                         const IndexT indexPose = pose_it.first;
 
-                        Mat3 R_refined;
-                        ceres::AngleAxisToRotationMatrix(&map_poses.at(indexPose)[0], R_refined.data());
-                        Vec3 t_refined(map_poses.at(indexPose)[3], map_poses.at(indexPose)[4],
-                                       map_poses.at(indexPose)[5]);
+//                        Mat3 R_refined;
+//                        ceres::AngleAxisToRotationMatrix(&map_poses.at(indexPose)[0], R_refined.data());
+//                        Vec3 t_refined(map_poses.at(indexPose)[3], map_poses.at(indexPose)[4],
+//                                       map_poses.at(indexPose)[5]);
+
+
+                        Eigen::Vector3d twi(map_poses.at(indexPose)[0], map_poses.at(indexPose)[1], map_poses.at(indexPose)[2]);
+                        Eigen::Quaterniond Qwi(map_poses.at(indexPose)[6], map_poses.at(indexPose)[3], map_poses.at(indexPose)[4], map_poses.at(indexPose)[5]);
+                        Mat3 Rwi = Qwi.toRotationMatrix();
+                        Mat3 Riw = Rwi.transpose();
+
                         // Update the pose
                         Pose3 &pose = pose_it.second;
-                        pose = Pose3(R_refined, -R_refined.transpose() * t_refined);
+                        pose = Pose3(Riw, twi);
                     }
                 }
 
@@ -637,6 +732,18 @@ namespace openMVG
                         const std::vector<double> &vec_params = map_intrinsics.at(indexCam);
                         intrinsic_it.second->updateFromParams(vec_params);
                     }
+                }
+
+                for( auto& imu:sfm_data.imus )
+                {
+                    const IndexT indexIMU = imu.first;
+                    Vec3 speed(map_speed.at(indexIMU)[0], map_speed.at(indexIMU)[1], map_speed.at(indexIMU)[2]);
+                    Vec3 ba(map_speed.at(indexIMU)[3], map_speed.at(indexIMU)[4], map_speed.at(indexIMU)[5]);
+                    Vec3 bg(map_speed.at(indexIMU)[6], map_speed.at(indexIMU)[7], map_speed.at(indexIMU)[8]);
+
+                    sfm_data.Speeds.at(indexIMU).speed_ = speed;
+                    imu.second->linearized_ba_ = ba;
+                    imu.second->linearized_bg_ = bg;
                 }
 
                 // Structure is already updated directly if needed (no data wrapping)

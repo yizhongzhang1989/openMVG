@@ -9,8 +9,8 @@
 #include "openMVG/sfm/sfm_data_BA.hpp"
 #include "openMVG/sfm/sfm_data_BA_ceres.hpp"
 
-#include "VISfM_ceres_facotr.h"
-#include "VISfM_ceres_param.h"
+#include "VISfM_ceres_facotr.hpp"
+#include "VISfM_ceres_param.hpp"
 
 namespace ceres { class CostFunction; }
 namespace openMVG { namespace cameras { struct IntrinsicBase; } }

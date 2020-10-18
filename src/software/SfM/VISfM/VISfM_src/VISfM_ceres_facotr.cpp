@@ -2,7 +2,7 @@
 // Created by root on 10/16/20.
 //
 
-#include "VISfM_ceres_facotr.h"
+#include "VISfM_ceres_facotr.hpp"
 
 
 namespace openMVG

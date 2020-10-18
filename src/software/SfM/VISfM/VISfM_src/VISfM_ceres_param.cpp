@@ -2,7 +2,7 @@
 // Created by root on 10/16/20.
 //
 
-#include "VISfM_ceres_param.h"
+#include "VISfM_ceres_param.hpp"
 
 bool PoseLocalParameterization::Plus(const double *x, const double *delta, double *x_plus_delta) const
 {

@@ -1,7 +1,10 @@
-add_executable(openMVG_main_VISfM main_VISfM.cpp
-        VISfM_src/sequential_VISfM.cpp VISfM_src/sequential_VISfM.hpp VISfM_src/visfm_data_BA_ceres.cpp VISfM_src/visfm_data_BA_ceres.hpp VISfM_src/VISfM_ceres_facotr.cpp VISfM_src/VISfM_ceres_facotr.h VISfM_src/VISfM_ceres_param.cpp VISfM_src/VISfM_ceres_param.h VISfM_src/Utility.hpp VISfM_src/VI_static_Parm.hpp VISfM_src/IMU_InteBase.hpp VISfM_src/VI_static_Parm.cpp)
+add_subdirectory(VISfM_src)
+
+add_executable(openMVG_main_VISfM main_VISfM.cpp)
+#        VISfM_src/sequential_VISfM.cpp VISfM_src/sequential_VISfM.hpp VISfM_src/visfm_data_BA_ceres.cpp VISfM_src/visfm_data_BA_ceres.hpp VISfM_src/VISfM_ceres_facotr.cpp VISfM_src/VISfM_ceres_facotr.hpp VISfM_src/VISfM_ceres_param.cpp VISfM_src/VISfM_ceres_param.hpp VISfM_src/Utility.hpp VISfM_src/VI_static_Parm.hpp VISfM_src/IMU_InteBase.hpp VISfM_src/VI_static_Parm.cpp)
 target_link_libraries(openMVG_main_VISfM
         PRIVATE
+        openMVG_vi_sfm
         openMVG_system
         openMVG_image
         openMVG_features

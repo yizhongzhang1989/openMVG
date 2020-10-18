@@ -27,8 +27,8 @@ class IMU_Speed
 {
 public:
     IMU_Speed() = delete;
-    IMU_Speed(const Vec3& _speed):speedbias(_speed) {}
-    Vec3 speedbias;
+    IMU_Speed(const Vec3& _speed):speed_(_speed) {}
+    Vec3 speed_;
 };
 
 using Imus = Hash_Map<IndexT, std::shared_ptr<IMU_InteBase>>;

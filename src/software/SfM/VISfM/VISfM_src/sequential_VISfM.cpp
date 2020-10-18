@@ -191,7 +191,7 @@ namespace sfm{
 
     bool SequentialVISfMReconstructionEngine::Process_onlyvisual()
     {
-
+        return false;
     }
 
     bool SequentialVISfMReconstructionEngine::VI_Init()
@@ -364,75 +364,20 @@ namespace sfm{
 //        }
     }
 
-    template <typename Derived>
-    static Eigen::Matrix<typename Derived::Scalar, 3, 3> ypr2R(const Eigen::MatrixBase<Derived> &ypr)
+    void SequentialVISfMReconstructionEngine::recover_g_s(const Eigen::Vector3d& correct_g, const Eigen::VectorXd& speeds_scale)
     {
-        typedef typename Derived::Scalar Scalar_t;
-
-        Scalar_t y = ypr(0) / 180.0 * M_PI;
-        Scalar_t p = ypr(1) / 180.0 * M_PI;
-        Scalar_t r = ypr(2) / 180.0 * M_PI;
-
-        Eigen::Matrix<Scalar_t, 3, 3> Rz;
-        Rz << cos(y), -sin(y), 0,
-                sin(y), cos(y), 0,
-                0, 0, 1;
-
-        Eigen::Matrix<Scalar_t, 3, 3> Ry;
-        Ry << cos(p), 0., sin(p),
-                0., 1., 0.,
-                -sin(p), 0., cos(p);
-
-        Eigen::Matrix<Scalar_t, 3, 3> Rx;
-        Rx << 1., 0., 0.,
-                0., cos(r), -sin(r),
-                0., sin(r), cos(r);
-
-        return Rz * Ry * Rx;
-    }
-
-    static Eigen::Vector3d R2ypr(const Eigen::Matrix3d &R)
-    {
-        Eigen::Vector3d n = R.col(0);
-        Eigen::Vector3d o = R.col(1);
-        Eigen::Vector3d a = R.col(2);
-
-        Eigen::Vector3d ypr(3);
-        double y = atan2(n(1), n(0));
-        double p = atan2(-n(2), n(0) * cos(y) + n(1) * sin(y));
-        double r = atan2(a(0) * sin(y) - a(1) * cos(y), -o(0) * sin(y) + o(1) * cos(y));
-        ypr(0) = y;
-        ypr(1) = p;
-        ypr(2) = r;
-
-        return ypr / M_PI * 180.0;
-    }
-
-    static Eigen::Matrix3d g2R(const Eigen::Vector3d &g)
-    {
-        Eigen::Matrix3d R0;
-        Eigen::Vector3d ng1 = g.normalized();
-        Eigen::Vector3d ng2{0, 0, 1.0};
-        R0 = Eigen::Quaterniond::FromTwoVectors(ng1, ng2).toRotationMatrix();
-        double yaw = R2ypr(R0).x();
-        R0 = ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
-        // R0 = Utility::ypr2R(Eigen::Vector3d{-90, 0, 0}) * R0;
-        return R0;
-    }
-
-    void SequentialVISfMReconstructionEngine::recover_g_s(const Eigen::Vector3d& correct_g, const double correct_scale)
-    {
-        Eigen::Matrix3d R0 = g2R(correct_g);
+        Eigen::Matrix3d R0 = Utility::g2R(correct_g);
 
         Mat3 Rw0 = sfm_data_.poses.begin()->second.rotation().transpose();
 
-        double yaw = R2ypr(R0 * Rw0).x();
-        R0 = ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
+        double yaw = Utility::R2ypr(R0 * Rw0).x();
+        R0 = Utility::ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
 //        std::cout << "correct_g = " << correct_g.transpose() << std::endl;
 //        correct_g = R0 * correct_g;
 //        std::cout << "correct_g = " << correct_g.transpose() << std::endl;
         //Matrix3d rot_diff = R0 * Rs[0].transpose();
         Eigen::Quaterniond rot_diff( R0 );
+        VIstaticParm::G_ = R0 * VIstaticParm::G_;
 
 //        for( auto& it_pose:sfm_data_.poses )
 //        {
@@ -487,6 +432,20 @@ namespace sfm{
         }*/
 
         std::cout <<"-=------=-=-=-=-=-=-=-=" << std::endl;
+        double correct_scale = (speeds_scale.tail<1>())(0);
+
+
+        int kv = -1;
+        auto pose_i = sfm_data_.poses.begin();pose_i++;
+        for (; pose_i != sfm_data_.poses.end(); pose_i++)
+        {
+            kv++;
+            auto poseId = pose_i->first;
+            auto Rwi = pose_i->second.rotation().transpose();
+            Vec3 speedV3d = Rwi * speeds_scale.segment<3>(kv * 3);
+            IMU_Speed speed(speedV3d);
+            sfm_data_.Speeds.insert( std::make_pair(poseId, speed) );
+        }
 
         for( auto& it_pose:sfm_data_.poses )
         {
@@ -502,6 +461,11 @@ namespace sfm{
         for( auto&landmark:sfm_data_.structure )
         {
             landmark.second.X = correct_scale*(rot_diff * landmark.second.X);
+        }
+
+        for( auto&speed:sfm_data_.Speeds )
+        {
+            speed.second.speedbias = rot_diff * speed.second.speedbias;
         }
 
         /*{
@@ -555,14 +519,14 @@ namespace sfm{
     {
         for( auto & id_imubase:sfm_data_.imus )
         {
-            IndexT t0 = id_imubase.second.t0_;
-            IndexT t1 = id_imubase.second.t1_;
+            IndexT t0 = id_imubase.second->t0_;
+            IndexT t1 = id_imubase.second->t1_;
             std::vector< IndexT > times;
-            std::vector<Eigen::Vector3d> accs;
-            std::vector<Eigen::Vector3d> gyrs;
+            std::vector<Vec3> accs;
+            std::vector<Vec3> gyrs;
 
             std::tie( times, accs, gyrs ) = sfm_data_.imu_dataset->GetMeasure(t0, t1);
-            id_imubase.second.integrate(accs, gyrs, times);
+            id_imubase.second->integrate(accs, gyrs, times);
         }
     }
 
@@ -579,8 +543,10 @@ namespace sfm{
             if( sfm_data_.imus.count( id_pose ) == 0 )
             {
                 //todo xinli ba bg
-                IMU_InteBase imubase( last_t, cur_t );
-                sfm_data_.imus.insert( std::make_pair( id_pose,  imubase) );
+                std::shared_ptr<IMU_InteBase> imubase_ptr = std::make_shared<IMU_InteBase>(last_t, cur_t);
+                sfm_data_.imus.insert( std::make_pair( id_pose,  imubase_ptr) );
+                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.));
+                sfm_data_.Speeds.insert( std::make_pair(id_pose, speed) );
             }
             last_t = cur_t;
             it_pose++;
@@ -593,7 +559,7 @@ namespace sfm{
         {
             IndexT cur_t = sfm_data_.timestamps.at( it_pose->first );
             auto id_pose = it_pose->first;
-            sfm_data_.imus[id_pose].change_time(last_t, cur_t);
+            sfm_data_.imus[id_pose]->change_time(last_t, cur_t);
             last_t = cur_t;
             it_pose++;
         }
@@ -604,11 +570,11 @@ namespace sfm{
         update_imu_time();
         update_imu_inte();
         rota_pose();
-        double correct_scale;
+        Eigen::VectorXd speeds_scale;
         Eigen::Vector3d correct_g;
         solveGyroscopeBias();
-        if( !solve_vgs(correct_scale, correct_g) ) return false;
-        recover_g_s( correct_g, correct_scale );
+        if( !solve_vgs(speeds_scale, correct_g) ) return false;
+        recover_g_s( correct_g, speeds_scale );
 
         // init pre not very good
         {
@@ -624,11 +590,6 @@ namespace sfm{
         }
 
         return true;
-    }
-
-    void SequentialVISfMReconstructionEngine::preintegrate()
-    {
-        //TODO xinli
     }
 
     void SequentialVISfMReconstructionEngine::solveGyroscopeBias()
@@ -656,8 +617,8 @@ namespace sfm{
             auto imu_inte = sfm_data_.imus.at( pose_it_j->first );
 
             Eigen::Quaterniond q_ij(Riw * Rwj);
-            tmp_A = imu_inte.GetBg();
-            tmp_b = 2 * ( imu_inte.delta_q_.inverse() * q_ij).vec();
+            tmp_A = imu_inte->GetBg();
+            tmp_b = 2 * ( imu_inte->delta_q_.inverse() * q_ij).vec();
             A += tmp_A.transpose() * tmp_A;
             b += tmp_A.transpose() * tmp_b;
         }
@@ -665,12 +626,12 @@ namespace sfm{
 
         for( auto&it_imu:sfm_data_.imus )
         {
-            it_imu.second.repropagate( Eigen::Vector3d::Zero(), delta_bg );
+            it_imu.second->repropagate( Eigen::Vector3d::Zero(), delta_bg );
         }
         std::cout << "delta_bg = " << delta_bg.transpose() << std::endl;
     }
 
-    bool SequentialVISfMReconstructionEngine::solve_vgs(double &correct_scale, Eigen::Vector3d &correct_g)
+    bool SequentialVISfMReconstructionEngine::solve_vgs(Eigen::VectorXd& speeds_scale, Eigen::Vector3d &correct_g)
     {
         int n_state = sfm_data_.imus.size() * 3 + 3 + 1;
         Eigen::MatrixXd A{n_state, n_state};
@@ -697,16 +658,16 @@ namespace sfm{
 
             auto imu_inte = sfm_data_.imus.at( pose_it_j->first );
 
-            double dt = imu_inte.sum_dt_;
+            double dt = imu_inte->sum_dt_;
             tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
             tmp_A.block<3, 3>(0, 6) = Rwi.transpose() * dt * dt / 2 * Eigen::Matrix3d::Identity();
             tmp_A.block<3, 1>(0, 9) = Rwi.transpose() * (twj - twi) / 100.;
-            tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Rwi.transpose() * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic;
+            tmp_b.block<3, 1>(0, 0) = imu_inte->delta_p_ + Rwi.transpose() * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic;
             //cout << "delta_p   " << frame_j->second.pre_integratfion->delta_p.transpose() << endl;
             tmp_A.block<3, 3>(3, 0) = -Eigen::Matrix3d::Identity();
             tmp_A.block<3, 3>(3, 3) = Rwi.transpose() * Rwj;
             tmp_A.block<3, 3>(3, 6) = Rwi.transpose() * dt * Eigen::Matrix3d::Identity();
-            tmp_b.block<3, 1>(3, 0) = imu_inte.delta_v_;
+            tmp_b.block<3, 1>(3, 0) = imu_inte->delta_v_;
             //cout << "delta_v   " << frame_j->second.pre_integration->delta_v.transpose() << endl;
 
             Eigen::Matrix<double, 6, 6> cov_inv = Eigen::Matrix<double, 6, 6>::Zero();
@@ -728,9 +689,9 @@ namespace sfm{
         }
         A = A * 1000.0;
         b = b * 1000.0;
-        Eigen::VectorXd x = A.ldlt().solve(b);
-        correct_scale = x(n_state - 1) / 100.;
-        correct_g = x.segment<3>(n_state - 4);
+        speeds_scale = A.ldlt().solve(b);
+        double correct_scale = speeds_scale(n_state - 1) / 100.;
+        correct_g = speeds_scale.segment<3>(n_state - 4);
 
         if(/*fabs(correct_g.norm() - G.norm()) > 1.0 ||*/ correct_scale < 0)
         {
@@ -739,9 +700,10 @@ namespace sfm{
         std::cout << "correct_scale = " << correct_scale << std::endl;
         std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
 
-        RefineGravity(correct_scale, correct_g);
+        RefineGravity(speeds_scale, correct_g);
         std::cout << "correct_scale = " << correct_scale << std::endl;
         std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
+        VIstaticParm::G_ = correct_g;
         return true;
     }
 
@@ -760,9 +722,9 @@ namespace sfm{
         return bc;
     }
 
-    void SequentialVISfMReconstructionEngine::RefineGravity(double &correct_scale, Eigen::Vector3d &correct_g)
+    void SequentialVISfMReconstructionEngine::RefineGravity(Eigen::VectorXd& speeds_scale, Eigen::Vector3d &correct_g)
     {
-        Eigen::Vector3d g0 = correct_g.normalized() * sfm_data_.IG_G_.norm();
+        Eigen::Vector3d g0 = correct_g.normalized() * VIstaticParm::G_.norm();
         Eigen::Vector3d lx, ly;
 
         int n_state = sfm_data_.imus.size() * 3 + 2 + 1;
@@ -793,17 +755,17 @@ namespace sfm{
                 Vec3 twj = pose_it_j->second.center();
 
                 auto imu_inte = sfm_data_.imus.at( pose_it_j->first );
-                double dt = imu_inte.sum_dt_;
+                double dt = imu_inte->sum_dt_;
 
                 tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
                 tmp_A.block<3, 2>(0, 6) = Riw * dt * dt / 2 * Eigen::Matrix3d::Identity() * lxly;
                 tmp_A.block<3, 1>(0, 8) = Riw * (twj - twi) / 100.0;
-                tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Riw * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic - Riw * dt * dt / 2 * g0;
+                tmp_b.block<3, 1>(0, 0) = imu_inte->delta_p_ + Riw * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic - Riw * dt * dt / 2 * g0;
 
                 tmp_A.block<3, 3>(3, 0) = - Eigen::Matrix3d::Identity();
                 tmp_A.block<3, 3>(3, 3) = Riw * Rwj;
                 tmp_A.block<3, 2>(3, 6) = Riw * dt * Eigen::Matrix3d::Identity() * lxly;
-                tmp_b.block<3, 1>(3, 0) = imu_inte.delta_v_- Riw * dt * Eigen::Matrix3d::Identity() * g0;
+                tmp_b.block<3, 1>(3, 0) = imu_inte->delta_v_- Riw * dt * Eigen::Matrix3d::Identity() * g0;
 
 
                 Eigen::Matrix<double, 6, 6> cov_inv = Eigen::Matrix<double, 6, 6>::Zero();
@@ -825,9 +787,9 @@ namespace sfm{
             }
             A = A * 1000.0;
             b = b * 1000.0;
-            Eigen::VectorXd x = A.ldlt().solve(b);
-            Eigen::VectorXd dg = x.segment<2>(n_state - 3);
-            g0 = (g0 + lxly * dg).normalized() * sfm_data_.IG_G_.norm();
+            speeds_scale = A.ldlt().solve(b);
+            Eigen::VectorXd dg = speeds_scale.segment<2>(n_state - 3);
+            g0 = (g0 + lxly * dg).normalized() * VIstaticParm::G_.norm();
 //            correct_scale = x(n_state-1) / 100.;
             //double s = x(n_state - 1);
         }

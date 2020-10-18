@@ -179,7 +179,7 @@ int main(int argc, char **argv)
             0.00900781, 0.01312851, -0.99987324;
     Vec3 tic( 0.01903381, -0.02204486, 0.00402214 );
     Vec3 G(0.,0.,9.8107);
-    sfMData.IG_G_ = G;
+    VIstaticParm::G_ = G;
     sfMData.IG_Ric = Ric;
     sfMData.IG_tic = tic;
 

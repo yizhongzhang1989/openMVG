@@ -15,6 +15,7 @@
 #include "openMVG/tracks/tracks.hpp"
 
 #include "visfm_data_BA_ceres.hpp"
+#include "VI_static_Parm.hpp"
 
 namespace htmlDocument { class htmlDocumentStream; }
 namespace { template <typename T> class Histogram; }
@@ -49,17 +50,15 @@ public:
     bool VI_Init( );
 
     void solveGyroscopeBias();
-    bool solve_vgs( double& correct_scale, Eigen::Vector3d& correct_g );
+    bool solve_vgs( Eigen::VectorXd& speeds_scale, Eigen::Vector3d& correct_g );
     static Eigen::MatrixXd TangentBasis( Eigen::Vector3d& g0 );
-    void RefineGravity( double& correct_scale, Eigen::Vector3d& correct_g );
+    void RefineGravity( Eigen::VectorXd& speeds_scale, Eigen::Vector3d& correct_g );
 
     bool VI_align();
     void update_imu_inte();
     void update_imu_time();
     void rota_pose();
-    void recover_g_s(const Eigen::Vector3d& correct_g, const double correct_scale);
-
-    void preintegrate();
+    void recover_g_s(const Eigen::Vector3d& correct_g, const Eigen::VectorXd& speeds_scale);
 
     void setInitialPair(const Pair & initialPair)
     {

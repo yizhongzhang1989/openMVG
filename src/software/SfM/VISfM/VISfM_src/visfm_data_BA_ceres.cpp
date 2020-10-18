@@ -143,17 +143,21 @@ namespace openMVG
 
             ceres::Problem problem;
 
-            double ex_paparm[6];
+            double ex_paparm[7];
             {
-                Mat3 Rci = sfm_data.IG_Ric.transpose();
-                ceres::RotationMatrixToAngleAxis((const double*)Rci.data(), ex_paparm);
-                Vec3 tci = -Rci * sfm_data.IG_tic;
-                ex_paparm[3] = tci(0);
-                ex_paparm[4] = tci(1);
-                ex_paparm[5] = tci(2);
+                Mat3 Ric = sfm_data.IG_Ric.transpose();
+                Eigen::Quaterniond Qic(Ric);
+                Vec3 tic = sfm_data.IG_tic;
+                ex_paparm[0] = tic(0);
+                ex_paparm[1] = tic(1);
+                ex_paparm[2] = tic(2);
+                ex_paparm[3] = Qic.x();
+                ex_paparm[4] = Qic.y();
+                ex_paparm[5] = Qic.z();
+                ex_paparm[6] = Qic.w();
 
-                problem.AddParameterBlock(ex_paparm, 6);
-                problem.SetParameterBlockConstant(ex_paparm);
+                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+                problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
             }
 
             // Data wrapper for refinement:
@@ -166,16 +170,25 @@ namespace openMVG
                 const IndexT indexPose = pose_it.first;
 
                 const Pose3 & pose = pose_it.second;
-                const Mat3 R = pose.rotation();
-                const Vec3 t = pose.translation();
+                const Mat3 Rwi = pose.rotation().transpose();
+                Eigen::Quaterniond Qwi(Rwi);
+                const Vec3 twi = pose.center();
 
-                double angleAxis[3];
-                ceres::RotationMatrixToAngleAxis((const double*)R.data(), angleAxis);
                 // angleAxis + translation
-                map_poses[indexPose] = {angleAxis[0], angleAxis[1], angleAxis[2], t(0), t(1), t(2)};
+                map_poses[indexPose] = {
+                        twi(0),
+                        twi(1),
+                        twi(2),
+                        Qwi.x(),
+                        Qwi.y(),
+                        Qwi.z(),
+                        Qwi.w()
+                };
 
                 double * parameter_block = &map_poses.at(indexPose)[0];
-                problem.AddParameterBlock(parameter_block, 6);
+                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+                problem.AddParameterBlock(parameter_block, 7, local_parameterization);  // p,q
+//                problem.AddParameterBlock(parameter_block, 6);
                 if (options.extrinsics_opt == Extrinsic_Parameter_Type::NONE)
                 {
                     // set the whole parameter block as constant for best performance
@@ -194,12 +207,15 @@ namespace openMVG
                     if (options.extrinsics_opt == Extrinsic_Parameter_Type::ADJUST_ROTATION)
                     {
                         // Subset translation parametrization
-                        vec_constant_extrinsic.insert(vec_constant_extrinsic.end(), {3,4,5});
+                        vec_constant_extrinsic.insert(vec_constant_extrinsic.end(), {3,4,5,6});
                     }
                     if (!vec_constant_extrinsic.empty())
                     {
+                        assert(0);
                         ceres::SubsetParameterization *subset_parameterization =
-                                new ceres::SubsetParameterization(6, vec_constant_extrinsic);
+                                new ceres::SubsetParameterization(7, vec_constant_extrinsic);
+//                        auto sssssssson =
+//                                new ceres::SubsetParameterization(7, vec_constant_extrinsic, local_parameterization);
                         problem.SetParameterization(parameter_block, subset_parameterization);
                     }
                 }
@@ -262,13 +278,15 @@ namespace openMVG
                     // Each Residual block takes a point and a camera as input and outputs a 2
                     // dimensional residual. Internally, the cost function stores the observed
                     // image location and compares the reprojection against the observation.
-                    ceres::CostFunction* cost_function =
-                            (new ceres::AutoDiffCostFunction
-                                    <ResidualVISUALWithIMUErrorFunctor_Pinhole_Intrinsic_Radial_K3, 2, 6, 6, 6, 3>(
-                                    new ResidualVISUALWithIMUErrorFunctor_Pinhole_Intrinsic_Radial_K3(obs_it.second.x.data())));
-                            assert( sfm_data.intrinsics.at(view->id_intrinsic).get()->getType() == PINHOLE_CAMERA_RADIAL3 );
+//                    ceres::CostFunction* cost_function =
+//                            (new ceres::AutoDiffCostFunction
+//                                    <ResidualVISUALWithIMUErrorFunctor_Pinhole_Intrinsic_Radial_K3, 2, 6, 6, 6, 3>(
+//                                    new ResidualVISUALWithIMUErrorFunctor_Pinhole_Intrinsic_Radial_K3(obs_it.second.x.data())));
+//                            assert( sfm_data.intrinsics.at(view->id_intrinsic).get()->getType() == PINHOLE_CAMERA_RADIAL3 );
 //                            IntrinsicsToCostFunction(sfm_data.intrinsics.at(view->id_intrinsic).get(),
 //                                                     obs_it.second.x);
+                    Eigen::Vector2d ob_i = obs_it.second.x;
+                    VISfM_Projection* cost_function = new VISfM_Projection( ob_i );
 
                     if (cost_function)
                     {
@@ -276,10 +294,17 @@ namespace openMVG
                         {
                             problem.AddResidualBlock(cost_function,
                                                      p_LossFunction,
-                                                     &map_intrinsics.at(view->id_intrinsic)[0],
                                                      &map_poses.at(view->id_pose)[0],
                                                      ex_paparm,
+                                                     &map_intrinsics.at(view->id_intrinsic)[0],
                                                      structure_landmark_it.second.X.data());
+
+//                            problem.AddResidualBlock(cost_function,
+//                                                     p_LossFunction,
+//                                                     &map_intrinsics.at(view->id_intrinsic)[0],
+//                                                     &map_poses.at(view->id_pose)[0],
+//                                                     ex_paparm,
+//                                                     structure_landmark_it.second.X.data());
                         }
                         else
                         {

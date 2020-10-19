@@ -505,8 +505,8 @@ namespace openMVG
             {
                 const IndexT indexSpd = speed.first;
                 Vec3 speedV3d = speed.second.speed_;
-                Vec3 Ba = sfm_data.imus.at(indexSpd)->linearized_ba_;
-                Vec3 Bg = sfm_data.imus.at(indexSpd)->linearized_bg_;
+                Vec3 Ba = sfm_data.imus.at(indexSpd).linearized_ba_;
+                Vec3 Bg = sfm_data.imus.at(indexSpd).linearized_bg_;
                 map_speed[indexSpd] = {
                         speedV3d(0),
                         speedV3d(1),
@@ -637,6 +637,7 @@ namespace openMVG
                 {
                     const IndexT indexPose = pose_j->first;
                     auto imu_ptr = sfm_data.imus.at(indexPose);
+                    if( imu_ptr.sum_dt_ > 10.0 ) continue;
 
                     IMUFactor* imu_factor = new IMUFactor(imu_ptr);
                     problem.AddResidualBlock(imu_factor, nullptr,
@@ -742,8 +743,8 @@ namespace openMVG
                     Vec3 bg(map_speed.at(indexIMU)[6], map_speed.at(indexIMU)[7], map_speed.at(indexIMU)[8]);
 
                     sfm_data.Speeds.at(indexIMU).speed_ = speed;
-                    imu.second->linearized_ba_ = ba;
-                    imu.second->linearized_bg_ = bg;
+                    imu.second.linearized_ba_ = ba;
+                    imu.second.linearized_bg_ = bg;
                 }
 
                 // Structure is already updated directly if needed (no data wrapping)

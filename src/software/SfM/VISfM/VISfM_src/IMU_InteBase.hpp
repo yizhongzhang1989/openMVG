@@ -56,9 +56,9 @@ namespace openMVG
                     data_[i] = std::strtod( part.c_str(), nullptr );
                 }
 
-                data_[0] -= 1403715 * 1e12;
-                data_[0] /= 1e6;
-                data_[0] = static_cast<int>(data_[0]);
+//                data_[0] -= 1403715 * 1e12;
+//                data_[0] /= 1e6;
+//                data_[0] = static_cast<int>(data_[0]);
 
                 if( last_data_[0] != 0 )
                 {
@@ -86,12 +86,12 @@ namespace openMVG
                 CsvReader reader( IMU_file_path );
                 while(reader.readline())
                 {
-                    vec_times.push_back(reader.data_[0]);
-                    vec_gyr.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
-                    vec_acc.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
 //                    vec_times.push_back(reader.data_[0]);
-//                    vec_acc.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
-//                    vec_gyr.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
+//                    vec_gyr.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
+//                    vec_acc.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
+                    vec_times.push_back(reader.data_[0]);
+                    vec_acc.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
+                    vec_gyr.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
                 }
             }
 
@@ -224,11 +224,11 @@ namespace openMVG
         class IMU_InteBase
         {
         public:
-            EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-            IMU_InteBase() = delete;
-//            {
-//                std::runtime_error("should not be here");
-//            }
+//            EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+            IMU_InteBase()
+            {
+                std::runtime_error("should not be here");
+            }
             ~IMU_InteBase() = default;
 
             IMU_InteBase(const IndexT _t0, const IndexT _t1)
@@ -269,9 +269,9 @@ namespace openMVG
                     last_t = time;
                     propagate(dt, _accs[index], _gyrs[index]);
                     dt_buf_.push_back(dt);
+                    acc_buf_.push_back(_accs[index]);
+                    gyr_buf_.push_back(_accs[index]);
                 }
-                acc_buf_ = _accs;
-                gyr_buf_ = _gyrs;
             }
 
             void repropagate(const Eigen::Vector3d &_linearized_ba, const Eigen::Vector3d &_linearized_bg)
@@ -393,7 +393,7 @@ namespace openMVG
             }
 
             Eigen::Matrix<double, 15, 1> evaluate(const Eigen::Vector3d &Pi, const Eigen::Quaterniond &Qi, const Eigen::Vector3d &Vi, const Eigen::Vector3d &Bai, const Eigen::Vector3d &Bgi,
-                                                  const Eigen::Vector3d &Pj, const Eigen::Quaterniond &Qj, const Eigen::Vector3d &Vj, const Eigen::Vector3d &Baj, const Eigen::Vector3d &Bgj)
+                                                  const Eigen::Vector3d &Pj, const Eigen::Quaterniond &Qj, const Eigen::Vector3d &Vj, const Eigen::Vector3d &Baj, const Eigen::Vector3d &Bgj) const
             {
                 Eigen::Matrix<double, 15, 1> residuals;
 

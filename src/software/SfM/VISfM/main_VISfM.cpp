@@ -249,9 +249,11 @@ int main(int argc, char **argv)
 //                std::cerr << "WTF"<< line << "WTF" << std::endl;
                 break;
             }
-            double time = std::stod(line);
-            time -= 1403715 * 1e12;
-            times.emplace_back( static_cast<IndexT>(time / 1e6) ); // second * 1000
+//            double time = std::stod(line);
+//            time -= 1403715 * 1e12;
+//            times.emplace_back( static_cast<IndexT>(time / 1e6) ); // second * 1000
+             double time = std::stod(line);
+             times.emplace_back( static_cast<IndexT>(time * 1000) ); // second * 1000
 //            std::cout << i++ << " " ;
 //            std::cout << time << std::endl;
         }
@@ -265,8 +267,8 @@ int main(int argc, char **argv)
     }
     // TODO xinli check IMU image dt
     std::shared_ptr<IMU_Dataset> imu_dataset = std::make_shared<IMU_Dataset>(sSfM_IMU_Filename);
-//    imu_dataset->corect_time( times.back() );
-//    imu_dataset->corect_dt( 2 );
+    imu_dataset->corect_time( times.back() );
+    imu_dataset->corect_dt( 2 );
 
     //---------------------------------------
     // Sequential reconstruction process
@@ -309,6 +311,9 @@ int main(int argc, char **argv)
     if(visfmEngine.VI_Init(  ))
     {
 
+        Save(visfmEngine.Get_SfM_Data(),
+             "/home/xinli/work/data/VI_visual_init.bin",
+             ESfM_Data(ALL));
         if(!visfmEngine.VI_align())
         {
             std::cerr << "VI sfm align fail" << std::endl;
@@ -316,7 +321,7 @@ int main(int argc, char **argv)
         }
         else{
             Save(visfmEngine.Get_SfM_Data(),
-                 "/home/xinli/work/data/VI_visual_init.bin",
+                 "/home/xinli/work/data/VI_visualIMU_init.bin",
                  ESfM_Data(ALL));
             return EXIT_SUCCESS;
             if(visfmEngine.Process())

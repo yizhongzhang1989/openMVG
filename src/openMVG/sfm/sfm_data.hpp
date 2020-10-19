@@ -31,7 +31,8 @@ public:
     Vec3 speed_;
 };
 
-using Imus = Hash_Map<IndexT, std::shared_ptr<IMU_InteBase>>;
+//using Imus = Hash_Map<IndexT, std::shared_ptr<IMU_InteBase>>;
+using Imus = Hash_Map<IndexT, IMU_InteBase>;
 
 using Timestamps = Hash_Map<IndexT, double>;
 
@@ -62,6 +63,7 @@ struct SfM_Data
   // Considered SpeedBiase (indexed by view.id_pose)
   SpeedBiases Speeds;
   std::shared_ptr<IMU_Dataset> imu_dataset;
+//  IMU_Dataset imu_dataset;
   Mat3 IG_Ric;
   Vec3 IG_tic;
 

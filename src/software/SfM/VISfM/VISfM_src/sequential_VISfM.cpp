@@ -432,7 +432,7 @@ namespace sfm{
         }*/
 
         std::cout <<"-=------=-=-=-=-=-=-=-=" << std::endl;
-        double correct_scale = (speeds_scale.tail<1>())(0);
+        double correct_scale = (speeds_scale.tail<1>())(0) / 100.;
 
 
         int kv = -1;
@@ -512,21 +512,23 @@ namespace sfm{
                 }
             }
         }*/
-        BundleAdjustment();
+//        BundleAdjustment();
     }
 
     void SequentialVISfMReconstructionEngine::update_imu_inte()
     {
         for( auto & id_imubase:sfm_data_.imus )
         {
-            IndexT t0 = id_imubase.second->t0_;
-            IndexT t1 = id_imubase.second->t1_;
+            IndexT t0 = id_imubase.second.t0_;
+            IndexT t1 = id_imubase.second.t1_;
             std::vector< IndexT > times;
             std::vector<Vec3> accs;
             std::vector<Vec3> gyrs;
 
+//            std::cout << "start GetMeasure" << std::endl;
             std::tie( times, accs, gyrs ) = sfm_data_.imu_dataset->GetMeasure(t0, t1);
-            id_imubase.second->integrate(accs, gyrs, times);
+//            std::cout << "start integrate" << std::endl;
+            id_imubase.second.integrate(accs, gyrs, times);
         }
     }
 
@@ -543,11 +545,12 @@ namespace sfm{
             if( sfm_data_.imus.count( id_pose ) == 0 )
             {
                 //todo xinli ba bg
-                std::cout << "start insert imu" << std::endl;
+//                std::cout << "start insert imu" << std::endl;
 
-                std::cout << "start construction imubase_ptr" << std::endl;
-                std::shared_ptr<IMU_InteBase> imubase_ptr = std::make_shared<IMU_InteBase>(last_t, cur_t);
-                std::cout << "end construction imubase_ptr" << std::endl;
+//                std::cout << "start construction imubase_ptr" << std::endl;
+                IMU_InteBase imubase_ptr(last_t, cur_t);
+//                std::shared_ptr<IMU_InteBase> imubase_ptr = std::make_shared<IMU_InteBase>(last_t, cur_t);
+//                std::cout << "end construction imubase_ptr" << std::endl;
                 sfm_data_.imus.insert( std::make_pair( id_pose,  imubase_ptr) );
 
 
@@ -555,11 +558,11 @@ namespace sfm{
                 IMU_Speed speed(Eigen::Vector3d(0.,0.,0.));
 //                std::cout << "end construction IMU_Speed" << std::endl;
                 sfm_data_.Speeds.insert( std::make_pair(id_pose, speed) );
-                std::cout << "end insert imu" << std::endl;
+//                std::cout << "end insert imu" << std::endl;
             }
             else
             {
-                sfm_data_.imus[id_pose]->change_time(last_t, cur_t);
+                sfm_data_.imus[id_pose].change_time(last_t, cur_t);
             }
             last_t = cur_t;
             it_pose++;
@@ -578,7 +581,7 @@ namespace sfm{
         Eigen::VectorXd speeds_scale;
         Eigen::Vector3d correct_g;
         std::cout << "start solveGyroscopeBias" << std::endl;
-        solveGyroscopeBias();
+//        solveGyroscopeBias();
         std::cout << "end solveGyroscopeBias" << std::endl;
 
         std::cout << "start solve_vgs" << std::endl;
@@ -631,23 +634,27 @@ namespace sfm{
             auto imu_inte = sfm_data_.imus.at( pose_it_j->first );
 
             Eigen::Quaterniond q_ij(Riw * Rwj);
-            tmp_A = imu_inte->GetBg();
-            tmp_b = 2 * ( imu_inte->delta_q_.inverse() * q_ij).vec();
+            tmp_A = imu_inte.GetBg();
+            tmp_b = 2 * ( imu_inte.delta_q_.inverse() * q_ij).vec();
             A += tmp_A.transpose() * tmp_A;
             b += tmp_A.transpose() * tmp_b;
+
+
+            Eigen::Quaterniond delta = imu_inte.delta_q_.inverse() * q_ij;
+            std::cout << "delta = " << delta.coeffs().transpose() << std::endl;
         }
         delta_bg = A.ldlt().solve(b);
 
         for( auto&it_imu:sfm_data_.imus )
         {
-            it_imu.second->repropagate( Eigen::Vector3d::Zero(), delta_bg );
+            it_imu.second.repropagate( Eigen::Vector3d::Zero(), delta_bg );
         }
         std::cout << "delta_bg = " << delta_bg.transpose() << std::endl;
     }
 
     bool SequentialVISfMReconstructionEngine::solve_vgs(Eigen::VectorXd& speeds_scale, Eigen::Vector3d &correct_g)
     {
-        int n_state = sfm_data_.imus.size() * 3 + 3 + 1;
+        int n_state = static_cast<int>(sfm_data_.imus.size()) * 3 + 3 + 1;
         Eigen::MatrixXd A{n_state, n_state};
         A.setZero();
         Eigen::VectorXd b{n_state};
@@ -672,16 +679,16 @@ namespace sfm{
 
             auto imu_inte = sfm_data_.imus.at( pose_it_j->first );
 
-            double dt = imu_inte->sum_dt_;
+            double dt = imu_inte.sum_dt_;
             tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
             tmp_A.block<3, 3>(0, 6) = Rwi.transpose() * dt * dt / 2 * Eigen::Matrix3d::Identity();
             tmp_A.block<3, 1>(0, 9) = Rwi.transpose() * (twj - twi) / 100.;
-            tmp_b.block<3, 1>(0, 0) = imu_inte->delta_p_ + Rwi.transpose() * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic;
+            tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Rwi.transpose() * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic;
             //cout << "delta_p   " << frame_j->second.pre_integratfion->delta_p.transpose() << endl;
             tmp_A.block<3, 3>(3, 0) = -Eigen::Matrix3d::Identity();
             tmp_A.block<3, 3>(3, 3) = Rwi.transpose() * Rwj;
             tmp_A.block<3, 3>(3, 6) = Rwi.transpose() * dt * Eigen::Matrix3d::Identity();
-            tmp_b.block<3, 1>(3, 0) = imu_inte->delta_v_;
+            tmp_b.block<3, 1>(3, 0) = imu_inte.delta_v_;
             //cout << "delta_v   " << frame_j->second.pre_integration->delta_v.transpose() << endl;
 
             Eigen::Matrix<double, 6, 6> cov_inv = Eigen::Matrix<double, 6, 6>::Zero();
@@ -715,6 +722,8 @@ namespace sfm{
         std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
 
         RefineGravity(speeds_scale, correct_g);
+
+        correct_scale = (speeds_scale.tail<1>())(0) / 100;
         std::cout << "correct_scale = " << correct_scale << std::endl;
         std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
         VIstaticParm::G_ = correct_g;
@@ -769,17 +778,17 @@ namespace sfm{
                 Vec3 twj = pose_it_j->second.center();
 
                 auto imu_inte = sfm_data_.imus.at( pose_it_j->first );
-                double dt = imu_inte->sum_dt_;
+                double dt = imu_inte.sum_dt_;
 
                 tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
                 tmp_A.block<3, 2>(0, 6) = Riw * dt * dt / 2 * Eigen::Matrix3d::Identity() * lxly;
                 tmp_A.block<3, 1>(0, 8) = Riw * (twj - twi) / 100.0;
-                tmp_b.block<3, 1>(0, 0) = imu_inte->delta_p_ + Riw * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic - Riw * dt * dt / 2 * g0;
+                tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Riw * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic - Riw * dt * dt / 2 * g0;
 
                 tmp_A.block<3, 3>(3, 0) = - Eigen::Matrix3d::Identity();
                 tmp_A.block<3, 3>(3, 3) = Riw * Rwj;
                 tmp_A.block<3, 2>(3, 6) = Riw * dt * Eigen::Matrix3d::Identity() * lxly;
-                tmp_b.block<3, 1>(3, 0) = imu_inte->delta_v_- Riw * dt * Eigen::Matrix3d::Identity() * g0;
+                tmp_b.block<3, 1>(3, 0) = imu_inte.delta_v_- Riw * dt * Eigen::Matrix3d::Identity() * g0;
 
 
                 Eigen::Matrix<double, 6, 6> cov_inv = Eigen::Matrix<double, 6, 6>::Zero();

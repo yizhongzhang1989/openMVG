@@ -159,7 +159,9 @@ namespace openMVG {
         {
         public:
             IMUFactor() = delete;
-            IMUFactor(std::shared_ptr<IMU_InteBase> _pre_integration)
+//            IMUFactor(std::shared_ptr<IMU_InteBase> _pre_integration)
+
+            IMUFactor(const IMU_InteBase& _pre_integration)
             :pre_integration(_pre_integration)
             {
             }
@@ -181,23 +183,23 @@ namespace openMVG {
                 Eigen::Vector3d Bgj(parameters[3][6], parameters[3][7], parameters[3][8]);
 
                 Eigen::Map<Eigen::Matrix<double, 15, 1>> residual(residuals);
-                residual = pre_integration->evaluate(Pi, Qi, Vi, Bai, Bgi,
+                residual = pre_integration.evaluate(Pi, Qi, Vi, Bai, Bgi,
                                                      Pj, Qj, Vj, Baj, Bgj);
 
-                Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration->covariance.inverse()).matrixL().transpose();
+                Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration.covariance.inverse()).matrixL().transpose();
                 //sqrt_info.setIdentity();
                 residual = sqrt_info * residual;
 
                 if (jacobians)
                 {
-                    double sum_dt = pre_integration->sum_dt_;
-                    Eigen::Matrix3d dp_dba = pre_integration->jacobian.template block<3, 3>(O_P, O_BA);
-                    Eigen::Matrix3d dp_dbg = pre_integration->jacobian.template block<3, 3>(O_P, O_BG);
+                    double sum_dt = pre_integration.sum_dt_;
+                    Eigen::Matrix3d dp_dba = pre_integration.jacobian.template block<3, 3>(O_P, O_BA);
+                    Eigen::Matrix3d dp_dbg = pre_integration.jacobian.template block<3, 3>(O_P, O_BG);
 
-                    Eigen::Matrix3d dq_dbg = pre_integration->jacobian.template block<3, 3>(O_R, O_BG);
+                    Eigen::Matrix3d dq_dbg = pre_integration.jacobian.template block<3, 3>(O_R, O_BG);
 
-                    Eigen::Matrix3d dv_dba = pre_integration->jacobian.template block<3, 3>(O_V, O_BA);
-                    Eigen::Matrix3d dv_dbg = pre_integration->jacobian.template block<3, 3>(O_V, O_BG);
+                    Eigen::Matrix3d dv_dba = pre_integration.jacobian.template block<3, 3>(O_V, O_BA);
+                    Eigen::Matrix3d dv_dbg = pre_integration.jacobian.template block<3, 3>(O_V, O_BG);
 
                     if (jacobians[0])
                     {
@@ -207,7 +209,7 @@ namespace openMVG {
                         jacobian_pose_i.block<3, 3>(O_P, O_P) = -Qi.inverse().toRotationMatrix();
                         jacobian_pose_i.block<3, 3>(O_P, O_R) = Utility::skewSymmetric(Qi.inverse() * (0.5 * VIstaticParm::G_ * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt));
 
-                        Eigen::Quaterniond corrected_delta_q = pre_integration->delta_q_ * Utility::deltaQ(dq_dbg * (Bgi - pre_integration->linearized_bg_));
+                        Eigen::Quaterniond corrected_delta_q = pre_integration.delta_q_ * Utility::deltaQ(dq_dbg * (Bgi - pre_integration.linearized_bg_));
                         jacobian_pose_i.block<3, 3>(O_R, O_R) = -(Utility::Qleft(Qj.inverse() * Qi) * Utility::Qright(corrected_delta_q)).bottomRightCorner<3, 3>();
 
                         jacobian_pose_i.block<3, 3>(O_V, O_R) = Utility::skewSymmetric(Qi.inverse() * (VIstaticParm::G_ * sum_dt + Vj - Vi));
@@ -222,7 +224,7 @@ namespace openMVG {
                         jacobian_speedbias_i.block<3, 3>(O_P, O_BA - O_V) = -dp_dba;
                         jacobian_speedbias_i.block<3, 3>(O_P, O_BG - O_V) = -dp_dbg;
 
-                        jacobian_speedbias_i.block<3, 3>(O_R, O_BG - O_V) = -Utility::Qleft(Qj.inverse() * Qi * pre_integration->delta_q_).bottomRightCorner<3, 3>() * dq_dbg;
+                        jacobian_speedbias_i.block<3, 3>(O_R, O_BG - O_V) = -Utility::Qleft(Qj.inverse() * Qi * pre_integration.delta_q_).bottomRightCorner<3, 3>() * dq_dbg;
 
                         jacobian_speedbias_i.block<3, 3>(O_V, O_V - O_V) = -Qi.inverse().toRotationMatrix();
                         jacobian_speedbias_i.block<3, 3>(O_V, O_BA - O_V) = -dv_dba;
@@ -245,7 +247,7 @@ namespace openMVG {
                         jacobian_pose_j.block<3, 3>(O_P, O_P) = Qi.inverse().toRotationMatrix();
 
 
-                        Eigen::Quaterniond corrected_delta_q = pre_integration->delta_q_ * Utility::deltaQ(dq_dbg * (Bgi - pre_integration->linearized_bg_));
+                        Eigen::Quaterniond corrected_delta_q = pre_integration.delta_q_ * Utility::deltaQ(dq_dbg * (Bgi - pre_integration.linearized_bg_));
                         jacobian_pose_j.block<3, 3>(O_R, O_R) = Utility::Qleft(corrected_delta_q.inverse() * Qi.inverse() * Qj).bottomRightCorner<3, 3>();
 
                         jacobian_pose_j = sqrt_info * jacobian_pose_j;
@@ -273,7 +275,8 @@ namespace openMVG {
             //void checkCorrection();
             //void checkTransition();
             //void checkJacobian(double **parameters);
-            std::shared_ptr<IMU_InteBase> pre_integration;
+            IMU_InteBase pre_integration;
+//            std::shared_ptr<IMU_InteBase> pre_integration;
         };
 
     }

@@ -49,6 +49,8 @@ namespace openMVG
 
             residual = sqrt_info * residual;
 
+//            std::cout << "residuals = " << residual.transpose() << std::endl;
+
             if( jacobians )
             {
                 if(jacobians[0])

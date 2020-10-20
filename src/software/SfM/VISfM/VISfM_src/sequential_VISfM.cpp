@@ -221,23 +221,28 @@ namespace sfm{
 
             // get start index and end index of vi init
             {
+                const int len_size_2 = 20;
                 IndexT len_2 = (initial_pair_.second - initial_pair_.first) / 2;
-                IndexT inital_len_2 = 10 > len_2 ? 10 : len_2;
+                IndexT inital_len_2 = len_size_2 > len_2 ? len_size_2 : len_2;
                 IndexT center = initial_pair_.first + len_2;
-                IndexT left = center - inital_len_2;
-                IndexT right = center + inital_len_2;
-                if( left < 0 )
-                {
-                    right -= left;
+                IndexT left, right;
+                if( center < inital_len_2 )
                     left = 0;
-                    assert( right >= sfm_data_.GetViews().size() );
-                }
+                else
+                    left = center - inital_len_2;
+                right = center + inital_len_2;
+//                if( left < 0 )
+//                {
+////                    right -= left;
+//                    left = 0;
+////                    assert( right >= sfm_data_.GetViews().size() );
+//                }
                 if( right >= sfm_data_.GetViews().size())
                 {
-                    int over = right - sfm_data_.GetViews().size() + 1;
-                    left -= over;
+//                    int over = right - sfm_data_.GetViews().size() + 1;
+//                    left -= over;
                     right = sfm_data_.GetViews().size() -1;
-                    assert( left < 0 );
+//                    assert( left < 0 );
                 }
 
                 // Init remaining image list
@@ -512,7 +517,6 @@ namespace sfm{
                 }
             }
         }*/
-//        BundleAdjustment();
     }
 
     void SequentialVISfMReconstructionEngine::update_imu_inte()
@@ -569,6 +573,44 @@ namespace sfm{
         }
     }
 
+    bool SequentialVISfMReconstructionEngine::check_imu_observibility()
+    {
+        //check imu observibility
+        {
+            Eigen::Vector3d sum_g;
+            double sum_i = 0.;
+            for( const auto&imu:sfm_data_.imus )
+            {
+                auto dt = imu.second.sum_dt_;
+                if( dt == 0 ) continue;
+                Eigen::Vector3d tmp_g = imu.second.delta_v_ / dt;
+                sum_g += tmp_g;
+                sum_i += 1.;
+            }
+
+            Eigen::Vector3d aver_g;
+            aver_g = sum_g * 1.0 / sum_i;
+            double var = 0;
+            for( const auto&imu:sfm_data_.imus )
+            {
+                auto dt = imu.second.sum_dt_;
+                if( dt == 0 ) continue;
+                Eigen::Vector3d tmp_g = imu.second.delta_v_ / dt;
+                var += (tmp_g - aver_g).transpose() * (tmp_g - aver_g);
+            }
+
+            var = std::sqrt(var / sum_i);
+            //ROS_WARN("IMU variation %f!", var);
+            std::cout << "IMU variation " << var << std::endl;
+            if(var < 0.25)
+            {
+                std::cout << "IMU excitation not enouth!" << std::endl;
+                return false;
+            }
+            return true;
+        }
+    }
+
     bool SequentialVISfMReconstructionEngine::VI_align()
     {
         std::cout << "start VI align" << std::endl;
@@ -577,23 +619,58 @@ namespace sfm{
         std::cout << "start update_imu_inte" << std::endl;
         update_imu_inte();
         std::cout << "start rota_pose" << std::endl;
+
+
+        {
+            check_imu_observibility();
+        }
+
+
+
         rota_pose();
         Eigen::VectorXd speeds_scale;
         Eigen::Vector3d correct_g;
-        std::cout << "start solveGyroscopeBias" << std::endl;
+
+//        std::cout << "start solveGyroscopeBias" << std::endl;
 //        solveGyroscopeBias();
-        std::cout << "end solveGyroscopeBias" << std::endl;
+//        std::cout << "end solveGyroscopeBias" << std::endl;
 
         std::cout << "start solve_vgs" << std::endl;
         if( !solve_vgs(speeds_scale, correct_g) ) return false;
         std::cout << "end solve_vgs" << std::endl;
 
+        // init pre not very good
+        {
+            auto it_pose = sfm_data_.poses.begin();
+            auto tw0 = it_pose->second.center();
+            auto it0 = it_pose->first;
+            while( std::next(it_pose) != sfm_data_.poses.end() ) it_pose++;
+            auto tw1 = it_pose->second.center();
+            auto it1 = it_pose->first;
+            std::cout << "it0 = " << it0 << std::endl;
+            std::cout << "it1 = " << it1 << std::endl;
+            std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
+        }
 
         std::cout << "start recover_g_s" << std::endl;
         recover_g_s( correct_g, speeds_scale );
         std::cout << "end recover_g_s" << std::endl;
 
-        // init pre not very good
+        {
+            auto it_pose = sfm_data_.poses.begin();
+            auto tw0 = it_pose->second.center();
+            auto it0 = it_pose->first;
+            while( std::next(it_pose) != sfm_data_.poses.end() ) it_pose++;
+            auto tw1 = it_pose->second.center();
+            auto it1 = it_pose->first;
+            std::cout << "it0 = " << it0 << std::endl;
+            std::cout << "it1 = " << it1 << std::endl;
+            std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
+        }
+
+        BundleAdjustment();
+
+
         {
             auto it_pose = sfm_data_.poses.begin();
             auto tw0 = it_pose->second.center();
@@ -640,8 +717,8 @@ namespace sfm{
             b += tmp_A.transpose() * tmp_b;
 
 
-            Eigen::Quaterniond delta = imu_inte.delta_q_.inverse() * q_ij;
-            std::cout << "delta = " << delta.coeffs().transpose() << std::endl;
+//            Eigen::Quaterniond delta = imu_inte.delta_q_.inverse() * q_ij;
+//            std::cout << "delta = " << delta.coeffs().transpose() << std::endl;
         }
         delta_bg = A.ldlt().solve(b);
 
@@ -654,7 +731,7 @@ namespace sfm{
 
     bool SequentialVISfMReconstructionEngine::solve_vgs(Eigen::VectorXd& speeds_scale, Eigen::Vector3d &correct_g)
     {
-        int n_state = static_cast<int>(sfm_data_.imus.size()) * 3 + 3 + 1;
+        int n_state = static_cast<int>(sfm_data_.imus.size()+1) * 3 + 3 + 1;
         Eigen::MatrixXd A{n_state, n_state};
         A.setZero();
         Eigen::VectorXd b{n_state};
@@ -711,6 +788,7 @@ namespace sfm{
         A = A * 1000.0;
         b = b * 1000.0;
         speeds_scale = A.ldlt().solve(b);
+        std::cout << "speeds_scale.size() = " << speeds_scale.size() << std::endl;
         double correct_scale = speeds_scale(n_state - 1) / 100.;
         correct_g = speeds_scale.segment<3>(n_state - 4);
 
@@ -750,7 +828,7 @@ namespace sfm{
         Eigen::Vector3d g0 = correct_g.normalized() * VIstaticParm::G_.norm();
         Eigen::Vector3d lx, ly;
 
-        int n_state = sfm_data_.imus.size() * 3 + 2 + 1;
+        int n_state = static_cast<int>(sfm_data_.imus.size()+1) * 3 + 2 + 1;
 
         Eigen::MatrixXd A{n_state, n_state};
         A.setZero();
@@ -813,7 +891,8 @@ namespace sfm{
             speeds_scale = A.ldlt().solve(b);
             Eigen::VectorXd dg = speeds_scale.segment<2>(n_state - 3);
             g0 = (g0 + lxly * dg).normalized() * VIstaticParm::G_.norm();
-//            correct_scale = x(n_state-1) / 100.;
+            double correct_scale = speeds_scale(n_state-1) / 100.;
+            std::cout << "refine correct_scale = " << correct_scale << std::endl;
             //double s = x(n_state - 1);
         }
         correct_g = g0;
@@ -1298,7 +1377,7 @@ namespace sfm{
 
                 const uint32_t I = std::min(current_pair.first, current_pair.second);
                 const uint32_t J = std::max(current_pair.first, current_pair.second);
-                if( (J - I) < 20 )  // xinli
+                if( (J - I) < 40 )  // TODO xinli
                 if (valid_views.count(I) && valid_views.count(J))
                 {
                     const View

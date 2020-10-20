@@ -145,7 +145,7 @@ namespace openMVG
 
             double ex_paparm[7];
             {
-                Mat3 Ric = sfm_data.IG_Ric.transpose();
+                Mat3 Ric = sfm_data.IG_Ric;
                 Eigen::Quaterniond Qic(Ric);
                 Vec3 tic = sfm_data.IG_tic;
                 ex_paparm[0] = tic(0);
@@ -158,6 +158,7 @@ namespace openMVG
 
                 ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
                 problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
+                problem.SetParameterBlockConstant(ex_paparm);
             }
 
             // Data wrapper for refinement:
@@ -340,8 +341,8 @@ namespace openMVG
                     static_cast<ceres::LinearSolverType>(ceres_options_.linear_solver_type_);
             ceres_config_options.sparse_linear_algebra_library_type =
                     static_cast<ceres::SparseLinearAlgebraLibraryType>(ceres_options_.sparse_linear_algebra_library_type_);
-            ceres_config_options.minimizer_progress_to_stdout = ceres_options_.bVerbose_;
-            ceres_config_options.logging_type = ceres::SILENT;
+//            ceres_config_options.minimizer_progress_to_stdout = ceres_options_.bVerbose_;
+//            ceres_config_options.logging_type = ceres::SILENT;
             ceres_config_options.num_threads = ceres_options_.nb_threads_;
 #if CERES_VERSION_MAJOR < 2
             ceres_config_options.num_linear_solver_threads = ceres_options_.nb_threads_;

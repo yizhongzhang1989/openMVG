@@ -267,8 +267,8 @@ int main(int argc, char **argv)
     }
     // TODO xinli check IMU image dt
     std::shared_ptr<IMU_Dataset> imu_dataset = std::make_shared<IMU_Dataset>(sSfM_IMU_Filename);
-    imu_dataset->corect_time( times.back() );
-    imu_dataset->corect_dt( 2 );
+//    imu_dataset->corect_time( times.back() );
+//    imu_dataset->corect_dt( 25 );
 
     //---------------------------------------
     // Sequential reconstruction process

@@ -59,6 +59,7 @@ public:
     void update_imu_time();
     void rota_pose();
     void recover_g_s(const Eigen::Vector3d& correct_g, const Eigen::VectorXd& speeds_scale);
+    bool check_imu_observibility();
 
     void setInitialPair(const Pair & initialPair)
     {

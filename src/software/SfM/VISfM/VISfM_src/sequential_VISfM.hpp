@@ -57,6 +57,7 @@ public:
     bool VI_align();
     void update_imu_inte();
     void update_imu_time();
+    void update_state_speed();
     void rota_pose();
     void recover_g_s(const Eigen::Vector3d& correct_g, const Eigen::VectorXd& speeds_scale);
     bool check_imu_observibility();

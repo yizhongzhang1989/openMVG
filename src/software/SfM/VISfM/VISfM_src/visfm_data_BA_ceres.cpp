@@ -171,9 +171,13 @@ namespace openMVG
                 const IndexT indexPose = pose_it.first;
 
                 const Pose3 & pose = pose_it.second;
-                const Mat3 Rwi = pose.rotation().transpose();
+                const Mat3 Rwc = pose.rotation().transpose();
+                const Vec3 twc = pose.center();
+
+                Vec3 tci = - sfm_data.IG_Ric.transpose() * sfm_data.IG_tic;
+                Mat3 Rwi = Rwc * sfm_data.IG_Ric.transpose();
                 Eigen::Quaterniond Qwi(Rwi);
-                const Vec3 twi = pose.center();
+                Vec3 twi = twc + Rwc * tci;
 
                 // angleAxis + translation
                 map_poses[indexPose] = {
@@ -386,13 +390,20 @@ namespace openMVG
                     for (auto &pose_it : sfm_data.poses) {
                         const IndexT indexPose = pose_it.first;
 
-                        Mat3 R_refined;
-                        ceres::AngleAxisToRotationMatrix(&map_poses.at(indexPose)[0], R_refined.data());
-                        Vec3 t_refined(map_poses.at(indexPose)[3], map_poses.at(indexPose)[4],
-                                       map_poses.at(indexPose)[5]);
+                        Eigen::Quaterniond Qwi( map_poses.at(indexPose)[6], map_poses.at(indexPose)[3], map_poses.at(indexPose)[4], map_poses.at(indexPose)[5] );
+                        Vec3 twi(map_poses.at(indexPose)[0],
+                                 map_poses.at(indexPose)[1],
+                                 map_poses.at(indexPose)[2]);
+                        Mat3 Rwi = Qwi.toRotationMatrix();
+
+                        Vec3 tci = - sfm_data.IG_Ric.transpose() * sfm_data.IG_tic;
+                        Mat3 Rcw = ( Rwi * sfm_data.IG_Ric ).transpose();
+                        Vec3 twc = twi + Rwi * sfm_data.IG_tic;
+//                        Vec3 tiw = - Rwi.transpose() * twi;
+//                        Vec3 tcw =  sfm_data.IG_Ric * tci + tiw;
                         // Update the pose
                         Pose3 &pose = pose_it.second;
-                        pose = Pose3(R_refined, -R_refined.transpose() * t_refined);
+                        pose = Pose3(Rcw, twc);
                     }
                 }
 
@@ -451,9 +462,13 @@ namespace openMVG
                 const IndexT indexPose = pose_it.first;
 
                 const Pose3 & pose = pose_it.second;
-                const Mat3 Rwi = pose.rotation().transpose();
+                const Mat3 Rwc = pose.rotation().transpose();
+                const Vec3 twc = pose.center();
+
+                Vec3 tci = - sfm_data.IG_Ric.transpose() * sfm_data.IG_tic;
+                Mat3 Rwi = Rwc * sfm_data.IG_Ric.transpose();
                 Eigen::Quaterniond Qwi(Rwi);
-                const Vec3 twi = pose.center();
+                Vec3 twi = twc + Rwc * tci;
 
                 // angleAxis + translation
                 map_poses[indexPose] = {
@@ -502,12 +517,12 @@ namespace openMVG
                 }
             }
 
-            for( const auto& speed:sfm_data.Speeds )
+            for( const auto& imu:sfm_data.imus )
             {
-                const IndexT indexSpd = speed.first;
-                Vec3 speedV3d = speed.second.speed_;
-                Vec3 Ba = sfm_data.imus.at(indexSpd).linearized_ba_;
-                Vec3 Bg = sfm_data.imus.at(indexSpd).linearized_bg_;
+                const IndexT indexSpd = imu.first;
+                Vec3 speedV3d = sfm_data.Speeds.at(indexSpd).speed_;
+                Vec3 Ba = imu.second.linearized_ba_;
+                Vec3 Bg = imu.second.linearized_bg_;
                 map_speed[indexSpd] = {
                         speedV3d(0),
                         speedV3d(1),
@@ -523,8 +538,8 @@ namespace openMVG
 
                 };
 
-                double * parameter_block = &map_poses.at(indexSpd)[0];
-                problem.AddParameterBlock(parameter_block, map_intrinsics.at(indexSpd).size());
+                double * parameter_block = &map_speed.at(indexSpd)[0];
+                problem.AddParameterBlock(parameter_block, map_speed.at(indexSpd).size());
             }
 
             // Setup Intrinsics data & subparametrization
@@ -631,8 +646,11 @@ namespace openMVG
                     problem.SetParameterBlockConstant(structure_landmark_it.second.X.data());
             }
 
+            ceres::LossFunction * imu_LossFunction =
+                    new ceres::CauchyLoss(Square(2.0));
             {
-                auto pose_i = sfm_data.poses.begin();
+                // TODO xinli first pose speed
+                auto pose_i = sfm_data.poses.begin(); pose_i++;
                 auto pose_j = std::next(pose_i);
                 for(; pose_j != sfm_data.poses.end(); pose_j++, pose_i++)
                 {
@@ -641,7 +659,7 @@ namespace openMVG
                     if( imu_ptr.sum_dt_ > 10.0 ) continue;
 
                     IMUFactor* imu_factor = new IMUFactor(imu_ptr);
-                    problem.AddResidualBlock(imu_factor, nullptr,
+                    problem.AddResidualBlock(imu_factor, imu_LossFunction,
                                              &map_poses.at(pose_i->first)[0],
                                              &map_speed.at(pose_i->first)[0],
                                              &map_poses.at(pose_j->first)[0],
@@ -690,9 +708,10 @@ namespace openMVG
                 if (ceres_options_.bVerbose_) {
                     // Display statistics about the minimization
                     std::cout << std::endl
-                              << "Bundle Adjustment statistics (approximated RMSE):\n"
+                              << "Bundle Adjustment With IMU statistics (approximated RMSE):\n"
                               << " #views: " << sfm_data.views.size() << "\n"
                               << " #poses: " << sfm_data.poses.size() << "\n"
+                              << " #points: " << sfm_data.structure.size() << "\n"
                               << " #intrinsics: " << sfm_data.intrinsics.size() << "\n"
                               << " #tracks: " << sfm_data.structure.size() << "\n"
                               << " #residuals: " << summary.num_residuals << "\n"
@@ -709,20 +728,22 @@ namespace openMVG
                     for (auto &pose_it : sfm_data.poses) {
                         const IndexT indexPose = pose_it.first;
 
-//                        Mat3 R_refined;
-//                        ceres::AngleAxisToRotationMatrix(&map_poses.at(indexPose)[0], R_refined.data());
-//                        Vec3 t_refined(map_poses.at(indexPose)[3], map_poses.at(indexPose)[4],
-//                                       map_poses.at(indexPose)[5]);
-
-
-                        Eigen::Vector3d twi(map_poses.at(indexPose)[0], map_poses.at(indexPose)[1], map_poses.at(indexPose)[2]);
-                        Eigen::Quaterniond Qwi(map_poses.at(indexPose)[6], map_poses.at(indexPose)[3], map_poses.at(indexPose)[4], map_poses.at(indexPose)[5]);
+                        Eigen::Quaterniond Qwi( map_poses.at(indexPose)[6], map_poses.at(indexPose)[3], map_poses.at(indexPose)[4], map_poses.at(indexPose)[5] );
+                        Vec3 twi(map_poses.at(indexPose)[0],
+                                 map_poses.at(indexPose)[1],
+                                 map_poses.at(indexPose)[2]);
                         Mat3 Rwi = Qwi.toRotationMatrix();
-                        Mat3 Riw = Rwi.transpose();
 
+                        Vec3 tci = - sfm_data.IG_Ric.transpose() * sfm_data.IG_tic;
+                        Mat3 Rcw = ( Rwi * sfm_data.IG_Ric ).transpose();
+                        Vec3 twc = twi + Rwi * sfm_data.IG_tic;
+//                        Vec3 tiw = - Rwi.transpose() * twi;
+//                        Vec3 tcw =  sfm_data.IG_Ric * tci + tiw;
                         // Update the pose
-                        Pose3 &pose = pose_it.second;
-                        pose = Pose3(Riw, twi);
+                        pose_it.second.SetRoation(Rcw);
+                        pose_it.second.SetCenter(twc);
+//                        Pose3 &pose = pose_it.second;
+//                        pose = Pose3(Rcw, twc);
                     }
                 }
 

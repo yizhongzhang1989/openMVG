@@ -267,7 +267,7 @@ int main(int argc, char **argv)
     }
     // TODO xinli check IMU image dt
     std::shared_ptr<IMU_Dataset> imu_dataset = std::make_shared<IMU_Dataset>(sSfM_IMU_Filename);
-//    imu_dataset->corect_time( times.back() );
+    imu_dataset->corect_time( times.back() );
 //    imu_dataset->corect_dt( 25 );
 
     //---------------------------------------
@@ -326,21 +326,26 @@ int main(int argc, char **argv)
 //            return EXIT_SUCCESS;
             if(visfmEngine.Process())
             {
-                std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
-
-                std::cout << "...Generating SfM_Report.html" << std::endl;
-                Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
-                                    stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
-
-                //-- Export to disk computed scene (data & visualizable results)
-                std::cout << "...Export SfM_Data to disk." << std::endl;
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
-                     ESfM_Data(ALL));
 
                 Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
+                     "/home/xinli/work/data/Allresutl.bin",
                      ESfM_Data(ALL));
+
+//                std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
+//
+//                std::cout << "...Generating SfM_Report.html" << std::endl;
+//                Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
+//                                    stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
+//
+//                //-- Export to disk computed scene (data & visualizable results)
+//                std::cout << "...Export SfM_Data to disk." << std::endl;
+//                Save(visfmEngine.Get_SfM_Data(),
+//                     stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
+//                     ESfM_Data(ALL));
+//
+//                Save(visfmEngine.Get_SfM_Data(),
+//                     stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
+//                     ESfM_Data(ALL));
 
                 return EXIT_SUCCESS;
             }

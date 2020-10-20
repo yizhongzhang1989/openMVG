@@ -13,6 +13,7 @@
 #include "Utility.hpp"
 #include "VI_static_Parm.hpp"
 #include "openMVG/types.hpp"
+#include <iostream>
 
 namespace openMVG
 {
@@ -63,8 +64,18 @@ namespace openMVG
                 if( last_data_[0] != 0 )
                 {
                     if( (data_[0] - last_data_[0]) != 5 )
+                    {
+                        std::cout << line << std::endl;
+                        std::cout << data_[0] << " - " <<last_data_[0] << " != 5" << std::endl;
                         return false;
+                    }
                 }
+
+                if( last_data_[0] == 46274 )
+                {
+                    return false;
+                }
+
 
                 last_data_ = data_;
 

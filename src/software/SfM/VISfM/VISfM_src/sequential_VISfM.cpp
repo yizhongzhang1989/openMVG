@@ -128,6 +128,7 @@ namespace sfm{
                 // Perform BA until all point are under the given precision
                 do
                 {
+                    update_state_speed();
                     update_imu_time();
                     update_imu_inte();
                     BundleAdjustmentWithIMU();
@@ -186,6 +187,20 @@ namespace sfm{
             jsxGraph.close();
             html_doc_stream_->pushInfo(jsxGraph.toStr());
         }
+
+        {
+            {
+                auto it_pose =  sfm_data_.poses.begin();
+                auto tw0 = it_pose->second.center();
+                auto it0 = it_pose->first;
+                while( std::next(it_pose) != sfm_data_.poses.end() ) it_pose++;
+                auto tw1 = it_pose->second.center();
+                auto it1 = it_pose->first;
+                std::cout << "it0 = " << it0 << std::endl;
+                std::cout << "it1 = " << it1 << std::endl;
+                std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
+            }
+        }
         return true;
     }
 
@@ -221,7 +236,7 @@ namespace sfm{
 
             // get start index and end index of vi init
             {
-                const int len_size_2 = 20;
+                const int len_size_2 = 8;
                 IndexT len_2 = (initial_pair_.second - initial_pair_.first) / 2;
                 IndexT inital_len_2 = len_size_2 > len_2 ? len_size_2 : len_2;
                 IndexT center = initial_pair_.first + len_2;
@@ -441,7 +456,7 @@ namespace sfm{
 
 
         int kv = -1;
-        auto pose_i = sfm_data_.poses.begin();pose_i++;
+        auto pose_i = sfm_data_.poses.begin();
         for (; pose_i != sfm_data_.poses.end(); pose_i++)
         {
             kv++;
@@ -461,6 +476,11 @@ namespace sfm{
             Vec3 twi = it_pose.second.center();
             twi = correct_scale*(rot_diff * twi) - Riw.transpose() * sfm_data_.IG_tic;
             it_pose.second.SetCenter(twi);
+
+            Mat3 Rcw = sfm_data_.IG_Ric.transpose() * Riw;
+            Vec3 twc = twi + Riw.transpose() * sfm_data_.IG_tic;
+            it_pose.second.SetRoation(Rcw);
+            it_pose.second.SetCenter(twc);
         }
 
         for( auto&landmark:sfm_data_.structure )
@@ -559,9 +579,9 @@ namespace sfm{
 
 
 //                std::cout << "start construction IMU_Speed" << std::endl;
-                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.));
+//                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.));
 //                std::cout << "end construction IMU_Speed" << std::endl;
-                sfm_data_.Speeds.insert( std::make_pair(id_pose, speed) );
+//                sfm_data_.Speeds.insert( std::make_pair(id_pose, speed) );
 //                std::cout << "end insert imu" << std::endl;
             }
             else
@@ -569,6 +589,25 @@ namespace sfm{
                 sfm_data_.imus[id_pose].change_time(last_t, cur_t);
             }
             last_t = cur_t;
+            it_pose++;
+        }
+    }
+
+    void SequentialVISfMReconstructionEngine::update_state_speed()
+    {
+        auto it_pose = sfm_data_.poses.begin();
+        while( it_pose != sfm_data_.poses.end() )
+        {
+            IndexT cur_t = sfm_data_.timestamps.at( it_pose->first );
+            auto id_pose = it_pose->first;
+            if( sfm_data_.Speeds.count( id_pose ) == 0 )
+            {
+//                std::cout << "start construction IMU_Speed" << std::endl;
+                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.)); // TODO xinli
+//                std::cout << "end construction IMU_Speed" << std::endl;
+                sfm_data_.Speeds.insert( std::make_pair(id_pose, speed) );
+//                std::cout << "end insert imu" << std::endl;
+            }
             it_pose++;
         }
     }
@@ -619,6 +658,7 @@ namespace sfm{
         std::cout << "start update_imu_inte" << std::endl;
         update_imu_inte();
         std::cout << "start rota_pose" << std::endl;
+        update_state_speed();
 
 
         {
@@ -668,8 +708,15 @@ namespace sfm{
             std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
         }
 
-//        BundleAdjustment();
-
+//
+        BundleAdjustmentWithIMU();
+        BundleAdjustmentWithIMU();
+        BundleAdjustment();
+        BundleAdjustment();
+        BundleAdjustmentWithIMU();
+        BundleAdjustmentWithIMU();
+        BundleAdjustment();
+        BundleAdjustment();
 
 //        {
 //            auto it_pose = sfm_data_.poses.begin();
@@ -997,6 +1044,10 @@ namespace sfm{
     {
         const size_t nbOutliers_residualErr = RemoveOutliers_PixelResidualError(sfm_data_, dPrecision, 2);
         const size_t nbOutliers_angleErr = RemoveOutliers_AngleError(sfm_data_, 2.0);
+        std::cout << "nbOutliers_residualErr = " << nbOutliers_residualErr << "\n"
+        << "dPrecision = " << dPrecision << "\n"
+        << "nbOutliers_angleErr = " << nbOutliers_angleErr << "\n"
+        << "count = " << count << std::endl;
 
         return (nbOutliers_residualErr + nbOutliers_angleErr) > count;
     }

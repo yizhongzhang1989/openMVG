@@ -424,7 +424,7 @@ namespace openMVG
 
             double ex_paparm[7];
             {
-                Mat3 Ric = sfm_data.IG_Ric.transpose();
+                Mat3 Ric = sfm_data.IG_Ric;
                 Eigen::Quaterniond Qic(Ric);
                 Vec3 tic = sfm_data.IG_tic;
                 ex_paparm[0] = tic(0);
@@ -437,12 +437,12 @@ namespace openMVG
 
                 ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
                 problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
+                problem.SetParameterBlockConstant(ex_paparm);
             }
 
             // Data wrapper for refinement:
             Hash_Map<IndexT, std::vector<double>> map_intrinsics;
             Hash_Map<IndexT, std::vector<double>> map_poses;
-
             Hash_Map<IndexT, std::vector<double>> map_speed;
 
             // Setup Poses data & subparametrization

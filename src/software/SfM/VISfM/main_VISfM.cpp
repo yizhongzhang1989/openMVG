@@ -323,7 +323,7 @@ int main(int argc, char **argv)
             Save(visfmEngine.Get_SfM_Data(),
                  "/home/xinli/work/data/VI_visualIMU_init.bin",
                  ESfM_Data(ALL));
-            return EXIT_SUCCESS;
+//            return EXIT_SUCCESS;
             if(visfmEngine.Process())
             {
                 std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;

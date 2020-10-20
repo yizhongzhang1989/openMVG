@@ -668,20 +668,20 @@ namespace sfm{
             std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
         }
 
-        BundleAdjustment();
+//        BundleAdjustment();
 
 
-        {
-            auto it_pose = sfm_data_.poses.begin();
-            auto tw0 = it_pose->second.center();
-            auto it0 = it_pose->first;
-            while( std::next(it_pose) != sfm_data_.poses.end() ) it_pose++;
-            auto tw1 = it_pose->second.center();
-            auto it1 = it_pose->first;
-            std::cout << "it0 = " << it0 << std::endl;
-            std::cout << "it1 = " << it1 << std::endl;
-            std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
-        }
+//        {
+//            auto it_pose = sfm_data_.poses.begin();
+//            auto tw0 = it_pose->second.center();
+//            auto it0 = it_pose->first;
+//            while( std::next(it_pose) != sfm_data_.poses.end() ) it_pose++;
+//            auto tw1 = it_pose->second.center();
+//            auto it1 = it_pose->first;
+//            std::cout << "it0 = " << it0 << std::endl;
+//            std::cout << "it1 = " << it1 << std::endl;
+//            std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
+//        }
 
         return true;
     }

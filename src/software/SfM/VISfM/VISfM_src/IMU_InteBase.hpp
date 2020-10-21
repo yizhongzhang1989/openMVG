@@ -60,7 +60,6 @@ namespace openMVG
 //                data_[0] -= 1403715 * 1e12;
 //                data_[0] /= 1e6;
 //                data_[0] = static_cast<int>(data_[0]);
-
                 if( last_data_[0] != 0 )
                 {
                     if( (data_[0] - last_data_[0]) != 5 )

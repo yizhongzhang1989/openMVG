@@ -5,7 +5,8 @@
 #ifndef OPENMVG_UTILITY_HPP
 #define OPENMVG_UTILITY_HPP
 
-#include <eigen3/Eigen/Dense>
+//#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 
 class Utility
 {

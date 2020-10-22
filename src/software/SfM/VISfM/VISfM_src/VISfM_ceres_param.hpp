@@ -5,8 +5,10 @@
 #ifndef OPENMVG_VISFM_CERES_PARAM_HPP
 #define OPENMVG_VISFM_CERES_PARAM_HPP
 
-#include <eigen3/Eigen/Dense>
+//#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 #include <ceres/ceres.h>
+//#include "third_party/ceres-solver/include/ceres/ceres.h"
 #include "Utility.hpp"
 
 

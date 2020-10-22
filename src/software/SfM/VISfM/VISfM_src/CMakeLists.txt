@@ -1,3 +1,16 @@
+#
+#
+#set(OpenMVG_USE_INTERNAL_CERES ON)
+#set(CERES_INCLUDE_DIRS
+#        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ceres-solver/include
+#        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ceres-solver/internal/ceres/miniglog
+#        ${PROJECT_BINARY_DIR}/third_party/ceres-solver/config)
+#
+#STRING(REGEX REPLACE "version ([0-9.]+).*" "\\1" CERES_VERSION ${CERES_CONFIG})
+#set(CERES_LIBRARIES openMVG_ceres)
+#
+#include_directories(${CERES_INCLUDE_DIRS})
+
 file(
         GLOB_RECURSE
         vi_sfm_files_header
@@ -15,8 +28,9 @@ file(
 #file(GLOB_RECURSE REMOVEFILESUNITTEST *_test.hpp)
 #list(REMOVE_ITEM sfm_files_header ${REMOVEFILESUNITTEST})
 
+
 add_library(openMVG_vi_sfm ${vi_sfm_files_header} ${vi_sfm_files_cpp})
-target_compile_features(openMVG_vi_sfm INTERFACE ${CXX17_FEATURES})
+target_compile_features(openMVG_vi_sfm INTERFACE ${CXX11_FEATURES})
 target_link_libraries(openMVG_vi_sfm
         PUBLIC
         openMVG_geometry

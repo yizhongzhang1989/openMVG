@@ -15,7 +15,6 @@
 #include "openMVG/system/timer.hpp"
 #include "openMVG/types.hpp"
 
-#include "software/SfM/addIMU/imu_integrator/sfm_imu.hpp"
 #include "VISfM_src/sequential_VISfM.hpp"
 
 #include "third_party/cmdLine/cmdLine.h"
@@ -311,41 +310,41 @@ int main(int argc, char **argv)
     if(visfmEngine.VI_Init(  ))
     {
 
-        Save(visfmEngine.Get_SfM_Data(),
-             "/home/xinli/work/data/VI_visual_init.bin",
-             ESfM_Data(ALL));
+//        Save(visfmEngine.Get_SfM_Data(),
+//             "/home/xinli/work/data/VI_visual_init.bin",
+//             ESfM_Data(ALL));
         if(!visfmEngine.VI_align())
         {
             std::cerr << "VI sfm align fail" << std::endl;
             return EXIT_FAILURE;
         }
         else{
-            Save(visfmEngine.Get_SfM_Data(),
-                 "/home/xinli/work/data/VI_visualIMU_init.bin",
-                 ESfM_Data(ALL));
+//            Save(visfmEngine.Get_SfM_Data(),
+//                 "/home/xinli/work/data/VI_visualIMU_init.bin",
+//                 ESfM_Data(ALL));
 //            return EXIT_SUCCESS;
             if(visfmEngine.Process())
             {
 
+//                Save(visfmEngine.Get_SfM_Data(),
+//                     "/home/xinli/work/data/Allresutl.bin",
+//                     ESfM_Data(ALL));
+
+                std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
+
+                std::cout << "...Generating SfM_Report.html" << std::endl;
+                Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
+                                    stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
+
+                //-- Export to disk computed scene (data & visualizable results)
+                std::cout << "...Export SfM_Data to disk." << std::endl;
                 Save(visfmEngine.Get_SfM_Data(),
-                     "/home/xinli/work/data/Allresutl.bin",
+                     stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
                      ESfM_Data(ALL));
 
-//                std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
-//
-//                std::cout << "...Generating SfM_Report.html" << std::endl;
-//                Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
-//                                    stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
-//
-//                //-- Export to disk computed scene (data & visualizable results)
-//                std::cout << "...Export SfM_Data to disk." << std::endl;
-//                Save(visfmEngine.Get_SfM_Data(),
-//                     stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
-//                     ESfM_Data(ALL));
-//
-//                Save(visfmEngine.Get_SfM_Data(),
-//                     stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
-//                     ESfM_Data(ALL));
+                Save(visfmEngine.Get_SfM_Data(),
+                     stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
+                     ESfM_Data(ALL));
 
                 return EXIT_SUCCESS;
             }

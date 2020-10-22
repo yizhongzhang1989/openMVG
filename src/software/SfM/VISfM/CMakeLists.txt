@@ -11,6 +11,7 @@ target_link_libraries(openMVG_main_VISfM
         openMVG_sfm
         ${STLPLUS_LIBRARY}
         )
+target_include_directories(openMVG_main_VISfM PRIVATE ${CERES_INCLUDE_DIRS})
 
 add_executable(openMVG_main_save_pose_point save_pose_point.cpp)
 #        VISfM_src/sequential_VISfM.cpp VISfM_src/sequential_VISfM.hpp VISfM_src/visfm_data_BA_ceres.cpp VISfM_src/visfm_data_BA_ceres.hpp VISfM_src/VISfM_ceres_facotr.cpp VISfM_src/VISfM_ceres_facotr.hpp VISfM_src/VISfM_ceres_param.cpp VISfM_src/VISfM_ceres_param.hpp VISfM_src/Utility.hpp VISfM_src/VI_static_Parm.hpp VISfM_src/IMU_InteBase.hpp VISfM_src/VI_static_Parm.cpp)

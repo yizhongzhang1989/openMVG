@@ -5,7 +5,8 @@
 #ifndef OPENMVG_VI_STATIC_PARM_HPP
 #define OPENMVG_VI_STATIC_PARM_HPP
 
-#include <eigen3/Eigen/Dense>
+//#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 
 class VIstaticParm
 {

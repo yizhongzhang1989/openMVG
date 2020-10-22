@@ -6,7 +6,8 @@
 #define OPENMVG_IMU_INTEBASE_HPP
 
 #include <fstream>
-#include <eigen3/Eigen/Core>
+#include <Eigen/Core>
+//#include <eigen3/Eigen/Core>
 #include <vector>
 #include <Eigen/Dense>
 #include <openMVG/numeric/eigen_alias_definition.hpp>

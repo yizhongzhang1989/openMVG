@@ -13,7 +13,8 @@
 #include <string>
 #include <algorithm>
 
-#include <eigen3/Eigen/Core>
+//#include <eigen3/Eigen/Core>
+#include <Eigen/Core>
 
 #include "openMVG/types.hpp"
 

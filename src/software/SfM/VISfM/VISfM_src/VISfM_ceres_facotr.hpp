@@ -9,6 +9,8 @@
 #include <utility>
 
 #include <ceres/ceres.h>
+//#include "third_party/ceres-solver/include/ceres/ceres.h"
+//#include "third_party/ceres-solver/include/ceres/rotation.h"
 #include <ceres/rotation.h>
 
 #include "openMVG/cameras/Camera_Intrinsics.hpp"

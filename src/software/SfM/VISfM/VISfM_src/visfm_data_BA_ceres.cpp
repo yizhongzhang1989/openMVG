@@ -646,8 +646,8 @@ namespace openMVG
                     problem.SetParameterBlockConstant(structure_landmark_it.second.X.data());
             }
 
-            ceres::LossFunction * imu_LossFunction = nullptr;
-//                    new ceres::CauchyLoss(Square(10.0));
+            ceres::LossFunction * imu_LossFunction = //nullptr;
+                    new ceres::CauchyLoss(Square(4.0));
             {
                 // TODO xinli first pose speed
                 auto pose_i = sfm_data.poses.begin(); pose_i++;

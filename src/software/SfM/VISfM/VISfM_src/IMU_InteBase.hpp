@@ -71,10 +71,10 @@ namespace openMVG
                     }
                 }
 
-                if( last_data_[0] == 46274 )
-                {
-                    return false;
-                }
+//                if( last_data_[0] == 46274 )
+//                {
+//                    return false;
+//                }
 
 
                 last_data_ = data_;

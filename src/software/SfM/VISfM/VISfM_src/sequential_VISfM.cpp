@@ -234,9 +234,14 @@ namespace sfm{
                 }
             }
 
+            std::cout << "---------------------------------------\n"
+                      << "initial_pair_.first = " << initial_pair_.first << "\n"
+                      <<  "initial_pair_.second = " << initial_pair_.second << "\n"
+                      << "---------------------------------------" << std::endl;
+
             // get start index and end index of vi init
             {
-                const int len_size_2 = 8;
+                const int len_size_2 = 6;
                 IndexT len_2 = (initial_pair_.second - initial_pair_.first) / 2;
                 IndexT inital_len_2 = len_size_2 > len_2 ? len_size_2 : len_2;
                 IndexT center = initial_pair_.first + len_2;
@@ -267,7 +272,8 @@ namespace sfm{
                     if( itV->second->id_view >= left && itV->second->id_view <= right )
                     {
                         set_remaining_view_id_vi_init_.insert(itV->second->id_view);
-//                        set_remaining_view_id_.erase(itV->second->id_view);
+                        set_remaining_view_id_.erase(itV->second->id_view);
+//                        set_remaining_view_id_.erase(v_id);
                     }
                 }
             }
@@ -306,6 +312,7 @@ namespace sfm{
                 do
                 {
                     BundleAdjustmentVisualInit();
+//                    BundleAdjustment();
                 }
                 while (badTrackRejector(4.0, 50));
                 eraseUnstablePosesAndObservations(sfm_data_);
@@ -365,7 +372,7 @@ namespace sfm{
 
         for(  auto& v_id:set_remaining_view_id_vi_init_ )
         {
-            set_remaining_view_id_.erase(v_id);
+            set_remaining_view_id_.insert(v_id);
         }
         return true;
     }
@@ -671,9 +678,9 @@ namespace sfm{
         Eigen::VectorXd speeds_scale;
         Eigen::Vector3d correct_g;
 
-//        std::cout << "start solveGyroscopeBias" << std::endl;
-//        solveGyroscopeBias();
-//        std::cout << "end solveGyroscopeBias" << std::endl;
+        std::cout << "start solveGyroscopeBias" << std::endl;
+        solveGyroscopeBias();
+        std::cout << "end solveGyroscopeBias" << std::endl;
 
         std::cout << "start solve_vgs" << std::endl;
         if( !solve_vgs(speeds_scale, correct_g) ) return false;
@@ -709,14 +716,14 @@ namespace sfm{
         }
 
 //
-        BundleAdjustmentWithIMU();
-        BundleAdjustmentWithIMU();
+//        BundleAdjustmentWithIMU();
+//        BundleAdjustmentWithIMU();
         BundleAdjustment();
-        BundleAdjustment();
-        BundleAdjustmentWithIMU();
-        BundleAdjustmentWithIMU();
-        BundleAdjustment();
-        BundleAdjustment();
+//        BundleAdjustment();
+//        BundleAdjustmentWithIMU();
+//        BundleAdjustmentWithIMU();
+//        BundleAdjustment();
+//        BundleAdjustment();
 
 //        {
 //            auto it_pose = sfm_data_.poses.begin();
@@ -835,11 +842,13 @@ namespace sfm{
         A = A * 1000.0;
         b = b * 1000.0;
         speeds_scale = A.ldlt().solve(b);
-        std::cout << "speeds_scale.size() = " << speeds_scale.size() << std::endl;
+//        std::cout << "speeds_scale.size() = " << speeds_scale.size() << std::endl;
         double correct_scale = speeds_scale(n_state - 1) / 100.;
         correct_g = speeds_scale.segment<3>(n_state - 4);
+        std::cout << "correct_scale = " << correct_scale << std::endl;
+        std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
 
-        if(/*fabs(correct_g.norm() - G.norm()) > 1.0 ||*/ correct_scale < 0)
+        if(std::fabs(correct_g.norm() - VIstaticParm::G_.norm()) > 1.0 || correct_scale < 0)
         {
             return false;
         }
@@ -1638,6 +1647,27 @@ namespace sfm{
         // Threshold used to select the best images
         static const float dThresholdGroup = 0.75f;
 
+        // TODO xinDEBUG
+//        std::cout <<"set_remaining_view_id_ contains : \n";
+//        for( auto&view_id:set_remaining_view_id_ )
+//        {
+//            std::cout << view_id << " ";
+//        }
+//        std::cout << std::endl;
+//
+//        std::cout <<"sfm_data_.views first contains : \n";
+//        for( auto&view_id:sfm_data_.views )
+//        {
+//            std::cout << view_id.first << " ";
+//        }
+//        std::cout << std::endl;
+//        std::cout <<"sfm_data_.views second viewId contains : \n";
+//        for( auto&view_id:sfm_data_.views )
+//        {
+//            std::cout << view_id.second->id_view << " ";
+//        }
+//        std::cout << std::endl;
+
         vec_possible_indexes.clear();
 
         // check index view == index pose
@@ -1645,20 +1675,28 @@ namespace sfm{
         IndexT left_pose_id, right_pose_id;
         {
             auto it = sfm_data_.views.begin();
+            auto c_it = sfm_data_.views.rbegin();
             left_view_id = it->first;
-            while( std::next(it) == sfm_data_.views.end() ) it++;
-            right_view_id = it->first;
+            right_view_id = c_it->first;
         }
+
+        std::cout << "left_view_id = " << left_view_id << std::endl;
+        std::cout << "right_view_id = " << right_view_id << std::endl;
+
+        // TODO xinli make sure pose_id == view_id
         {
             auto it = sfm_data_.poses.begin();
+            auto c_it = sfm_data_.poses.rbegin();
             left_pose_id = it->first;
-            while( std::next(it) == sfm_data_.poses.end() ) it++;
-            right_pose_id = it->first;
+            right_pose_id = c_it->first;
             if( (left_pose_id - left_view_id) < 10 ) left_pose_id = left_view_id;
             else left_pose_id -= 10;
             if( (right_view_id - right_pose_id) < 10 ) right_pose_id = right_view_id;
             else right_pose_id += 10;
         }
+
+        std::cout << "left_pose_id = " << left_pose_id << std::endl;
+        std::cout << "right_pose_id = " << right_pose_id << std::endl;
 
         if (set_remaining_view_id_.empty() || sfm_data_.GetLandmarks().empty())
             return false;
@@ -1688,6 +1726,9 @@ namespace sfm{
                     openMVG::tracks::STLMAPTracks map_tracksCommon;
                     shared_track_visibility_helper_->GetTracksInImages({viewId}, map_tracksCommon);
 
+                    // TODO xinDEBUG
+//                    std::cout << "viewId = " << viewId << " map_tracksCommon.size() : " << map_tracksCommon.size() << std::endl;
+
                     if (!map_tracksCommon.empty())
                     {
                         std::set<uint32_t> set_tracksIds;
@@ -1716,11 +1757,22 @@ namespace sfm{
         // Sort by the number of matches to the 3D scene.
         std::sort(vec_putative.begin(), vec_putative.end(), sort_pair_second<uint32_t, uint32_t, std::greater<uint32_t>>());
 
+
+        // TODO xinDEBUG
+//        std::cout <<"vec_putative contains : ";
+//        for( auto&view_id:vec_putative )
+//        {
+//            std::cout << view_id.second<< " ";
+//        }
+//        std::cout << std::endl;
+
         // If the list is empty or if the list contains images with no correspdences
         // -> (no resection will be possible)
         if (vec_putative.empty() || vec_putative[0].second == 0)
         {
             // All remaining images cannot be used for pose estimation
+            // TODO xinDEBUG
+            std::cout <<"All remaining images cannot be used for pose estimation" << std::endl;
             set_remaining_view_id_.clear();
             return false;
         }

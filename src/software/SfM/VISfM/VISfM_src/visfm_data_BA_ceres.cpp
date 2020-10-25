@@ -158,7 +158,7 @@ namespace openMVG
 
                 ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
                 problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
-                problem.SetParameterBlockConstant(ex_paparm);
+//                problem.SetParameterBlockConstant(ex_paparm);
             }
 
             // Data wrapper for refinement:
@@ -448,7 +448,7 @@ namespace openMVG
 
                 ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
                 problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
-                problem.SetParameterBlockConstant(ex_paparm);
+//                problem.SetParameterBlockConstant(ex_paparm);
             }
 
             // Data wrapper for refinement:
@@ -647,18 +647,20 @@ namespace openMVG
             }
 
             ceres::LossFunction * imu_LossFunction = //nullptr;
-                    new ceres::CauchyLoss(Square(4.0));
+                    new ceres::CauchyLoss(Square(2.0));
             {
                 // TODO xinli first pose speed
                 auto pose_i = sfm_data.poses.begin(); pose_i++;
                 auto pose_j = std::next(pose_i);
                 for(; pose_j != sfm_data.poses.end(); pose_j++, pose_i++)
                 {
+//                    break;
                     const IndexT indexPose = pose_j->first;
                     auto imu_ptr = sfm_data.imus.at(indexPose);
-                    if( imu_ptr.sum_dt_ > 10.0 ) continue;
+//                    std::cout << "imu_ptr.sum_dt_ = " << imu_ptr.sum_dt_ << std::endl;
+                    if( imu_ptr.sum_dt_ > 0.3 ) continue;
 
-                    IMUFactor* imu_factor = new IMUFactor(imu_ptr);
+                    auto imu_factor = new IMUFactor(imu_ptr);
                     problem.AddResidualBlock(imu_factor, imu_LossFunction,
                                              &map_poses.at(pose_i->first)[0],
                                              &map_speed.at(pose_i->first)[0],
@@ -745,6 +747,16 @@ namespace openMVG
 //                        Pose3 &pose = pose_it.second;
 //                        pose = Pose3(Rcw, twc);
                     }
+                }
+
+                {
+                    Eigen::Quaterniond Qic( ex_paparm[6], ex_paparm[3], ex_paparm[4], ex_paparm[5] );
+                    Vec3 tic(ex_paparm[0],
+                             ex_paparm[1],
+                             ex_paparm[2]);
+
+                    sfm_data.IG_Ric = Qic.toRotationMatrix();
+                    sfm_data.IG_tic = tic;
                 }
 
                 // Update camera intrinsics with refined data

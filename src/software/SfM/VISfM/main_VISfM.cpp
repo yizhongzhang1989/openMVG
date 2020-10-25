@@ -241,17 +241,19 @@ int main(int argc, char **argv)
         int i=1;
         while( !fin.eof() )
         {
-            std::string line;
-            getline(fin, line);
-            if( line.empty() )
-            {
-//                std::cerr << "WTF"<< line << "WTF" << std::endl;
-                break;
-            }
-//            double time = std::stod(line);
-//            time -= 1403715 * 1e12;
-//            times.emplace_back( static_cast<IndexT>(time / 1e6) ); // second * 1000
-             double time = std::stod(line);
+            double time;
+            fin >> time;
+//            std::string line;
+//            getline(fin, line);
+//            if( line.empty() )
+//            {
+////                std::cerr << "WTF"<< line << "WTF" << std::endl;
+//                break;
+//            }
+////            double time = std::stod(line);
+////            time -= 1403715 * 1e12;
+////            times.emplace_back( static_cast<IndexT>(time / 1e6) ); // second * 1000
+//             double time = std::stod(line);
              times.emplace_back( static_cast<IndexT>(time * 1000) ); // second * 1000
 //            std::cout << i++ << " " ;
 //            std::cout << time << std::endl;
@@ -266,8 +268,8 @@ int main(int argc, char **argv)
     }
     // TODO xinli check IMU image dt
     std::shared_ptr<IMU_Dataset> imu_dataset = std::make_shared<IMU_Dataset>(sSfM_IMU_Filename);
-    imu_dataset->corect_time( times.back() );
-//    imu_dataset->corect_dt( 25 );
+//    imu_dataset->corect_time( times.back() );
+//    imu_dataset->corect_dt( -2 );
 
     //---------------------------------------
     // Sequential reconstruction process

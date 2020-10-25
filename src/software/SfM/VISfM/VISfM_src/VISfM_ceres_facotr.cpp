@@ -53,23 +53,84 @@ namespace openMVG
 
             if( jacobians )
             {
+                const double jacobian_rc_ptscnx =
+                        2 * k1 * pts_c_nrom.x()
+                        + 4 * k2 * r2 * pts_c_nrom.x()
+                        + 6 * k3 * r4 * pts_c_nrom.x();
+                const double jacobian_rc_ptscny =
+                        2 * k1 * pts_c_nrom.y()
+                        + 4 * k2 * r2 * pts_c_nrom.y()
+                        + 6 * k3 * r4 * pts_c_nrom.y();
+                Eigen::Matrix<double, 2, 2> jacobian_e_ptscn;
+                jacobian_e_ptscn.setZero();
+                jacobian_e_ptscn(0,0) = focal * r_coeff + pts_c_nrom.x() * focal * jacobian_rc_ptscnx;
+                jacobian_e_ptscn(0,1) = pts_c_nrom.x() * focal * jacobian_rc_ptscny;
+                jacobian_e_ptscn(1,0) = pts_c_nrom.y() * focal * jacobian_rc_ptscnx;
+                jacobian_e_ptscn(1,1) = focal * r_coeff + pts_c_nrom.y() * focal * jacobian_rc_ptscny;
+
+                Eigen::Matrix<double, 2, 3> jacobian_ptscn_ptsc;
+                jacobian_ptscn_ptsc.setZero();
+                jacobian_ptscn_ptsc
+                <<
+                1. / pts_camera.z(), 0., -1. * pts_camera.x() / ( pts_camera.z() * pts_camera.z() ),
+                0., 1. / pts_camera.z(), -1. * pts_camera.y() / ( pts_camera.z() * pts_camera.z() );
+
+                Eigen::Matrix3d Ric = Qic.toRotationMatrix();
+                Eigen::Matrix3d Rwi = Qwi.toRotationMatrix();
+                Eigen::Matrix3d Identity3d = Eigen::Matrix3d::Identity();
+
                 if(jacobians[0])
                 {
+                    Eigen::Map< Eigen::Matrix<double, 2, 7, Eigen::RowMajor> >jacobian_pose( jacobians[0] );
+                    jacobian_pose.setZero();
 
+                    Eigen::Matrix<double, 3, 6> jacobian_ptsc_pose;
+                    jacobian_ptsc_pose.block<3,3>(0,0) = - Ric.transpose() * Rwi.transpose();
+                    jacobian_ptsc_pose.block<3,3>(0,3) = Ric.transpose() * Utility::skewSymmetric(pts_imu);
+
+                    jacobian_pose.block<2, 6>(0,0) = sqrt_info * jacobian_e_ptscn * jacobian_ptscn_ptsc * jacobian_ptsc_pose;
                 }
                 if(jacobians[1])
                 {
+                    Eigen::Map< Eigen::Matrix<double, 2, 7, Eigen::RowMajor> >jacobian_ex_pose( jacobians[1] );
+                    jacobian_ex_pose.setZero();
+
+                    Eigen::Matrix<double, 3, 6> jacobian_ptsc_ex;
+                    jacobian_ptsc_ex.block<3,3>(0,0) = -Ric.transpose();
+                    jacobian_ptsc_ex.block<3,3>(0,3) =  Utility::skewSymmetric(pts_camera);
+
+                    jacobian_ex_pose.block<2, 6>(0,0) = sqrt_info * jacobian_e_ptscn * jacobian_ptscn_ptsc * jacobian_ptsc_ex;
 
                 }
                 if(jacobians[2])
                 {
+                    Eigen::Map< Eigen::Matrix<double, 2, 6, Eigen::RowMajor> >jacobian_intrinsics( jacobians[2] );
+                    jacobian_intrinsics.setZero();
+                    jacobian_intrinsics(0,0) = pts_c_nrom.x() * r_coeff;
+                    jacobian_intrinsics(1,0) = pts_c_nrom.y() * r_coeff;
+                    jacobian_intrinsics(0,1) = 1;
+                    jacobian_intrinsics(1,2) = 1;
 
+                    jacobian_intrinsics(0,3) = pts_c_nrom.x() * focal * r2;
+                    jacobian_intrinsics(0,4) = pts_c_nrom.x() * focal * r4;
+                    jacobian_intrinsics(0,5) = pts_c_nrom.x() * focal * r6;
+
+                    jacobian_intrinsics(1,3) = pts_c_nrom.y() * focal * r2;
+                    jacobian_intrinsics(1,4) = pts_c_nrom.y() * focal * r4;
+                    jacobian_intrinsics(1,5) = pts_c_nrom.y() * focal * r6;
+
+                    jacobian_intrinsics = sqrt_info * jacobian_intrinsics;
                 }
                 if(jacobians[3])
                 {
+                    Eigen::Map< Eigen::Matrix<double, 2, 3, Eigen::RowMajor> >jacobian_point( jacobians[3] );
+                    jacobian_point.setZero();
 
+                    Eigen::Matrix3d jacobian_ptsc_ptsw = Ric.transpose() * Rwi.transpose();
+
+                    jacobian_point = sqrt_info * jacobian_e_ptscn * jacobian_ptscn_ptsc * jacobian_ptsc_ptsw;
                 }
-                bool numb_jaco = true;
+                bool numb_jaco = false;
                 if( numb_jaco )
                 {
                     const double eps = 1e-6;
@@ -156,30 +217,41 @@ namespace openMVG
                         residual_numb = sqrt_info * residual_numb;
                         num_jacobian.col(k) = (residual_numb - residual) / eps;
                     }
+
+                    std::cout << "========================" << std::endl;
                     if(jacobians[0])
                     {
                         Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> jacobian_pose(jacobians[0]);
-                        jacobian_pose.setZero();
-                        jacobian_pose.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 0 );
+//                        jacobian_pose.setZero();
+                        std::cout << point_obs_.transpose() << std::endl << " jacobian_pose " << std::endl << jacobian_pose.block<2, 6>(0,0) << std::endl;
+                        std::cout << point_obs_.transpose() << " jacobian_pose num " << num_jacobian.block<2, 6>( 0, 0 ) << std::endl;
+//                        jacobian_pose.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 0 );
                     }
                     if(jacobians[1])
                     {
                         Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> jacobian_ex(jacobians[1]);
-                        jacobian_ex.setZero();
-                        jacobian_ex.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 6 );
+//                        jacobian_ex.setZero();
+                        std::cout << point_obs_.transpose() << std::endl << " jacobian_ex " << std::endl <<   jacobian_ex.block<2, 6>(0, 0) << std::endl;
+                        std::cout << point_obs_.transpose() << std::endl << " jacobian_ex num " << std::endl <<  num_jacobian.block<2, 6>( 0, 6 ) << std::endl;
+//                        jacobian_ex.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 6 );
                     }
                     if(jacobians[2])
                     {
                         Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> jacobian_intrinsics(jacobians[2]);
-                        jacobian_intrinsics.setZero();
-                        jacobian_intrinsics.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 12 );
+                        std::cout << point_obs_.transpose() << std::endl << " jacobian_intrinsics " << std::endl <<  jacobian_intrinsics << std::endl;
+                        std::cout << point_obs_.transpose() << std::endl << " jacobian_intrinsics num " << std::endl <<  num_jacobian.block<2, 6>( 0, 12 ) << std::endl;
+//                        jacobian_intrinsics.setZero();
+//                        jacobian_intrinsics.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 12 );
                     }
                     if(jacobians[3])
                     {
                         Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> jacobian_point(jacobians[3]);
-                        jacobian_point.setZero();
-                        jacobian_point.block<2, 3>(0, 0) = num_jacobian.block<2, 3>( 0, 18 );
+                        std::cout << point_obs_.transpose() << std::endl << " jacobian_point " << std::endl << jacobian_point << std::endl;
+                        std::cout << point_obs_.transpose() << std::endl << " jacobian_point num " << std::endl << num_jacobian.block<2, 3>( 0, 18 ) << std::endl;
+//                        jacobian_point.setZero();
+//                        jacobian_point.block<2, 3>(0, 0) = num_jacobian.block<2, 3>( 0, 18 );
                     }
+                    std::cout << "========================" << std::endl;
                 }
             }
 

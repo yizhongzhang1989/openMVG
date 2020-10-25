@@ -113,7 +113,12 @@ bool SequentialSfMReconstructionEngine::Process() {
   }
   // Else a starting pair was already initialized before
 
-  // Initial pair Essential Matrix and [R|t] estimation.
+  std::cout << "---------------------------------------\n"
+  << "initial_pair_.first = " << initial_pair_.first << "\n"
+  <<  "initial_pair_.second = " << initial_pair_.second << "\n"
+  << "---------------------------------------" << std::endl;
+
+    // Initial pair Essential Matrix and [R|t] estimation.
   if (!MakeInitialPair3D(initial_pair_))
     return false;
 

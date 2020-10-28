@@ -62,6 +62,8 @@ public:
     bool Generate(Simulation_Data& sfm_data, const SimulationConfig& cfg);
     static void AddNoise(const Simulation_Data& sfm_data, Simulation_Data& sfm_data_noisy, NoiseConfig& cfg_noise);
     void Save(Simulation_Data& sfm_data, const std::string& outPath);
+    void SaveIMU(const IMUMeasurements& imu_data, const std::string& imu_file);
+    const IMUMeasurements& getIMUMeasurements() const;
 private:
     PoseGeneratorBase<Pose>* mpPoseGenerator;
     PointGenerator* mpPointGenerator;

@@ -20,7 +20,7 @@
 #include <Eigen/Geometry>
 #include <unsupported/Eigen/MatrixFunctions>
 #include <Eigen/StdVector>
-#include <boost/math/distributions/chi_squared.hpp>
+//#include <boost/math/distributions/chi_squared.hpp>
 
 #include "types.h"
 #include "matrix_utils.h"
@@ -59,7 +59,7 @@ namespace msckf_mono
       MatrixX<_S> cam_covar_;
       Matrix<_S,15,Dynamic> imu_cam_covar_;
 
-      std::vector<_S> chi_squared_test_table;
+//      std::vector<_S> chi_squared_test_table;
       Vector3<_S> pos_init_;
       Quaternion<_S> quat_init_;
 
@@ -92,13 +92,13 @@ namespace msckf_mono
         imu_covar_ = noise_params.initial_imu_covar;
         last_feature_id_ = 0;
 
-        // Initialize the chi squared test table with confidence
-        // level 0.95.
-        chi_squared_test_table.resize(99);
-        for (int i = 1; i < 100; ++i) {
-          boost::math::chi_squared chi_squared_dist(i);
-          chi_squared_test_table[i-1] = boost::math::quantile(chi_squared_dist, 0.05);
-        }
+//        // Initialize the chi squared test table with confidence
+//        // level 0.95.
+//        chi_squared_test_table.resize(99);
+//        for (int i = 1; i < 100; ++i) {
+//          boost::math::chi_squared chi_squared_dist(i);
+//          chi_squared_test_table[i-1] = boost::math::quantile(chi_squared_dist, 0.05);
+//        }
         // TODO: Adjust for 0-sized covar?
       }
 
@@ -1104,30 +1104,30 @@ namespace msckf_mono
       }
 
 
-      // Constraint on track to be marginalized based on Mahalanobis Gating
-      // High Precision, Consistent EKF-based Visual-Inertial Odometry by Li et al.
-      bool gatingTest(const MatrixX<_S>& H, const VectorX<_S>& r, const int& dof) {
-        MatrixX<_S> P = MatrixX<_S>::Zero(15 + cam_covar_.rows(), 15 + cam_covar_.cols());
-        P.template block<15, 15>(0, 0) = imu_covar_;
-        if (cam_covar_.rows() != 0) {
-          P.block(0, 15, 15, imu_cam_covar_.cols()) = imu_cam_covar_;
-          P.block(15, 0, imu_cam_covar_.cols(), 15) = imu_cam_covar_.transpose();
-          P.block(15, 15, cam_covar_.rows(), cam_covar_.cols()) = cam_covar_;
-        }
-
-        MatrixX<_S> P1 = H * P * H.transpose();
-        MatrixX<_S> P2 =
-          noise_params_.u_var_prime * MatrixX<_S>::Identity(H.rows(), H.rows());
-        _S gamma = r.transpose() * (P1 + P2).ldlt().solve(r);
-
-        if (gamma < chi_squared_test_table[dof+1]) {
-          // cout << "passed" << endl;
-          return true;
-        } else {
-          // cout << "failed" << endl;
-          return false;
-        }
-      }
+//      // Constraint on track to be marginalized based on Mahalanobis Gating
+//      // High Precision, Consistent EKF-based Visual-Inertial Odometry by Li et al.
+//      bool gatingTest(const MatrixX<_S>& H, const VectorX<_S>& r, const int& dof) {
+//        MatrixX<_S> P = MatrixX<_S>::Zero(15 + cam_covar_.rows(), 15 + cam_covar_.cols());
+//        P.template block<15, 15>(0, 0) = imu_covar_;
+//        if (cam_covar_.rows() != 0) {
+//          P.block(0, 15, 15, imu_cam_covar_.cols()) = imu_cam_covar_;
+//          P.block(15, 0, imu_cam_covar_.cols(), 15) = imu_cam_covar_.transpose();
+//          P.block(15, 15, cam_covar_.rows(), cam_covar_.cols()) = cam_covar_;
+//        }
+//
+//        MatrixX<_S> P1 = H * P * H.transpose();
+//        MatrixX<_S> P2 =
+//          noise_params_.u_var_prime * MatrixX<_S>::Identity(H.rows(), H.rows());
+//        _S gamma = r.transpose() * (P1 + P2).ldlt().solve(r);
+//
+//        if (gamma < chi_squared_test_table[dof+1]) {
+//          // cout << "passed" << endl;
+//          return true;
+//        } else {
+//          // cout << "failed" << endl;
+//          return false;
+//        }
+//      }
 
       void generateInitialGuess(const Isometry3<_S>& T_c1_c2, const Vector2<_S>& z1,
                                 const Vector2<_S>& z2, Vector3<_S>& p) const {

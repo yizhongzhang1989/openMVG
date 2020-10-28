@@ -39,6 +39,26 @@ struct Pose
     }
 };
 
+struct IMUMeasurement
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    Eigen::Vector3d acc;
+    Eigen::Vector3d gyro;
+    double timestamp;
+    IMUMeasurement()
+    : timestamp(0)
+    {
+        acc.setZero();
+        gyro.setZero();
+    }
+    IMUMeasurement(const Eigen::Vector3d& acc_, const Eigen::Vector3d& gyro_, double t)
+    : acc(acc_), gyro(gyro_), timestamp(t)
+    {
+        ;
+    }
+};
+typedef STLVector<IMUMeasurement> IMUMeasurements;
+
 struct MapPoint
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW

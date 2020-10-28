@@ -25,7 +25,7 @@ int main()
     using namespace generator;
 
     PointGenerator g_point(-25,25,-25,25,-25,25);
-    PoseGeneratorCircleSine g_pose(10.0,0.1,1.0,1.0,0.005);
+    PoseGeneratorCircleSine g_pose(10.0,0.1,1.0,1.0,0.005,true);
     CameraPinhole cam(320,320,320,240,640,480);
 
     // generation
@@ -54,6 +54,8 @@ int main()
     g_sim.Save(sfm_data_noisy,"noisyData");
 
     SaveSfMData("openMVGFormat",sfm_data,&cam);
+
+    g_sim.SaveIMU(g_sim.getIMUMeasurements(),"imu_data.csv");
 }
 
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam)

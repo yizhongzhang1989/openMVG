@@ -1,12 +1,18 @@
 #include "SimulationGenerator.h"
-#include <unistd.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
+#include "PoseGeneratorCircleSine.h"
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <random>
 #include <chrono>
+
+#ifdef _WIN32
+#include <io.h>
+#elif __linux__
+#include <unistd.h>
+//#include <sys/types.h>
+//#include <sys/stat.h>
+#endif
 
 // see https://www.cnblogs.com/renyu310/p/6485066.html for instructions of directory operation
 
@@ -140,21 +146,55 @@ void SimulationGenerator::AddNoise(const Simulation_Data& sfm_data, Simulation_D
     std::cout<<"add noise for points finished."<<std::endl;
 }
 
+#ifdef _WIN32
+static std::string unix_path_to_win(const std::string& unix_format)
+{
+    std::string win_format(unix_format);
+    for (int i = 0; i < win_format.length(); i++)
+    {
+        if (win_format[i] == '/')
+        {
+            win_format[i] = '\\';
+        }
+    }
+
+    return win_format;
+}
+#endif
+
+static void check_and_create_dir(const std::string& path)
+{
+#ifdef _WIN32
+    if (_access(path.c_str(), 00) == -1)
+    {
+        std::string cmd = "mkdir " + unix_path_to_win(path);
+        system(cmd.c_str());
+    }
+#elif __linux__
+    if (access(path.c_str(), 00) == -1)
+    {
+        std::string cmd = "mkdir -p " + path;
+        system(cmd.c_str());
+    }
+#endif
+}
 void SimulationGenerator::Save(Simulation_Data& sfm_data, const std::string& outPath)
 {
-    if(access(outPath.c_str(),00) == -1)
-    {
-//        mkdir(outPath.c_str(),S_IRWXU);
-        std::string cmd = "mkdir -p " + outPath;
-        system(cmd.c_str());
-    }
+//    if(access(outPath.c_str(),00) == -1)
+//    {
+////        mkdir(outPath.c_str(),S_IRWXU);
+//        std::string cmd = "mkdir -p " + outPath;
+//        system(cmd.c_str());
+//    }
+    check_and_create_dir(outPath);
     std::string kp_outPath = outPath + "/keypoints/";
-    if(access(kp_outPath.c_str(),00) == -1)
-    {
-//        mkdir(outPath.c_str(),S_IRWXU);
-        std::string cmd = "mkdir -p " + kp_outPath;
-        system(cmd.c_str());
-    }
+//    if(access(kp_outPath.c_str(),00) == -1)
+//    {
+////        mkdir(outPath.c_str(),S_IRWXU);
+//        std::string cmd = "mkdir -p " + kp_outPath;
+//        system(cmd.c_str());
+//    }
+    check_and_create_dir(kp_outPath);
 
     MapPoints& map_points = sfm_data.map_points;
     KeyFrames& key_frames = sfm_data.key_frames;
@@ -275,6 +315,37 @@ void SimulationGenerator::Save(Simulation_Data& sfm_data, const std::string& out
     }
     f.close();
     cout<<"points saved."<<endl;
+}
+
+void SimulationGenerator::SaveIMU(const IMUMeasurements& imu_data, const std::string& imu_file)
+{
+    std::ofstream f(imu_file);
+    if(!f.is_open())
+        return;
+
+    f<<std::fixed;
+    f<<"time_stamp,acc_x,acc_y,acc_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z,step_count,"
+        <<"rot_qx,rot_qy,rot_qz,rot_qw,rot_error,gameRot_qx,gameRot_qy,gameRot_qz,gameRot_qw"<<std::endl;
+    for(const auto & imu : imu_data)
+    {
+        const double t = imu.timestamp;
+        const Eigen::Vector3d& acc = imu.acc;
+        const Eigen::Vector3d& gyro = imu.gyro;
+        f<<t<<","<<acc.x()<<","<<acc.y()<<","<<acc.z()<<","<<gyro.x()<<","<<gyro.y()<<","<<gyro.z()<<","
+            <<"0.0,0.0,0.0,0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0"<<std::endl;
+    }
+    f.close();
+}
+
+const IMUMeasurements& SimulationGenerator::getIMUMeasurements() const
+{
+    PoseGeneratorCircleSine* pPoseGeneratorCircleSine = dynamic_cast<PoseGeneratorCircleSine*>(mpPoseGenerator);
+    if(pPoseGeneratorCircleSine && pPoseGeneratorCircleSine->hasIMU())
+    {
+        return pPoseGeneratorCircleSine->getIMUMeasurements();
+    }
+    else
+        throw std::runtime_error("Can not get IMU measurements");
 }
 
 }  // namespace generator

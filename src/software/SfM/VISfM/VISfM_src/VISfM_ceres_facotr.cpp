@@ -218,40 +218,40 @@ namespace openMVG
                         num_jacobian.col(k) = (residual_numb - residual) / eps;
                     }
 
-                    std::cout << "========================" << std::endl;
+//                    std::cout << "========================" << std::endl;
                     if(jacobians[0])
                     {
                         Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> jacobian_pose(jacobians[0]);
-//                        jacobian_pose.setZero();
-                        std::cout << point_obs_.transpose() << std::endl << " jacobian_pose " << std::endl << jacobian_pose.block<2, 6>(0,0) << std::endl;
-                        std::cout << point_obs_.transpose() << " jacobian_pose num " << num_jacobian.block<2, 6>( 0, 0 ) << std::endl;
-//                        jacobian_pose.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 0 );
+                        jacobian_pose.setZero();
+//                        std::cout << point_obs_.transpose() << std::endl << " jacobian_pose " << std::endl << jacobian_pose.block<2, 6>(0,0) << std::endl;
+//                        std::cout << point_obs_.transpose() << " jacobian_pose num " << num_jacobian.block<2, 6>( 0, 0 ) << std::endl;
+                        jacobian_pose.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 0 );
                     }
                     if(jacobians[1])
                     {
                         Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> jacobian_ex(jacobians[1]);
-//                        jacobian_ex.setZero();
-                        std::cout << point_obs_.transpose() << std::endl << " jacobian_ex " << std::endl <<   jacobian_ex.block<2, 6>(0, 0) << std::endl;
-                        std::cout << point_obs_.transpose() << std::endl << " jacobian_ex num " << std::endl <<  num_jacobian.block<2, 6>( 0, 6 ) << std::endl;
-//                        jacobian_ex.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 6 );
+                        jacobian_ex.setZero();
+//                        std::cout << point_obs_.transpose() << std::endl << " jacobian_ex " << std::endl <<   jacobian_ex.block<2, 6>(0, 0) << std::endl;
+//                        std::cout << point_obs_.transpose() << std::endl << " jacobian_ex num " << std::endl <<  num_jacobian.block<2, 6>( 0, 6 ) << std::endl;
+                        jacobian_ex.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 6 );
                     }
                     if(jacobians[2])
                     {
                         Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> jacobian_intrinsics(jacobians[2]);
-                        std::cout << point_obs_.transpose() << std::endl << " jacobian_intrinsics " << std::endl <<  jacobian_intrinsics << std::endl;
-                        std::cout << point_obs_.transpose() << std::endl << " jacobian_intrinsics num " << std::endl <<  num_jacobian.block<2, 6>( 0, 12 ) << std::endl;
-//                        jacobian_intrinsics.setZero();
-//                        jacobian_intrinsics.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 12 );
+//                        std::cout << point_obs_.transpose() << std::endl << " jacobian_intrinsics " << std::endl <<  jacobian_intrinsics << std::endl;
+//                        std::cout << point_obs_.transpose() << std::endl << " jacobian_intrinsics num " << std::endl <<  num_jacobian.block<2, 6>( 0, 12 ) << std::endl;
+                        jacobian_intrinsics.setZero();
+                        jacobian_intrinsics.block<2, 6>(0, 0) = num_jacobian.block<2, 6>( 0, 12 );
                     }
                     if(jacobians[3])
                     {
                         Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> jacobian_point(jacobians[3]);
-                        std::cout << point_obs_.transpose() << std::endl << " jacobian_point " << std::endl << jacobian_point << std::endl;
-                        std::cout << point_obs_.transpose() << std::endl << " jacobian_point num " << std::endl << num_jacobian.block<2, 3>( 0, 18 ) << std::endl;
-//                        jacobian_point.setZero();
-//                        jacobian_point.block<2, 3>(0, 0) = num_jacobian.block<2, 3>( 0, 18 );
+//                        std::cout << point_obs_.transpose() << std::endl << " jacobian_point " << std::endl << jacobian_point << std::endl;
+//                        std::cout << point_obs_.transpose() << std::endl << " jacobian_point num " << std::endl << num_jacobian.block<2, 3>( 0, 18 ) << std::endl;
+                        jacobian_point.setZero();
+                        jacobian_point.block<2, 3>(0, 0) = num_jacobian.block<2, 3>( 0, 18 );
                     }
-                    std::cout << "========================" << std::endl;
+//                    std::cout << "========================" << std::endl;
                 }
             }
 

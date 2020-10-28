@@ -131,7 +131,10 @@ namespace sfm{
                     update_state_speed();
                     update_imu_time();
                     update_imu_inte();
+                    BundleAdjustment_optimizi_only_IMU();
+                    std::cout << "end BundleAdjustment_optimizi_only_IMU" << std::endl;
                     BundleAdjustmentWithIMU();
+                    std::cout << "end BundleAdjustmentWithIMU" << std::endl;
                 }
                 while (badTrackRejector(4.0, 50));
                 eraseUnstablePosesAndObservations(sfm_data_);
@@ -241,7 +244,7 @@ namespace sfm{
 
             // get start index and end index of vi init
             {
-                const int len_size_2 = 6;
+                const int len_size_2 = 15;
                 IndexT len_2 = (initial_pair_.second - initial_pair_.first) / 2;
                 IndexT inital_len_2 = len_size_2 > len_2 ? len_size_2 : len_2;
                 IndexT center = initial_pair_.first + len_2;
@@ -848,7 +851,7 @@ namespace sfm{
         std::cout << "correct_scale = " << correct_scale << std::endl;
         std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
 
-        if(std::fabs(correct_g.norm() - VIstaticParm::G_.norm()) > 1.0 || correct_scale < 0)
+        if(std::fabs(correct_g.norm() - VIstaticParm::G_.norm()) > 2.0 || correct_scale < 0)
         {
             return false;
         }
@@ -1038,6 +1041,35 @@ namespace sfm{
                   this->b_use_motion_prior_
                 );
         return bundle_adjustment_obj.Adjust(sfm_data_, ba_refine_options);
+    }
+
+    bool SequentialVISfMReconstructionEngine::BundleAdjustment_optimizi_only_IMU()
+    {
+        Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
+        if ( sfm_data_.GetPoses().size() > 100 &&
+             (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::CX_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::EIGEN_SPARSE))
+                )
+            // Enable sparse BA only if a sparse lib is available and if there more than 100 poses
+        {
+            options.preconditioner_type_ = ceres::JACOBI;
+            options.linear_solver_type_ = ceres::SPARSE_SCHUR;
+        }
+        else
+        {
+            options.linear_solver_type_ = ceres::DENSE_SCHUR;
+        }
+        Bundle_Adjustment_IMU_Ceres bundle_adjustment_obj(options);
+//        Bundle_Adjustment_Ceres bundle_adjustment_obj(options);
+        const Optimize_Options ba_refine_options
+                ( ReconstructionEngine::intrinsic_refinement_options_,
+                  Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
+                  Structure_Parameter_Type::ADJUST_ALL, // Adjust scene structure
+                  Control_Point_Parameter(),
+                  this->b_use_motion_prior_
+                );
+        return bundle_adjustment_obj.Adjust_onlyIMU(sfm_data_, ba_refine_options);
     }
 
     /**
@@ -1689,6 +1721,11 @@ namespace sfm{
             auto c_it = sfm_data_.poses.rbegin();
             left_pose_id = it->first;
             right_pose_id = c_it->first;
+
+            std::cout << "left_pose_id = " << left_pose_id << std::endl;
+            std::cout << "right_pose_id = " << right_pose_id << std::endl;
+            std::cout << "sfm_data_.poses.size() = " << sfm_data_.poses.size() << std::endl;
+
             if( (left_pose_id - left_view_id) < 10 ) left_pose_id = left_view_id;
             else left_pose_id -= 10;
             if( (right_view_id - right_pose_id) < 10 ) right_pose_id = right_view_id;

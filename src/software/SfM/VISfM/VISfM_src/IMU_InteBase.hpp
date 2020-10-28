@@ -20,13 +20,20 @@ namespace openMVG
 {
     namespace sfm
     {
+        enum class IMU_File_Type : int
+        {
+            Mate20Pro                = 1,
+            EuRoc     = 2
+        };
+
         class CsvReader
         {
         public:
             CsvReader() = delete;
-            CsvReader( const std::string& filename, const char split = ',' )
+            CsvReader( const std::string& filename, IMU_File_Type imuFileType, const char split = ',' )
             {
                 split_= split;
+                imuFileType_ = imuFileType;
                 csvInput_.open( filename );
                 if( !csvInput_ ) throw std::runtime_error( "Error csv file dict: " + filename );
 
@@ -58,9 +65,13 @@ namespace openMVG
                     data_[i] = std::strtod( part.c_str(), nullptr );
                 }
 
-//                data_[0] -= 1403715 * 1e12;
-//                data_[0] /= 1e6;
-//                data_[0] = static_cast<int>(data_[0]);
+                if( imuFileType_ == IMU_File_Type::EuRoc )
+                {
+                    data_[0] -= 1403715 * 1e12;
+                    data_[0] /= 1e6;
+                    data_[0] = static_cast<int>(data_[0]);
+                }
+
                 if( last_data_[0] != 0 )
                 {
                     if( (data_[0] - last_data_[0]) != 5 )
@@ -86,52 +97,84 @@ namespace openMVG
         private:
             std::vector<double> last_data_;
             std::ifstream csvInput_;
+            IMU_File_Type imuFileType_;
             char split_;
         };
 
         class IMU_Dataset
         {
         public:
-            explicit IMU_Dataset( const std::string&IMU_file_path )
+            explicit IMU_Dataset( const std::string&IMU_file_path, const std::string& simu_file_type )
             {
-                CsvReader reader( IMU_file_path );
+                IMU_File_Type imu_file_type;
+                if( simu_file_type == std::string( "Mate20Pro" ) )
+                {
+                    imu_file_type = IMU_File_Type::Mate20Pro;
+                    std::cout << "imu_file_type = IMU_File_Type::Mate20Pro;" << std::endl;
+                }
+                else if( simu_file_type == std::string("EuRoc") )
+                {
+                    imu_file_type = IMU_File_Type::EuRoc;
+                    std::cout << "imu_file_type = IMU_File_Type::EuRoc;" << std::endl;
+                }
+
+
+                CsvReader reader( IMU_file_path, imu_file_type );
                 while(reader.readline())
                 {
-//                    vec_times.push_back(reader.data_[0]);
-//                    vec_gyr.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
-//                    vec_acc.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
-                    vec_times.push_back(reader.data_[0]);
-                    vec_acc.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
-                    vec_gyr.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
+                    switch (imu_file_type) {
+                        case IMU_File_Type::Mate20Pro:
+                        {
+                            vec_times.push_back(reader.data_[0]);
+                            vec_acc.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
+                            vec_gyr.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
+                            break;
+                        }
+                        case IMU_File_Type::EuRoc:
+                        {
+                            vec_times.push_back(reader.data_[0]);
+                            vec_gyr.emplace_back(reader.data_[1],reader.data_[2],reader.data_[3]);
+                            vec_acc.emplace_back(reader.data_[4],reader.data_[5],reader.data_[6]);
+                            break;
+                        }
+                        default:
+                            break;
+
+                    }
                 }
             }
 
             void corect_time(const IndexT _time)
             {
+                std::cout << "vec_times.back() = "  << vec_times.back() << std::endl;
+                std::cout << "_time = " << _time << std::endl;
                 double dt = vec_times.back() - _time;
+                std::cout << "dt = " << dt << std::endl;
                 corect_dt(dt);
             }
 
-            void corect_dt( const IndexT _dt )
+            void corect_dt( const int64_t _dt )
             {
-                IndexT min_new = std::numeric_limits<IndexT>::max();
+                std::cout << "_dt = " << _dt << std::endl;
+//                int64_t min_new = std::numeric_limits<int64_t>::max();
+
                 for( auto&time:vec_times )
                 {
-                    if( min_new == std::numeric_limits<IndexT>::max() && time > _dt )
-                    {
-                        min_new = time - _dt;
-                    }
-                    time -= _dt;
+//                    if( min_new == std::numeric_limits<IndexT>::max() && time > _dt )
+//                    {
+//                        min_new = time - _dt;
+//                    }
+                    time += _dt;
                 }
-                assert( min_new != std::numeric_limits<IndexT>::max() );
-                update_measure(min_new);
+//                assert( min_new != std::numeric_limits<IndexT>::max() );
+//                update_measure(min_new);
             }
 
-            void update_measure(const IndexT min_new)
+            void update_measure(const int64_t min_new)
             {
                 std::vector<Vec3> vec_acc_new;
                 std::vector<Vec3> vec_gyr_new;
-                std::vector<IndexT> vec_times_new;
+                std::vector<int64_t> vec_times_new;
 
                 size_t index =0;
                 for( ; index < vec_times.size(); ++index )
@@ -158,6 +201,10 @@ namespace openMVG
                 if( _t0 == _t1 )
                     return std::make_tuple( vec_times_part, vec_acc_part, vec_gyr_part );
                 size_t index =0;
+                for(  ;index < vec_times.size(); ++index )
+                {
+                    if( vec_times[index] >= 0 ) break;
+                }
                 for(  ;index < vec_times.size(); ++index )
                 {
                     if( vec_times[index] > _t0 ) break;
@@ -215,13 +262,18 @@ namespace openMVG
         private:
             std::vector<Vec3> vec_acc;
             std::vector<Vec3> vec_gyr;
-            std::vector<IndexT> vec_times;
+            std::vector<int64_t> vec_times;
         };
 
-#define ACC_N 0.01
-#define GYR_N 0.005
-#define ACC_W 0.0002
-#define GYR_W 4e-6
+//#define ACC_N 1.2014275855645568e-02
+//#define GYR_N 8.5079299066877169e-04
+//#define ACC_W 9.3676758844177331e-04
+//#define GYR_W 1.4040873430851709e-05
+
+#define ACC_N 0.08
+#define GYR_N 0.004
+#define ACC_W 0.00004
+#define GYR_W 2.0e-6
 
         enum StateOrder
         {

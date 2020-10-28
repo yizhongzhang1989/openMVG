@@ -188,8 +188,9 @@ namespace openMVG {
                 residual = pre_integration.evaluate(Pi, Qi, Vi, Bai, Bgi,
                                                      Pj, Qj, Vj, Baj, Bgj);
 
-                Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration.covariance.inverse()).matrixL().transpose();
-                //sqrt_info.setIdentity();
+//                Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration.covariance.inverse()).matrixL().transpose();
+                Eigen::Matrix<double, 15, 15> sqrt_info;
+                sqrt_info.setIdentity();
                 residual = sqrt_info * residual;
 
                 if (jacobians)

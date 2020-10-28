@@ -121,6 +121,8 @@ private:
 
     bool BundleAdjustmentWithIMU();
 
+    bool BundleAdjustment_optimizi_only_IMU();
+
     /// Discard track with too large residual error
     bool badTrackRejector(double dPrecision, size_t count = 0);
 

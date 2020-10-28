@@ -70,6 +70,27 @@ namespace openMVG {
                     // tell which parameter needs to be adjusted
                     const Optimize_Options & options
                     );
+
+            Eigen::Matrix<double, 15, 1> GetImuError(
+                    const IMU_InteBase& pre_integration,
+
+                    const double* pose_i_param,
+                    const double* pose_j_param,
+
+                    const double* imu_i_param,
+                    const double* imu_j_param);
+
+            void PrintAvgImuError( const sfm::SfM_Data &sfm_data,
+                                   const Hash_Map<IndexT, std::vector<double>>& map_poses,
+                                   const Hash_Map<IndexT, std::vector<double>>& map_speed );
+
+            bool Adjust_onlyIMU(
+                    // the SfM scene to refine
+                    sfm::SfM_Data & sfm_data,
+                    // tell which parameter needs to be adjusted
+                    const Optimize_Options & options
+            );
+
         };
 
     } // namespace sfm

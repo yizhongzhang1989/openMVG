@@ -339,6 +339,11 @@ namespace openMVG
             //  Make Ceres automatically detect the bundle structure.
             ceres::Solver::Options ceres_config_options;
             ceres_config_options.max_num_iterations = 500;
+//            std::cout << ceres_options_.preconditioner_type_ << std::endl;
+            std::cout << "linear_solver_type_ = " << ceres_options_.linear_solver_type_ << std::endl;
+            std::cout  << "sparse_linear_algebra_library_type_ = " << ceres_options_.sparse_linear_algebra_library_type_ << std::endl;
+//            std::cout << ceres_options_.preconditioner_type_ << std::endl;
+//            std::cout << ceres_options_.preconditioner_type_ << std::endl;
             ceres_config_options.preconditioner_type =
                     static_cast<ceres::PreconditionerType>(ceres_options_.preconditioner_type_);
             ceres_config_options.linear_solver_type =
@@ -423,6 +428,284 @@ namespace openMVG
             }
         }
 
+        Eigen::Matrix<double, 15, 1> Bundle_Adjustment_IMU_Ceres::GetImuError(
+                const IMU_InteBase& pre_integration,
+
+                const double* pose_i_param,
+                const double* pose_j_param,
+
+                const double* imu_i_param,
+                const double* imu_j_param
+//                const Eigen::Vector3d& Pi,
+//                const Eigen::Quaterniond& Qi,
+//                const Eigen::Vector3d& Vi,
+//                const Eigen::Vector3d& Bai,
+//                const Eigen::Vector3d& Bgi,
+//
+//                const Eigen::Vector3d& Pj,
+//                const Eigen::Quaterniond& Qj,
+//                const Eigen::Vector3d& Vj,
+//                const Eigen::Vector3d& Baj,
+//                const Eigen::Vector3d& Bgj
+                )
+        {
+            Eigen::Vector3d Pi(pose_i_param[0], pose_i_param[1], pose_i_param[2]);
+            Eigen::Quaterniond Qi(pose_i_param[6], pose_i_param[3], pose_i_param[4], pose_i_param[5]);
+
+            Eigen::Vector3d Vi(imu_i_param[0], imu_i_param[1], imu_i_param[2]);
+            Eigen::Vector3d Bai(imu_i_param[3], imu_i_param[4], imu_i_param[5]);
+            Eigen::Vector3d Bgi(imu_i_param[6], imu_i_param[7], imu_i_param[8]);
+
+            Eigen::Vector3d Pj(pose_j_param[0], pose_j_param[1], pose_j_param[2]);
+            Eigen::Quaterniond Qj(pose_j_param[6], pose_j_param[3], pose_j_param[4], pose_j_param[5]);
+
+            Eigen::Vector3d Vj(imu_j_param[0], imu_j_param[1], imu_j_param[2]);
+            Eigen::Vector3d Baj(imu_j_param[3], imu_j_param[4], imu_j_param[5]);
+            Eigen::Vector3d Bgj(imu_j_param[6], imu_j_param[7], imu_j_param[8]);
+
+
+            Eigen::Matrix<double, 15, 1> residual;
+            residual = pre_integration.evaluate(Pi, Qi, Vi, Bai, Bgi,
+                                                     Pj, Qj, Vj, Baj, Bgj);
+//            Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration.covariance.inverse()).matrixL().transpose();
+//            residual = sqrt_info * residual;
+            return residual;
+        }
+
+        void Bundle_Adjustment_IMU_Ceres::PrintAvgImuError(
+                const sfm::SfM_Data &sfm_data,
+
+                const Hash_Map<IndexT, std::vector<double>>& map_poses,
+                const Hash_Map<IndexT, std::vector<double>>& map_speed
+        )
+        {
+            Eigen::Matrix<double, 15, 1> imu_error_avg; imu_error_avg.setZero();
+            int imu_error_size = 0;
+            {
+                auto pose_i = sfm_data.poses.begin(); pose_i++;
+                auto pose_j = std::next(pose_i);
+                for(; pose_j != sfm_data.poses.end(); pose_j++, pose_i++)
+                {
+                    imu_error_size++;
+                    const IndexT indexPose = pose_j->first;
+                    auto imu_ptr = sfm_data.imus.at(indexPose);
+                    if( imu_ptr.sum_dt_ > 0.3 ) continue;
+
+
+                    imu_error_avg += GetImuError(
+                            imu_ptr,
+                            &map_poses.at(pose_i->first)[0],
+                            &map_speed.at(pose_i->first)[0],
+                            &map_poses.at(pose_j->first)[0],
+                            &map_speed.at(pose_j->first)[0]
+                    );
+                }
+            }
+            imu_error_avg /= imu_error_size;
+
+            std::cout << "---------------IMU ERROR AVG----------------------" << std::endl;
+            std::cout << imu_error_avg.transpose() << std::endl;
+            std::cout << "--------------------------------------------------" << std::endl;
+        }
+
+        bool Bundle_Adjustment_IMU_Ceres::Adjust_onlyIMU(sfm::SfM_Data &sfm_data, const Optimize_Options &options)
+        {
+            if( options.use_motion_priors_opt )
+            {
+                std::cerr << "not define yet" << std::endl;
+                assert(0);
+            }
+
+            ceres::Problem problem;
+
+            double ex_paparm[7];
+            {
+                Mat3 Ric = sfm_data.IG_Ric;
+                Eigen::Quaterniond Qic(Ric);
+                Vec3 tic = sfm_data.IG_tic;
+                ex_paparm[0] = tic(0);
+                ex_paparm[1] = tic(1);
+                ex_paparm[2] = tic(2);
+                ex_paparm[3] = Qic.x();
+                ex_paparm[4] = Qic.y();
+                ex_paparm[5] = Qic.z();
+                ex_paparm[6] = Qic.w();
+
+                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+                problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
+                problem.SetParameterBlockConstant(ex_paparm);
+            }
+
+            // Data wrapper for refinement:
+            Hash_Map<IndexT, std::vector<double>> map_intrinsics;
+            Hash_Map<IndexT, std::vector<double>> map_poses;
+            Hash_Map<IndexT, std::vector<double>> map_speed;
+
+            // Setup Poses data & subparametrization
+            for (const auto & pose_it : sfm_data.poses)
+            {
+                const IndexT indexPose = pose_it.first;
+
+                const Pose3 & pose = pose_it.second;
+                const Mat3 Rwc = pose.rotation().transpose();
+                const Vec3 twc = pose.center();
+
+                Vec3 tci = - sfm_data.IG_Ric.transpose() * sfm_data.IG_tic;
+                Mat3 Rwi = Rwc * sfm_data.IG_Ric.transpose();
+                Eigen::Quaterniond Qwi(Rwi);
+                Vec3 twi = twc + Rwc * tci;
+
+                // angleAxis + translation
+                map_poses[indexPose] = {
+                        twi(0),
+                        twi(1),
+                        twi(2),
+                        Qwi.x(),
+                        Qwi.y(),
+                        Qwi.z(),
+                        Qwi.w()
+                };
+
+                double * parameter_block = &map_poses.at(indexPose)[0];
+                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+                problem.AddParameterBlock(parameter_block, 7, local_parameterization);  // p,q
+
+                problem.SetParameterBlockConstant(parameter_block);
+
+            }
+
+            for( const auto& imu:sfm_data.imus )
+            {
+                const IndexT indexSpd = imu.first;
+                Vec3 speedV3d = sfm_data.Speeds.at(indexSpd).speed_;
+                Vec3 Ba = imu.second.linearized_ba_;
+                Vec3 Bg = imu.second.linearized_bg_;
+                map_speed[indexSpd] = {
+                        speedV3d(0),
+                        speedV3d(1),
+                        speedV3d(2),
+
+                        Ba(0),
+                        Ba(1),
+                        Ba(2),
+
+                        Bg(0),
+                        Bg(1),
+                        Bg(2)
+
+                };
+
+                double * parameter_block = &map_speed.at(indexSpd)[0];
+                problem.AddParameterBlock(parameter_block, map_speed.at(indexSpd).size());
+            }
+
+            ceres::LossFunction * imu_LossFunction = //nullptr;
+                    new ceres::CauchyLoss(Square(4.0));
+            {
+
+                // TODO xinli first pose speed
+                auto pose_i = sfm_data.poses.begin(); pose_i++;
+                auto pose_j = std::next(pose_i);
+                for(; pose_j != sfm_data.poses.end(); pose_j++, pose_i++)
+                {
+//                    break;
+                    const IndexT indexPose = pose_j->first;
+                    auto imu_ptr = sfm_data.imus.at(indexPose);
+//                    std::cout << "imu_ptr.sum_dt_ = " << imu_ptr.sum_dt_ << std::endl;
+                    if( imu_ptr.sum_dt_ > 0.3 ) continue;
+
+                    auto imu_factor = new IMUFactor(imu_ptr);
+                    problem.AddResidualBlock(imu_factor, imu_LossFunction,
+                                             &map_poses.at(pose_i->first)[0],
+                                             &map_speed.at(pose_i->first)[0],
+                                             &map_poses.at(pose_j->first)[0],
+                                             &map_speed.at(pose_j->first)[0]);
+                }
+            }
+
+            PrintAvgImuError( sfm_data, map_poses, map_speed );
+
+            if (options.control_point_opt.bUse_control_points)
+            {
+                std::runtime_error("not define");
+            }
+
+            // Configure a BA engine and run it
+            //  Make Ceres automatically detect the bundle structure.
+            ceres::Solver::Options ceres_config_options;
+            ceres_config_options.max_num_iterations = 500;
+            ceres_config_options.preconditioner_type =
+                    static_cast<ceres::PreconditionerType>(ceres_options_.preconditioner_type_);
+            ceres_config_options.linear_solver_type =
+                    static_cast<ceres::LinearSolverType>(ceres_options_.linear_solver_type_);
+            ceres_config_options.sparse_linear_algebra_library_type =
+                    static_cast<ceres::SparseLinearAlgebraLibraryType>(ceres_options_.sparse_linear_algebra_library_type_);
+            ceres_config_options.minimizer_progress_to_stdout = ceres_options_.bVerbose_;
+            ceres_config_options.logging_type = ceres::SILENT;//PER_MINIMIZER_ITERATION;//SILENT;
+            ceres_config_options.num_threads = ceres_options_.nb_threads_;
+#if CERES_VERSION_MAJOR < 2
+            ceres_config_options.num_linear_solver_threads = ceres_options_.nb_threads_;
+#endif
+            ceres_config_options.parameter_tolerance = ceres_options_.parameter_tolerance_;
+
+            // Solve BA
+            ceres::Solver::Summary summary;
+            ceres::Solve(ceres_config_options, &problem, &summary);
+            if (ceres_options_.bCeres_summary_)
+                std::cout << summary.FullReport() << std::endl;
+
+
+            PrintAvgImuError( sfm_data, map_poses, map_speed );
+
+            // If no error, get back refined parameters
+            if (!summary.IsSolutionUsable())
+            {
+                if (ceres_options_.bVerbose_)
+                    std::cout << "Bundle Adjustment failed." << std::endl;
+                return false;
+            }
+            else // Solution is usable
+            {
+                if (ceres_options_.bVerbose_) {
+                    // Display statistics about the minimization
+                    std::cout << std::endl
+                              << "Bundle Adjustment Only Optimize IMU statistics (approximated RMSE):\n"
+                              << " #views: " << sfm_data.views.size() << "\n"
+                              << " #poses: " << sfm_data.poses.size() << "\n"
+                              << " #points: " << sfm_data.structure.size() << "\n"
+                              << " #intrinsics: " << sfm_data.intrinsics.size() << "\n"
+                              << " #tracks: " << sfm_data.structure.size() << "\n"
+                              << " #residuals: " << summary.num_residuals << "\n"
+                              << " Initial RMSE: " << std::sqrt(summary.initial_cost / summary.num_residuals) << "\n"
+                              << " Final RMSE: " << std::sqrt(summary.final_cost / summary.num_residuals) << "\n"
+                              << " Time (s): " << summary.total_time_in_seconds << "\n"
+                              << std::endl;
+//                    if (options.use_motion_priors_opt)
+//                        std::cout << "Usable motion priors: " << (int) b_usable_prior << std::endl;
+                }
+
+
+
+                for( auto& imu:sfm_data.imus )
+                {
+                    const IndexT indexIMU = imu.first;
+                    Vec3 speed(map_speed.at(indexIMU)[0], map_speed.at(indexIMU)[1], map_speed.at(indexIMU)[2]);
+                    Vec3 ba(map_speed.at(indexIMU)[3], map_speed.at(indexIMU)[4], map_speed.at(indexIMU)[5]);
+                    Vec3 bg(map_speed.at(indexIMU)[6], map_speed.at(indexIMU)[7], map_speed.at(indexIMU)[8]);
+
+                    sfm_data.Speeds.at(indexIMU).speed_ = speed;
+                    imu.second.linearized_ba_ = ba;
+                    imu.second.linearized_bg_ = bg;
+
+//                    imu.second.repropagate( ba, bg );
+                }
+
+                // Structure is already updated directly if needed (no data wrapping)
+
+                return true;
+            }
+        }
+
         bool Bundle_Adjustment_IMU_Ceres::Adjust(sfm::SfM_Data &sfm_data, const Optimize_Options &options)
         {
             if( options.use_motion_priors_opt )
@@ -448,7 +731,7 @@ namespace openMVG
 
                 ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
                 problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
-//                problem.SetParameterBlockConstant(ex_paparm);
+                problem.SetParameterBlockConstant(ex_paparm);
             }
 
             // Data wrapper for refinement:
@@ -646,9 +929,10 @@ namespace openMVG
                     problem.SetParameterBlockConstant(structure_landmark_it.second.X.data());
             }
 
-            ceres::LossFunction * imu_LossFunction = //nullptr;
-                    new ceres::CauchyLoss(Square(2.0));
+            ceres::LossFunction * imu_LossFunction = nullptr;
+//                    new ceres::CauchyLoss(Square(2.0));
             {
+
                 // TODO xinli first pose speed
                 auto pose_i = sfm_data.poses.begin(); pose_i++;
                 auto pose_j = std::next(pose_i);
@@ -685,7 +969,7 @@ namespace openMVG
             ceres_config_options.sparse_linear_algebra_library_type =
                     static_cast<ceres::SparseLinearAlgebraLibraryType>(ceres_options_.sparse_linear_algebra_library_type_);
             ceres_config_options.minimizer_progress_to_stdout = ceres_options_.bVerbose_;
-            ceres_config_options.logging_type = ceres::SILENT;
+            ceres_config_options.logging_type = ceres::SILENT;//PER_MINIMIZER_ITERATION;//SILENT;
             ceres_config_options.num_threads = ceres_options_.nb_threads_;
 #if CERES_VERSION_MAJOR < 2
             ceres_config_options.num_linear_solver_threads = ceres_options_.nb_threads_;
@@ -779,6 +1063,8 @@ namespace openMVG
                     sfm_data.Speeds.at(indexIMU).speed_ = speed;
                     imu.second.linearized_ba_ = ba;
                     imu.second.linearized_bg_ = bg;
+
+//                    imu.second.repropagate( ba, bg );
                 }
 
                 // Structure is already updated directly if needed (no data wrapping)

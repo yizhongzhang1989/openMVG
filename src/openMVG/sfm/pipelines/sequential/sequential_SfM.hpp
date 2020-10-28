@@ -42,6 +42,8 @@ public:
   void SetFeaturesProvider(Features_Provider * provider);
   void SetMatchesProvider(Matches_Provider * provider);
 
+  void coutIntrinsic();
+
   virtual bool Process() override;
 
   bool VI_Init( const IndexT start, const IndexT end );

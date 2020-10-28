@@ -13,6 +13,20 @@ target_link_libraries(openMVG_main_SfMInit_ImageListing
     ${STLPLUS_LIBRARY}
 )
 
+###
+# Intrinsic image analysis and SfM_Data container initialization
+###
+add_executable(openMVG_main_SfMInit_ImageListing_EuRoc main_SfMInit_ImageListing_EuRoc.cpp)
+target_link_libraries(openMVG_main_SfMInit_ImageListing_EuRoc
+        PRIVATE
+        openMVG_system
+        openMVG_image
+        openMVG_features
+        openMVG_sfm
+        openMVG_exif
+        ${STLPLUS_LIBRARY}
+        )
+
 #convert a v0.6 lists.txt file to the new sfm_data.X format
 add_executable(openMVG_main_ConvertList main_ConvertList.cpp)
 target_link_libraries(openMVG_main_ConvertList

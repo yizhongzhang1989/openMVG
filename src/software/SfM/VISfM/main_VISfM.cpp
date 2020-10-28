@@ -85,6 +85,7 @@ int main(int argc, char **argv)
 
     int selection_method = static_cast<int>(resection::SelectionMethod::DEFAULT);
     std::string sSfM_IMU_Filename;
+    std::string sSfM_IMU_FileType = "Mate20Pro";
     std::string sSfM_Stamp_Filename;
 
 
@@ -101,6 +102,7 @@ int main(int argc, char **argv)
 
     cmd.add(make_option('s', selection_method, "selection_method"));
     cmd.add( make_option('u', sSfM_IMU_Filename,"imu_file"));
+    cmd.add( make_option('I', sSfM_IMU_FileType,"imu_filetype"));
     cmd.add( make_option('T',sSfM_Stamp_Filename,"timestamp_file"));
 
     try {
@@ -172,11 +174,38 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    // EuRoc
+//        0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
+//         0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
+//        -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+//         0.0, 0.0, 0.0, 1.0
+
     Mat3 Ric;
-    Ric << -0.00268725, -0.99990988, -0.0131532,
-            -0.99995582, 0.00280539, -0.00897172,
-            0.00900781, 0.01312851, -0.99987324;
-    Vec3 tic( 0.01903381, -0.02204486, 0.00402214 );
+    Vec3 tic;
+    if( sSfM_IMU_FileType == std::string("EuRoc") )
+    {
+// EuRoc
+        Ric << 0.0148655429818, -0.999880929698, 0.00414029679422,
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
+        tic << -0.0216401454975, -0.064676986768, 0.00981073058949;
+    }
+    else if ( sSfM_IMU_FileType == std::string("Mate20Pro") )
+    {
+        //Mate20Pro
+        Ric << -0.00268725, -0.99990988, -0.0131532,
+                -0.99995582, 0.00280539, -0.00897172,
+                0.00900781, 0.01312851, -0.99987324;
+        tic << 0.01903381, -0.02204486, 0.00402214;
+    }
+    else
+    {
+        std::cerr <<"sSfM_IMU_FileType error  " << sSfM_IMU_FileType << std::endl;
+        return 1;
+     }
+
+
+
     Vec3 G(0.,0.,9.8107);
     VIstaticParm::G_ = G;
     sfMData.IG_Ric = Ric;
@@ -251,10 +280,17 @@ int main(int argc, char **argv)
 //                break;
 //            }
 ////            double time = std::stod(line);
-////            time -= 1403715 * 1e12;
-////            times.emplace_back( static_cast<IndexT>(time / 1e6) ); // second * 1000
+            if( sSfM_IMU_FileType == std::string("Mate20Pro") )
+            {
+                times.emplace_back( static_cast<IndexT>(time * 1000) ); // second * 1000
+            }
+            else if( sSfM_IMU_FileType == std::string("EuRoc") )
+            {
+                time -= 1403715 * 1e12;
+                times.emplace_back( static_cast<IndexT>(time / 1e6) ); // second * 1000
+            }
 //             double time = std::stod(line);
-             times.emplace_back( static_cast<IndexT>(time * 1000) ); // second * 1000
+
 //            std::cout << i++ << " " ;
 //            std::cout << time << std::endl;
         }
@@ -267,8 +303,16 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
     // TODO xinli check IMU image dt
-    std::shared_ptr<IMU_Dataset> imu_dataset = std::make_shared<IMU_Dataset>(sSfM_IMU_Filename);
-//    imu_dataset->corect_time( times.back() );
+    std::shared_ptr<IMU_Dataset> imu_dataset = std::make_shared<IMU_Dataset>(sSfM_IMU_Filename, sSfM_IMU_FileType);
+//    if( sSfM_IMU_FileType == std::string( "Mate20Pro" ) )
+//        imu_dataset->corect_time( times.back() );
+
+//    IndexT dt = ;
+//    if(sSfM_IMU_FileType == std::string( "Mate20Pro" ))
+//        imu_dataset->corect_dt( 0.226631163641 * 1000 );
+
+//    timeshift cam0 to imu0: [s] (t_imu = t_cam + shift)
+
 //    imu_dataset->corect_dt( -2 );
 
     //---------------------------------------
@@ -312,6 +356,9 @@ int main(int argc, char **argv)
     if(visfmEngine.VI_Init(  ))
     {
 
+        Save(visfmEngine.Get_SfM_Data(),
+             stlplus::create_filespec(sOutDir, "sfm_visual_init_data", ".bin"),
+             ESfM_Data(ALL));
 //        Save(visfmEngine.Get_SfM_Data(),
 //             "/home/xinli/work/data/VI_visual_init.bin",
 //             ESfM_Data(ALL));

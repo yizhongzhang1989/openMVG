@@ -128,13 +128,17 @@ namespace sfm{
                 // Perform BA until all point are under the given precision
                 do
                 {
+//                    std::cout << "start update_state_speed" << std::endl;
                     update_state_speed();
+//                    std::cout << "start update_state_speed" << std::endl;
                     update_imu_time();
+//                    std::cout << "start update_imu_inte" << std::endl;
                     update_imu_inte();
+//                    std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
                     BundleAdjustment_optimizi_only_IMU();
-                    std::cout << "end BundleAdjustment_optimizi_only_IMU" << std::endl;
+//                    std::cout << "end BundleAdjustment_optimizi_only_IMU" << std::endl;
                     BundleAdjustmentWithIMU();
-                    std::cout << "end BundleAdjustmentWithIMU" << std::endl;
+//                    std::cout << "end BundleAdjustmentWithIMU" << std::endl;
                 }
                 while (badTrackRejector(4.0, 50));
                 eraseUnstablePosesAndObservations(sfm_data_);
@@ -244,7 +248,7 @@ namespace sfm{
 
             // get start index and end index of vi init
             {
-                const int len_size_2 = 15;
+                const int len_size_2 = 10;
                 IndexT len_2 = (initial_pair_.second - initial_pair_.first) / 2;
                 IndexT inital_len_2 = len_size_2 > len_2 ? len_size_2 : len_2;
                 IndexT center = initial_pair_.first + len_2;
@@ -558,11 +562,13 @@ namespace sfm{
             std::vector< IndexT > times;
             std::vector<Vec3> accs;
             std::vector<Vec3> gyrs;
+            bool good_flag;
 
 //            std::cout << "start GetMeasure" << std::endl;
-            std::tie( times, accs, gyrs ) = sfm_data_.imu_dataset->GetMeasure(t0, t1);
+            std::tie( good_flag, times, accs, gyrs ) = sfm_data_.imu_dataset->GetMeasure(t0, t1);
 //            std::cout << "start integrate" << std::endl;
-            id_imubase.second.integrate(accs, gyrs, times);
+//            std::cout << "t0 = " << t0 << " t1 = " << t1 << std::endl;
+            id_imubase.second.integrate(accs, gyrs, times, good_flag);
         }
     }
 
@@ -587,6 +593,24 @@ namespace sfm{
 //                std::cout << "end construction imubase_ptr" << std::endl;
                 sfm_data_.imus.insert( std::make_pair( id_pose,  imubase_ptr) );
 
+                {
+                    auto it_imu = sfm_data_.imus.find( id_pose );
+                    auto it_imu_next = std::next(it_imu);
+                    if( it_imu_next != sfm_data_.imus.end() )
+                    {
+                        it_imu->second.linearized_ba_ = it_imu_next->second.linearized_ba_;
+                        it_imu->second.linearized_bg_ = it_imu_next->second.linearized_bg_;
+                    }
+                    else
+                    {
+                        if( sfm_data_.imus.size() > 2 )
+                        {
+                            auto it_imu_prev = std::prev(it_imu);
+                            it_imu->second.linearized_ba_ = it_imu_prev->second.linearized_ba_;
+                            it_imu->second.linearized_bg_ = it_imu_prev->second.linearized_bg_;
+                        }
+                    }
+                }
 
 //                std::cout << "start construction IMU_Speed" << std::endl;
 //                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.));
@@ -616,6 +640,22 @@ namespace sfm{
                 IMU_Speed speed(Eigen::Vector3d(0.,0.,0.)); // TODO xinli
 //                std::cout << "end construction IMU_Speed" << std::endl;
                 sfm_data_.Speeds.insert( std::make_pair(id_pose, speed) );
+                {
+                    auto it_speed = sfm_data_.Speeds.find( id_pose );
+                    auto it_speed_next = std::next(it_speed);
+                    if( it_speed_next != sfm_data_.Speeds.end() )
+                    {
+                        it_speed->second.speed_ = it_speed_next->second.speed_;
+                    }
+                    else
+                    {
+                        if( sfm_data_.Speeds.size() > 2 )
+                        {
+                            auto it_speed_prev = std::prev(it_speed);
+                            it_speed->second.speed_ = it_speed_prev->second.speed_;
+                        }
+                    }
+                }
 //                std::cout << "end insert imu" << std::endl;
             }
             it_pose++;
@@ -681,9 +721,9 @@ namespace sfm{
         Eigen::VectorXd speeds_scale;
         Eigen::Vector3d correct_g;
 
-        std::cout << "start solveGyroscopeBias" << std::endl;
-        solveGyroscopeBias();
-        std::cout << "end solveGyroscopeBias" << std::endl;
+//        std::cout << "start solveGyroscopeBias" << std::endl;
+//        solveGyroscopeBias();
+//        std::cout << "end solveGyroscopeBias" << std::endl;
 
         std::cout << "start solve_vgs" << std::endl;
         if( !solve_vgs(speeds_scale, correct_g) ) return false;
@@ -721,9 +761,11 @@ namespace sfm{
 //
 //        BundleAdjustmentWithIMU();
 //        BundleAdjustmentWithIMU();
-        BundleAdjustment();
+        BundleAdjustment_optimizi_only_IMU();
 //        BundleAdjustment();
-//        BundleAdjustmentWithIMU();
+//        BundleAdjustment();
+        BundleAdjustmentWithIMU();
+        BundleAdjustment_optimizi_only_IMU();
 //        BundleAdjustmentWithIMU();
 //        BundleAdjustment();
 //        BundleAdjustment();

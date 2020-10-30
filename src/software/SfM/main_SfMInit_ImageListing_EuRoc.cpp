@@ -274,7 +274,7 @@ int main(int argc, char **argv)
   std::vector<std::string> vec_image_new;
   for( int i=0; i<vec_image.size();++i )
   {
-      if( i%4 == 0 )
+      if( i%2 == 0 )
       {
           vec_image_new.push_back( vec_image[i] );
       }

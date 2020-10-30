@@ -192,11 +192,29 @@ int main(int argc, char **argv)
     }
     else if ( sSfM_IMU_FileType == std::string("Mate20Pro") )
     {
+//        //Mate20Pro
+//        Ric << -0.00268725, -0.99990988, -0.0131532,
+//                -0.99995582, 0.00280539, -0.00897172,
+//                0.00900781, 0.01312851, -0.99987324;
+//        tic << 0.01903381, -0.02204486, 0.00402214;
+
         //Mate20Pro
-        Ric << -0.00268725, -0.99990988, -0.0131532,
-                -0.99995582, 0.00280539, -0.00897172,
-                0.00900781, 0.01312851, -0.99987324;
-        tic << 0.01903381, -0.02204486, 0.00402214;
+        Mat3 Rci;
+        Vec3 tci;
+
+        Rci << -0.00080983, -0.99991118,  0.01330307,
+            -0.99981724,  0.0010637,   0.01908794,
+            -0.01910039, -0.01328518, -0.9997293;
+        tci << 0.02532891, 0.03078696, 0.080411;
+
+        Ric = Rci.transpose();
+        tic = -Ric * tci;
+
+    }
+    else if( sSfM_IMU_FileType == std::string("Simu") )
+    {
+        Ric.setIdentity();
+        tic.setZero();
     }
     else
     {
@@ -267,6 +285,7 @@ int main(int argc, char **argv)
     {
 
         std::ifstream fin(sSfM_Stamp_Filename, std::ifstream::in);
+        if( !fin.is_open() ) return -1;
         int i=1;
         while( !fin.eof() )
         {
@@ -308,8 +327,8 @@ int main(int argc, char **argv)
 //        imu_dataset->corect_time( times.back() );
 
 //    IndexT dt = ;
-//    if(sSfM_IMU_FileType == std::string( "Mate20Pro" ))
-//        imu_dataset->corect_dt( 0.226631163641 * 1000 );
+    if(sSfM_IMU_FileType == std::string( "Mate20Pro" ))
+        imu_dataset->corect_dt( 0.26 * 1000 );
 
 //    timeshift cam0 to imu0: [s] (t_imu = t_cam + shift)
 

@@ -80,6 +80,15 @@ namespace openMVG {
                     const double* imu_i_param,
                     const double* imu_j_param);
 
+            Eigen::Matrix<double, 15, 1> GetImuErrorWoCov(
+                    const IMU_InteBase& pre_integration,
+
+                    const double* pose_i_param,
+                    const double* pose_j_param,
+
+                    const double* imu_i_param,
+                    const double* imu_j_param);
+
             void PrintAvgImuError( const sfm::SfM_Data &sfm_data,
                                    const Hash_Map<IndexT, std::vector<double>>& map_poses,
                                    const Hash_Map<IndexT, std::vector<double>>& map_speed );

@@ -428,13 +428,13 @@ namespace openMVG
             }
         }
 
-        Eigen::Matrix<double, 15, 1> Bundle_Adjustment_IMU_Ceres::GetImuError(
+        Eigen::Matrix<double, 15, 1> Bundle_Adjustment_IMU_Ceres::GetImuErrorWoCov(
                 const IMU_InteBase& pre_integration,
 
                 const double* pose_i_param,
-                const double* pose_j_param,
-
                 const double* imu_i_param,
+
+                const double* pose_j_param,
                 const double* imu_j_param
 //                const Eigen::Vector3d& Pi,
 //                const Eigen::Quaterniond& Qi,
@@ -464,11 +464,65 @@ namespace openMVG
             Eigen::Vector3d Bgj(imu_j_param[6], imu_j_param[7], imu_j_param[8]);
 
 
+//            std::cout << "------------IN COMPUTER--------------------" << std::endl;
+//            std::cout << "Bai = " << Bai.transpose() << std::endl;
+//            std::cout << "Baj = " << Baj.transpose() << std::endl;
+//            std::cout << "Bgi = " << Bgi.transpose() << std::endl;
+//            std::cout << "Bgj = " << Bgj.transpose() << std::endl;
             Eigen::Matrix<double, 15, 1> residual;
             residual = pre_integration.evaluate(Pi, Qi, Vi, Bai, Bgi,
                                                      Pj, Qj, Vj, Baj, Bgj);
 //            Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration.covariance.inverse()).matrixL().transpose();
 //            residual = sqrt_info * residual;
+            return residual;
+        }
+
+        Eigen::Matrix<double, 15, 1> Bundle_Adjustment_IMU_Ceres::GetImuError(
+                const IMU_InteBase& pre_integration,
+
+                const double* pose_i_param,
+                const double* imu_i_param,
+
+                const double* pose_j_param,
+                const double* imu_j_param
+//                const Eigen::Vector3d& Pi,
+//                const Eigen::Quaterniond& Qi,
+//                const Eigen::Vector3d& Vi,
+//                const Eigen::Vector3d& Bai,
+//                const Eigen::Vector3d& Bgi,
+//
+//                const Eigen::Vector3d& Pj,
+//                const Eigen::Quaterniond& Qj,
+//                const Eigen::Vector3d& Vj,
+//                const Eigen::Vector3d& Baj,
+//                const Eigen::Vector3d& Bgj
+        )
+        {
+            Eigen::Vector3d Pi(pose_i_param[0], pose_i_param[1], pose_i_param[2]);
+            Eigen::Quaterniond Qi(pose_i_param[6], pose_i_param[3], pose_i_param[4], pose_i_param[5]);
+
+            Eigen::Vector3d Vi(imu_i_param[0], imu_i_param[1], imu_i_param[2]);
+            Eigen::Vector3d Bai(imu_i_param[3], imu_i_param[4], imu_i_param[5]);
+            Eigen::Vector3d Bgi(imu_i_param[6], imu_i_param[7], imu_i_param[8]);
+
+            Eigen::Vector3d Pj(pose_j_param[0], pose_j_param[1], pose_j_param[2]);
+            Eigen::Quaterniond Qj(pose_j_param[6], pose_j_param[3], pose_j_param[4], pose_j_param[5]);
+
+            Eigen::Vector3d Vj(imu_j_param[0], imu_j_param[1], imu_j_param[2]);
+            Eigen::Vector3d Baj(imu_j_param[3], imu_j_param[4], imu_j_param[5]);
+            Eigen::Vector3d Bgj(imu_j_param[6], imu_j_param[7], imu_j_param[8]);
+
+
+//            std::cout << "------------IN COMPUTER--------------------" << std::endl;
+//            std::cout << "Bai = " << Bai.transpose() << std::endl;
+//            std::cout << "Baj = " << Baj.transpose() << std::endl;
+//            std::cout << "Bgi = " << Bgi.transpose() << std::endl;
+//            std::cout << "Bgj = " << Bgj.transpose() << std::endl;
+            Eigen::Matrix<double, 15, 1> residual;
+            residual = pre_integration.evaluate(Pi, Qi, Vi, Bai, Bgi,
+                                                Pj, Qj, Vj, Baj, Bgj);
+            Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration.covariance.inverse()).matrixL().transpose();
+            residual = sqrt_info * residual;
             return residual;
         }
 
@@ -480,6 +534,7 @@ namespace openMVG
         )
         {
             Eigen::Matrix<double, 15, 1> imu_error_avg; imu_error_avg.setZero();
+            Eigen::Matrix<double, 15, 1> imu_error_avg_wo_cov; imu_error_avg_wo_cov.setZero();
             int imu_error_size = 0;
             {
                 auto pose_i = sfm_data.poses.begin(); pose_i++;
@@ -489,20 +544,40 @@ namespace openMVG
                     imu_error_size++;
                     const IndexT indexPose = pose_j->first;
                     auto imu_ptr = sfm_data.imus.at(indexPose);
+                    if(  sfm_data.Speeds.at(pose_j->first).al_opti && sfm_data.Speeds.at(pose_i->first).al_opti ) continue;
                     if( imu_ptr.sum_dt_ > 0.3 ) continue;
+                    if( imu_ptr.good_to_opti_ == false ) continue;
 
-
-                    imu_error_avg += GetImuError(
+                    Eigen::Matrix<double, 15, 1> imu_error = GetImuError(
                             imu_ptr,
                             &map_poses.at(pose_i->first)[0],
                             &map_speed.at(pose_i->first)[0],
                             &map_poses.at(pose_j->first)[0],
                             &map_speed.at(pose_j->first)[0]
                     );
+                    Eigen::Matrix<double, 15, 1> imu_error_wo_cov = GetImuErrorWoCov(
+                            imu_ptr,
+                            &map_poses.at(pose_i->first)[0],
+                            &map_speed.at(pose_i->first)[0],
+                            &map_poses.at(pose_j->first)[0],
+                            &map_speed.at(pose_j->first)[0]
+                    );
+//                    std::cout << "---------------IMU INPUT DATA----------------------" << std::endl;
+//                    std::cout << "bai = " << map_speed.at(pose_i->first)[3] << " " << map_speed.at(pose_i->first)[4] << " " << map_speed.at(pose_i->first)[5] << std::endl;
+//                    std::cout << "bgi = " << map_speed.at(pose_i->first)[6] << " " << map_speed.at(pose_i->first)[7] << " " << map_speed.at(pose_i->first)[8] << std::endl;
+//                    std::cout << "baj = " << map_speed.at(pose_j->first)[3] << " " << map_speed.at(pose_j->first)[4] << " " << map_speed.at(pose_j->first)[5] << std::endl;
+//                    std::cout << "bgj = " << map_speed.at(pose_j->first)[6] << " " << map_speed.at(pose_j->first)[7] << " " << map_speed.at(pose_j->first)[8] << std::endl;
+//                    std::cout << "imu_error_wo_cov = " << imu_error_wo_cov.transpose() << std::endl;
+//                    std::cout << "imu_error = " << imu_error.transpose() << std::endl;
+                    imu_error_avg += imu_error;
+                    imu_error_avg_wo_cov += imu_error_wo_cov;
                 }
             }
             imu_error_avg /= imu_error_size;
 
+            std::cout << "---------------IMU ERROR AVG WO COV---------------" << std::endl;
+            std::cout << imu_error_avg_wo_cov.transpose() << std::endl;
+            std::cout << "--------------------------------------------------" << std::endl;
             std::cout << "---------------IMU ERROR AVG----------------------" << std::endl;
             std::cout << imu_error_avg.transpose() << std::endl;
             std::cout << "--------------------------------------------------" << std::endl;
@@ -597,6 +672,8 @@ namespace openMVG
 
                 double * parameter_block = &map_speed.at(indexSpd)[0];
                 problem.AddParameterBlock(parameter_block, map_speed.at(indexSpd).size());
+                if( sfm_data.Speeds.at(indexSpd).al_opti )
+                    problem.SetParameterBlockConstant(parameter_block);
             }
 
             ceres::LossFunction * imu_LossFunction = //nullptr;
@@ -611,8 +688,10 @@ namespace openMVG
 //                    break;
                     const IndexT indexPose = pose_j->first;
                     auto imu_ptr = sfm_data.imus.at(indexPose);
+                    if(  sfm_data.Speeds.at(pose_j->first).al_opti && sfm_data.Speeds.at(pose_i->first).al_opti ) continue;
 //                    std::cout << "imu_ptr.sum_dt_ = " << imu_ptr.sum_dt_ << std::endl;
                     if( imu_ptr.sum_dt_ > 0.3 ) continue;
+                    if( imu_ptr.good_to_opti_ == false ) continue;
 
                     auto imu_factor = new IMUFactor(imu_ptr);
                     problem.AddResidualBlock(imu_factor, imu_LossFunction,
@@ -694,6 +773,7 @@ namespace openMVG
                     Vec3 bg(map_speed.at(indexIMU)[6], map_speed.at(indexIMU)[7], map_speed.at(indexIMU)[8]);
 
                     sfm_data.Speeds.at(indexIMU).speed_ = speed;
+                    sfm_data.Speeds.at(indexIMU).al_opti = true;
                     imu.second.linearized_ba_ = ba;
                     imu.second.linearized_bg_ = bg;
 
@@ -938,11 +1018,12 @@ namespace openMVG
                 auto pose_j = std::next(pose_i);
                 for(; pose_j != sfm_data.poses.end(); pose_j++, pose_i++)
                 {
-//                    break;
+                    break;
                     const IndexT indexPose = pose_j->first;
                     auto imu_ptr = sfm_data.imus.at(indexPose);
 //                    std::cout << "imu_ptr.sum_dt_ = " << imu_ptr.sum_dt_ << std::endl;
                     if( imu_ptr.sum_dt_ > 0.3 ) continue;
+                    if( imu_ptr.good_to_opti_ == false ) continue;
 
                     auto imu_factor = new IMUFactor(imu_ptr);
                     problem.AddResidualBlock(imu_factor, imu_LossFunction,

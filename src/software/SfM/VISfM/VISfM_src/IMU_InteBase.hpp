@@ -193,13 +193,16 @@ namespace openMVG
                 vec_gyr = vec_gyr_new;
             }
 
-            std::tuple< std::vector<IndexT>, std::vector<Vec3>, std::vector<Vec3> > GetMeasure(const IndexT _t0, const IndexT _t1)
+            std::tuple< bool, std::vector<IndexT>, std::vector<Vec3>, std::vector<Vec3> > GetMeasure(const IndexT _t0, const IndexT _t1)
             {
+                bool ret_flag = true;
                 std::vector<Vec3> vec_acc_part;
                 std::vector<Vec3> vec_gyr_part;
                 std::vector<IndexT> vec_times_part;
                 if( _t0 == _t1 )
-                    return std::make_tuple( vec_times_part, vec_acc_part, vec_gyr_part );
+                    return std::make_tuple( false, vec_times_part, vec_acc_part, vec_gyr_part );
+                if( vec_times[0] > _t0 )
+                    return std::make_tuple( false, vec_times_part, vec_acc_part, vec_gyr_part );
                 size_t index =0;
                 for(  ;index < vec_times.size(); ++index )
                 {
@@ -255,7 +258,10 @@ namespace openMVG
                     vec_times_part.push_back( _t1 );
                 }
 
-                return std::make_tuple( vec_times_part, vec_acc_part, vec_gyr_part );
+                if( index == vec_times.size() && vec_times[index-1] < _t1 )
+                    return std::make_tuple( false, vec_times_part, vec_acc_part, vec_gyr_part );
+                else
+                    return std::make_tuple( true, vec_times_part, vec_acc_part, vec_gyr_part );
             }
 
             // TODO xinli change to map
@@ -265,15 +271,16 @@ namespace openMVG
             std::vector<int64_t> vec_times;
         };
 
-//#define ACC_N 1.2014275855645568e-02
-//#define GYR_N 8.5079299066877169e-04
-//#define ACC_W 9.3676758844177331e-04
-//#define GYR_W 1.4040873430851709e-05
+#define ACC_N 1.3061437477214574e-02
+#define GYR_N 9.7933408260869451e-04
+#define ACC_W 7.7230832140122278e-04
+#define GYR_W 4.3870393511376410e-06
 
-#define ACC_N 0.08
-#define GYR_N 0.004
-#define ACC_W 0.00004
-#define GYR_W 2.0e-6
+
+//#define ACC_N 0.08
+//#define GYR_N 0.004
+//#define ACC_W 0.00004
+//#define GYR_W 2.0e-6
 
         enum StateOrder
         {
@@ -313,17 +320,27 @@ namespace openMVG
                 noise.block<3, 3>(15, 15) =  (GYR_W * GYR_W) * Eigen::Matrix3d::Identity();
             }
 
-            void integrate( const std::vector< Vec3 >& _accs, const std::vector<Vec3>& _gyrs, const std::vector<IndexT>& _times_T )
+            void integrate( const std::vector< Vec3 >& _accs, const std::vector<Vec3>& _gyrs, const std::vector<IndexT>& _times_T, bool good_falg = true )
             {
+//                std::cout << "_accs.size() = " << _accs.size() << std::endl;
+//                std::cout << "good_falg = " << good_falg
+//                << std::endl;
+                good_to_opti_ = good_falg;
+                dt_buf_.clear();
+                acc_buf_.clear();
+                gyr_buf_.clear();
+                delta_p_.setZero();
+                delta_v_.setZero();
+                delta_q_.setIdentity();
+                jacobian.setIdentity();
+                covariance.setZero();
                 double last_t = static_cast<double>(t0_);
                 last_t /= 1000.;
+                if(!good_falg) return;
                 linearized_acc_ = _accs[0];
                 linearized_gyr_ = _gyrs[0];
                 acc_0_ = _accs[0];
                 gyr_0_ = _gyrs[0];
-                dt_buf_.clear();
-                acc_buf_.clear();
-                gyr_buf_.clear();
                 for( size_t index = 1; index < _times_T.size(); ++index )
                 {
                     double time = static_cast<double>(_times_T[index]);
@@ -480,6 +497,12 @@ namespace openMVG
                 residuals.block<3, 1>(O_V, 0) = Qi.inverse() * (VIstaticParm::G_ * sum_dt_ + Vj - Vi) - corrected_delta_v;
                 residuals.block<3, 1>(O_BA, 0) = Baj - Bai;
                 residuals.block<3, 1>(O_BG, 0) = Bgj - Bgi;
+//                std::cout << "------------IN EVALUATE--------------------" << std::endl;
+//                std::cout << "Bai = " << Bai.transpose() << std::endl;
+//                std::cout << "Baj = " << Baj.transpose() << std::endl;
+//                std::cout << "Bgi = " << Bgi.transpose() << std::endl;
+//                std::cout << "Bgj = " << Bgj.transpose() << std::endl;
+
                 return residuals;
             }
 
@@ -508,6 +531,8 @@ namespace openMVG
             Vec3 delta_p_;
             Vec3 delta_v_;
             Eigen::Quaterniond delta_q_;
+
+            bool good_to_opti_;
 
             std::vector<double> dt_buf_;
             std::vector< Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > acc_buf_;

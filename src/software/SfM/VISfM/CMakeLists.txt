@@ -39,5 +39,7 @@ target_link_libraries(openMVG_main_save_tum
 
 add_executable(change_time_xinli change_time_xinli.cpp)
 
+add_executable(GetSimuTime GetSimuTime.cpp)
+
 set_property(TARGET openMVG_main_save_tum PROPERTY FOLDER OpenMVG/software/VISfM)
 install(TARGETS openMVG_main_save_tum DESTINATION bin/)

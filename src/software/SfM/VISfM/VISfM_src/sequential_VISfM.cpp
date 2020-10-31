@@ -85,7 +85,7 @@ namespace sfm{
         matches_provider_ = provider;
     }
 
-    void SequentialVISfMReconstructionEngine::SetTimeStamp(std::vector<IndexT> &times)
+    void SequentialVISfMReconstructionEngine::SetTimeStamp(std::vector<double> &times)
     {
         assert( times.size() == sfm_data_.views.size() );
         int index = 0;
@@ -136,6 +136,7 @@ namespace sfm{
                     update_imu_inte();
 //                    std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
                     BundleAdjustment_optimizi_only_IMU();
+//                    std::cout << "start BundleAdjustmentWithIMU" << std::endl;
 //                    std::cout << "end BundleAdjustment_optimizi_only_IMU" << std::endl;
                     BundleAdjustmentWithIMU();
 //                    std::cout << "end BundleAdjustmentWithIMU" << std::endl;
@@ -226,21 +227,18 @@ namespace sfm{
             return false;
 
         // Initial pair choice
-        if (initial_pair_ == Pair(0,0))
-        {
+        if (initial_pair_ == Pair(0,0)) {
             // Initial pair must be choice already
 
             // TODO xinli select check
-            if (!AutomaticInitialPairChoice(initial_pair_))
-            {
+            if (!AutomaticInitialPairChoice(initial_pair_)) {
                 std::cerr << "Cannot find a valid initial pair" << std::endl;
                 // Cannot find a valid initial pair, try to set it by hand?
-                if (!ChooseInitialPair(initial_pair_))
-                {
+                if (!ChooseInitialPair(initial_pair_)) {
                     return false;
                 }
             }
-
+        }
             std::cout << "---------------------------------------\n"
                       << "initial_pair_.first = " << initial_pair_.first << "\n"
                       <<  "initial_pair_.second = " << initial_pair_.second << "\n"
@@ -248,7 +246,7 @@ namespace sfm{
 
             // get start index and end index of vi init
             {
-                const int len_size_2 = 10;
+                const int len_size_2 = 15;
                 IndexT len_2 = (initial_pair_.second - initial_pair_.first) / 2;
                 IndexT inital_len_2 = len_size_2 > len_2 ? len_size_2 : len_2;
                 IndexT center = initial_pair_.first + len_2;
@@ -284,7 +282,6 @@ namespace sfm{
                     }
                 }
             }
-        }
         // Else a starting pair was already initialized before
 
         // Initial pair Essential Matrix and [R|t] estimation.
@@ -467,6 +464,7 @@ namespace sfm{
 
         std::cout <<"-=------=-=-=-=-=-=-=-=" << std::endl;
         double correct_scale = (speeds_scale.tail<1>())(0) / 100.;
+//        correct_scale = 3.57;//(speeds_scale.tail<1>())(0) / 100.;
 
 
         int kv = -1;
@@ -557,9 +555,9 @@ namespace sfm{
     {
         for( auto & id_imubase:sfm_data_.imus )
         {
-            IndexT t0 = id_imubase.second.t0_;
-            IndexT t1 = id_imubase.second.t1_;
-            std::vector< IndexT > times;
+            double t0 = id_imubase.second.t0_;
+            double t1 = id_imubase.second.t1_;
+            std::vector< double > times;
             std::vector<Vec3> accs;
             std::vector<Vec3> gyrs;
             bool good_flag;
@@ -576,11 +574,11 @@ namespace sfm{
     {
 //        sfm_data_.imus.clear();
         auto it_pose = sfm_data_.poses.begin();
-        IndexT last_t = sfm_data_.timestamps.at( it_pose->first );
+        double last_t = sfm_data_.timestamps.at( it_pose->first );
         it_pose++;
         while( it_pose != sfm_data_.poses.end() )
         {
-            IndexT cur_t = sfm_data_.timestamps.at( it_pose->first );
+            double cur_t = sfm_data_.timestamps.at( it_pose->first );
             auto id_pose = it_pose->first;
             if( sfm_data_.imus.count( id_pose ) == 0 )
             {
@@ -761,10 +759,13 @@ namespace sfm{
 //
 //        BundleAdjustmentWithIMU();
 //        BundleAdjustmentWithIMU();
+//        std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
         BundleAdjustment_optimizi_only_IMU();
 //        BundleAdjustment();
 //        BundleAdjustment();
+//        std::cout << "start BundleAdjustmentWithIMU" << std::endl;
         BundleAdjustmentWithIMU();
+//        std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
         BundleAdjustment_optimizi_only_IMU();
 //        BundleAdjustmentWithIMU();
 //        BundleAdjustment();

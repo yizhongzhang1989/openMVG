@@ -69,7 +69,7 @@ namespace openMVG
                 {
                     data_[0] -= 1403715 * 1e12;
                     data_[0] /= 1e6;
-                    data_[0] = static_cast<int>(data_[0]);
+                    data_[0] = static_cast<long long int>(data_[0]);
                 }
 
                 if( last_data_[0] != 0 )
@@ -107,7 +107,7 @@ namespace openMVG
             explicit IMU_Dataset( const std::string&IMU_file_path, const std::string& simu_file_type )
             {
                 IMU_File_Type imu_file_type;
-                if( simu_file_type == std::string( "Mate20Pro" ) )
+                if( simu_file_type == std::string( "Mate20Pro" ) || simu_file_type == std::string( "Simu" ) )
                 {
                     imu_file_type = IMU_File_Type::Mate20Pro;
                     std::cout << "imu_file_type = IMU_File_Type::Mate20Pro;" << std::endl;
@@ -144,7 +144,7 @@ namespace openMVG
                 }
             }
 
-            void corect_time(const IndexT _time)
+            void corect_time(const double _time)
             {
                 std::cout << "vec_times.back() = "  << vec_times.back() << std::endl;
                 std::cout << "_time = " << _time << std::endl;
@@ -153,7 +153,7 @@ namespace openMVG
                 corect_dt(dt);
             }
 
-            void corect_dt( const int64_t _dt )
+            void corect_dt( const double _dt )
             {
                 std::cout << "_dt = " << _dt << std::endl;
 //                int64_t min_new = std::numeric_limits<int64_t>::max();
@@ -174,7 +174,7 @@ namespace openMVG
             {
                 std::vector<Vec3> vec_acc_new;
                 std::vector<Vec3> vec_gyr_new;
-                std::vector<int64_t> vec_times_new;
+                std::vector<double> vec_times_new;
 
                 size_t index =0;
                 for( ; index < vec_times.size(); ++index )
@@ -193,12 +193,12 @@ namespace openMVG
                 vec_gyr = vec_gyr_new;
             }
 
-            std::tuple< bool, std::vector<IndexT>, std::vector<Vec3>, std::vector<Vec3> > GetMeasure(const IndexT _t0, const IndexT _t1)
+            std::tuple< bool, std::vector<double>, std::vector<Vec3>, std::vector<Vec3> > GetMeasure(const double _t0, const double _t1)
             {
                 bool ret_flag = true;
                 std::vector<Vec3> vec_acc_part;
                 std::vector<Vec3> vec_gyr_part;
-                std::vector<IndexT> vec_times_part;
+                std::vector<double> vec_times_part;
                 if( _t0 == _t1 )
                     return std::make_tuple( false, vec_times_part, vec_acc_part, vec_gyr_part );
                 if( vec_times[0] > _t0 )
@@ -265,16 +265,17 @@ namespace openMVG
             }
 
             // TODO xinli change to map
-        private:
+//        private:
             std::vector<Vec3> vec_acc;
             std::vector<Vec3> vec_gyr;
-            std::vector<int64_t> vec_times;
+            std::vector<double> vec_times;
         };
 
-#define ACC_N 1.3061437477214574e-02
-#define GYR_N 9.7933408260869451e-04
-#define ACC_W 7.7230832140122278e-04
-#define GYR_W 4.3870393511376410e-06
+//#define GYR_N 9.7933408260869451e-04
+//#define GYR_W 1.7270393511376410e-05
+//
+//#define ACC_W 9.7230832140122278e-04
+//#define ACC_N 1.3061437477214574e-02
 
 
 //#define ACC_N 0.08
@@ -301,7 +302,7 @@ namespace openMVG
             }
             ~IMU_InteBase() = default;
 
-            IMU_InteBase(const IndexT _t0, const IndexT _t1)
+            IMU_InteBase(const double _t0, const double _t1)
                     :
                     jacobian{Eigen::Matrix<double, 15, 15>::Identity()}, covariance{Eigen::Matrix<double, 15, 15>::Zero()},
                     linearized_ba_(Eigen::Vector3d(0.,0.,0.)), linearized_bg_{Eigen::Vector3d(0.,0.,0.)}, t0_(_t0), t1_(_t1),
@@ -312,15 +313,15 @@ namespace openMVG
                     sum_dt_ = (static_cast<double>(t1_) - static_cast<double>(t0_)) / 1000.;
                 }
                 noise = Eigen::Matrix<double, 18, 18>::Zero();
-                noise.block<3, 3>(0, 0) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
-                noise.block<3, 3>(3, 3) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();
-                noise.block<3, 3>(6, 6) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
-                noise.block<3, 3>(9, 9) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();
-                noise.block<3, 3>(12, 12) =  (ACC_W * ACC_W) * Eigen::Matrix3d::Identity();
-                noise.block<3, 3>(15, 15) =  (GYR_W * GYR_W) * Eigen::Matrix3d::Identity();
+                noise.block<3, 3>(0, 0) =  (VIstaticParm::acc_n * VIstaticParm::acc_n) * Eigen::Matrix3d::Identity();
+                noise.block<3, 3>(3, 3) =  (VIstaticParm::gyr_n * VIstaticParm::gyr_n) * Eigen::Matrix3d::Identity();
+                noise.block<3, 3>(6, 6) =  (VIstaticParm::acc_n * VIstaticParm::acc_n) * Eigen::Matrix3d::Identity();
+                noise.block<3, 3>(9, 9) =  (VIstaticParm::gyr_n * VIstaticParm::gyr_n) * Eigen::Matrix3d::Identity();
+                noise.block<3, 3>(12, 12) =  (VIstaticParm::acc_w * VIstaticParm::acc_w) * Eigen::Matrix3d::Identity();
+                noise.block<3, 3>(15, 15) =  (VIstaticParm::gyr_w * VIstaticParm::gyr_w) * Eigen::Matrix3d::Identity();
             }
 
-            void integrate( const std::vector< Vec3 >& _accs, const std::vector<Vec3>& _gyrs, const std::vector<IndexT>& _times_T, bool good_falg = true )
+            void integrate( const std::vector< Vec3 >& _accs, const std::vector<Vec3>& _gyrs, const std::vector<double>& _times_T, bool good_falg = true )
             {
 //                std::cout << "_accs.size() = " << _accs.size() << std::endl;
 //                std::cout << "good_falg = " << good_falg
@@ -512,7 +513,7 @@ namespace openMVG
                 return jacobian.block(3, 12, 3, 3);
             }
 
-            void change_time(const IndexT _t0, const IndexT _t1)
+            void change_time(const double _t0, const double _t1)
             {
                 t0_ = _t0;
                 t1_ = _t1;
@@ -525,8 +526,8 @@ namespace openMVG
             }
 
             double sum_dt_; // scond
-            IndexT t0_;  // second * 1000
-            IndexT t1_;  // second * 1000
+            double t0_;  // second * 1000
+            double t1_;  // second * 1000
 
             Vec3 delta_p_;
             Vec3 delta_v_;

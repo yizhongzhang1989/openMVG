@@ -9,6 +9,7 @@ namespace openMVG
 {
     namespace sfm
     {
+        Eigen::Matrix<double, 15, 15> IMUFactor::sqrt_info_weight = Eigen::Matrix<double, 15, 15>::Identity();
         Eigen::Matrix2d VISfM_Projection::sqrt_info = Eigen::Matrix2d::Identity();
 
         VISfM_Projection::VISfM_Projection(Eigen::Vector2d &obs) : point_obs_(obs)

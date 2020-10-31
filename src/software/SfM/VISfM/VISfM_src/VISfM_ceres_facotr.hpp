@@ -191,7 +191,7 @@ namespace openMVG {
                 Eigen::Matrix<double, 15, 15> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 15, 15>>(pre_integration.covariance.inverse()).matrixL().transpose();
 //                Eigen::Matrix<double, 15, 15> sqrt_info;
 //                sqrt_info.setIdentity();
-                residual = sqrt_info * residual;
+                residual = sqrt_info_weight * sqrt_info * residual;
 
                 if (jacobians)
                 {
@@ -279,6 +279,7 @@ namespace openMVG {
             //void checkTransition();
             //void checkJacobian(double **parameters);
             IMU_InteBase pre_integration;
+            static Eigen::Matrix<double, 15, 15> sqrt_info_weight;
 //            std::shared_ptr<IMU_InteBase> pre_integration;
         };
 

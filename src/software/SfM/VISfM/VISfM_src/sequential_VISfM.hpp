@@ -40,7 +40,7 @@ public:
 
     void SetFeaturesProvider(Features_Provider * provider);
     void SetMatchesProvider(Matches_Provider * provider);
-    void SetTimeStamp( std::vector<IndexT>& times );
+    void SetTimeStamp( std::vector<double>& times );
     void SetIMUDataset( std::shared_ptr<IMU_Dataset> imudataset_ );
 
     virtual bool Process() override;

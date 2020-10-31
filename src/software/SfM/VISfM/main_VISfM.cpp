@@ -220,14 +220,41 @@ int main(int argc, char **argv)
     {
         std::cerr <<"sSfM_IMU_FileType error  " << sSfM_IMU_FileType << std::endl;
         return 1;
-     }
+    }
 
 
 
-    Vec3 G(0.,0.,9.8107);
+    Vec3 G;
+
+
+    if( sSfM_IMU_FileType == std::string("Simu") ) G = Vec3(0.,0.,9.8);
+    else G = Vec3(0.,0.,9.8107);
     VIstaticParm::G_ = G;
     sfMData.IG_Ric = Ric;
     sfMData.IG_tic = tic;
+
+    if( sSfM_IMU_FileType == std::string("EuRoc")  )
+    {
+        VIstaticParm::acc_n = 0.08;
+        VIstaticParm::acc_w = 0.00004;
+        VIstaticParm::gyr_n = 0.004;
+        VIstaticParm::gyr_w = 2.0e-6;
+    }
+    else if( sSfM_IMU_FileType == std::string("Mate20Pro") )
+    {
+        VIstaticParm::acc_n = 1.3061437477214574e-02;
+        VIstaticParm::acc_w = 9.7230832140122278e-04;
+        VIstaticParm::gyr_n = 9.7933408260869451e-04;
+        VIstaticParm::gyr_w = 1.7270393511376410e-05;
+    }
+    else
+    {
+        VIstaticParm::acc_n = 0.08;
+        VIstaticParm::acc_w = 0.00004;
+        VIstaticParm::gyr_n = 0.004;
+        VIstaticParm::gyr_w = 2.0e-6;
+    }
+
 
 //    // Load input imu_Data
 //    SfM_IMU imu_data;
@@ -281,7 +308,7 @@ int main(int argc, char **argv)
         }
     }
 
-    std::vector<IndexT> times;
+    std::vector<double> times;
     {
 
         std::ifstream fin(sSfM_Stamp_Filename, std::ifstream::in);
@@ -299,19 +326,23 @@ int main(int argc, char **argv)
 //                break;
 //            }
 ////            double time = std::stod(line);
-            if( sSfM_IMU_FileType == std::string("Mate20Pro") )
+            if( sSfM_IMU_FileType == std::string("Mate20Pro") || sSfM_IMU_FileType == std::string("Simu") )
             {
-                times.emplace_back( static_cast<IndexT>(time * 1000) ); // second * 1000
+                times.emplace_back( static_cast<unsigned long long int>(time * 1000) ); // second * 1000
             }
             else if( sSfM_IMU_FileType == std::string("EuRoc") )
             {
                 time -= 1403715 * 1e12;
-                times.emplace_back( static_cast<IndexT>(time / 1e6) ); // second * 1000
+                time = static_cast<uint64_t>(time / 1e6);
+                times.emplace_back( time ); // second * 1000
             }
+//            static_cast<IndexT>(time / 1e6)
 //             double time = std::stod(line);
 
-//            std::cout << i++ << " " ;
+////            std::cout << i++ << " " ;
+//            std::cout.precision(20);
 //            std::cout << time << std::endl;
+//            std::cout << times.back() << std::endl;
         }
         fin.close();
     }
@@ -323,14 +354,20 @@ int main(int argc, char **argv)
     }
     // TODO xinli check IMU image dt
     std::shared_ptr<IMU_Dataset> imu_dataset = std::make_shared<IMU_Dataset>(sSfM_IMU_Filename, sSfM_IMU_FileType);
+    std::cout << "imu file read over" << std::endl;
+    std::cout << "imu time size for second: " << imu_dataset->vec_times.size() / 200 << std::endl;
+
+
+
+
 //    if( sSfM_IMU_FileType == std::string( "Mate20Pro" ) )
 //        imu_dataset->corect_time( times.back() );
 
 //    IndexT dt = ;
     if(sSfM_IMU_FileType == std::string( "Mate20Pro" ))
-        imu_dataset->corect_dt( 0.26 * 1000 );
+        imu_dataset->corect_dt( 0.2 * 1000 );
 
-//    timeshift cam0 to imu0: [s] (t_imu = t_cam + shift)
+//    timeshift cam0 to imu0: [s] (t_imu = t_cam + shift)n
 
 //    imu_dataset->corect_dt( -2 );
 
@@ -408,6 +445,9 @@ int main(int argc, char **argv)
                 std::cout << "...Export SfM_Data to disk." << std::endl;
                 Save(visfmEngine.Get_SfM_Data(),
                      stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
+                     ESfM_Data(ALL));
+                Save(visfmEngine.Get_SfM_Data(),
+                     stlplus::create_filespec(sOutDir, "sfm_data", ".json"),
                      ESfM_Data(ALL));
 
                 Save(visfmEngine.Get_SfM_Data(),

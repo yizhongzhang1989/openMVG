@@ -676,8 +676,8 @@ namespace openMVG
                     problem.SetParameterBlockConstant(parameter_block);
             }
 
-            ceres::LossFunction * imu_LossFunction = //nullptr;
-                    new ceres::CauchyLoss(Square(4.0));
+            ceres::LossFunction * imu_LossFunction = nullptr;
+//                    new ceres::CauchyLoss(Square(4.0));
             {
 
                 // TODO xinli first pose speed
@@ -796,6 +796,7 @@ namespace openMVG
 
             ceres::Problem problem;
 
+//            std::cout << "start AddParameterBlock ex" << std::endl;
             double ex_paparm[7];
             {
                 Mat3 Ric = sfm_data.IG_Ric;
@@ -819,6 +820,7 @@ namespace openMVG
             Hash_Map<IndexT, std::vector<double>> map_poses;
             Hash_Map<IndexT, std::vector<double>> map_speed;
 
+//            std::cout << "start AddParameterBlock poses" << std::endl;
             // Setup Poses data & subparametrization
             for (const auto & pose_it : sfm_data.poses)
             {
@@ -880,6 +882,7 @@ namespace openMVG
                 }
             }
 
+//            std::cout << "start AddParameterBlock imus" << std::endl;
             for( const auto& imu:sfm_data.imus )
             {
                 const IndexT indexSpd = imu.first;
@@ -905,6 +908,7 @@ namespace openMVG
                 problem.AddParameterBlock(parameter_block, map_speed.at(indexSpd).size());
             }
 
+//            std::cout << "start AddParameterBlock intrinsics" << std::endl;
             // Setup Intrinsics data & subparametrization
             for (const auto & intrinsic_it : sfm_data.intrinsics)
             {
@@ -949,6 +953,7 @@ namespace openMVG
                     new ceres::HuberLoss(Square(4.0))
                                                        : nullptr;
 
+//            std::cout << "start Add Factor ReProjection" << std::endl;
             // For all visibility add reprojections errors:
             for (auto & structure_landmark_it : sfm_data.structure)
             {
@@ -1009,10 +1014,12 @@ namespace openMVG
                     problem.SetParameterBlockConstant(structure_landmark_it.second.X.data());
             }
 
+//            IMUFactor::sqrt_info_weight /= 10;
             ceres::LossFunction * imu_LossFunction = nullptr;
-//                    new ceres::CauchyLoss(Square(2.0));
+//                    new ceres::CauchyLoss(Square(1.0));
             {
 
+                std::cout << "start Add Factor IMU" << std::endl;
                 // TODO xinli first pose speed
                 auto pose_i = sfm_data.poses.begin(); pose_i++;
                 auto pose_j = std::next(pose_i);

@@ -6,7 +6,7 @@
 
 Eigen::Vector3d VIstaticParm::G_;
 
-double gyr_n;
-double gyr_w;
-double acc_n;
-double acc_w;
+double VIstaticParm::gyr_n;
+double VIstaticParm::gyr_w;
+double VIstaticParm::acc_n;
+double VIstaticParm::acc_w;

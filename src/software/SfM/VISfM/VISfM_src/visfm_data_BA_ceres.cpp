@@ -812,7 +812,7 @@ namespace openMVG
 
                 ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
                 problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
-                problem.SetParameterBlockConstant(ex_paparm);
+//                problem.SetParameterBlockConstant(ex_paparm);
             }
 
             // Data wrapper for refinement:
@@ -1015,8 +1015,8 @@ namespace openMVG
             }
 
 //            IMUFactor::sqrt_info_weight /= 10;
-            ceres::LossFunction * imu_LossFunction = nullptr;
-//                    new ceres::CauchyLoss(Square(1.0));
+            ceres::LossFunction * imu_LossFunction = //nullptr;
+                    new ceres::CauchyLoss(Square(2.0));
             {
 
                 std::cout << "start Add Factor IMU" << std::endl;

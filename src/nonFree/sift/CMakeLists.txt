@@ -23,7 +23,7 @@ set(FEATS
   vl/sift.c
   vl/host.c
   vl/mathop.c
-  vl/random.c)
+        vl/random_cir.c)
 set_source_files_properties(${FEATS} PROPERTIES LANGUAGE C)
 add_library(vlsift ${FEATS})
 install(TARGETS vlsift DESTINATION lib EXPORT openMVG-targets)

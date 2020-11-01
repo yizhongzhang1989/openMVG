@@ -12,20 +12,58 @@
 #include "openMVG/features/regions_factory_io.hpp"
 #include "openMVG/matching/indMatch.hpp"
 #include "openMVG/matching/indMatch_utils.hpp"
-
+#include "openMVG/image/image_container.hpp"
+#include "openMVG/image/pixel_types.hpp"
+#include "openMVG/image/image_io.hpp"
 #include "PointGenerator.h"
 #include "CameraPinhole.h"
 #include "PoseGeneratorCircleSine.h"
+#include "PoseGeneratorConstAcc.h"
 #include "SimulationGenerator.h"
 
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam);
+void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPath, generator::CameraPinhole* pCam);
+
+#ifdef _WIN32
+static std::string unix_path_to_win(const std::string& unix_format)
+{
+    std::string win_format(unix_format);
+    for (int i = 0; i < win_format.length(); i++)
+    {
+        if (win_format[i] == '/')
+        {
+            win_format[i] = '\\';
+        }
+    }
+
+    return win_format;
+}
+#endif
+
+static void check_and_create_dir(const std::string& path)
+{
+#ifdef _WIN32
+    if (_access(path.c_str(), 00) == -1)
+    {
+        std::string cmd = "mkdir " + unix_path_to_win(path);
+        system(cmd.c_str());
+    }
+#elif __linux__
+    if (access(path.c_str(), 00) == -1)
+    {
+        std::string cmd = "mkdir -p " + path;
+        system(cmd.c_str());
+    }
+#endif
+}
 
 int main()
 {
     using namespace generator;
 
     PointGenerator g_point(-25,25,-25,25,-25,25);
-    PoseGeneratorCircleSine g_pose(10.0,0.1,1.0,1.0,0.005,true);
+//    PoseGeneratorCircleSine g_pose(5.0,0.01,1.0,0.1,0.005,true);
+    PoseGeneratorConstAcc g_pose(0.2,0.0,0.0,0.05,true,generator::PoseGeneratorConstAcc::FORWARD);
     CameraPinhole cam(320,320,320,240,640,480);
 
     // generation
@@ -38,6 +76,7 @@ int main()
     Simulation_Data sfm_data;
     g_sim.Generate(sfm_data,cfg);
     g_sim.Save(sfm_data,"groundtruth");
+    SaveToImages(sfm_data,"images",&cam);
 
     // add noise
     Simulation_Data sfm_data_noisy;
@@ -55,7 +94,7 @@ int main()
 
     SaveSfMData("openMVGFormat",sfm_data,&cam);
 
-    g_sim.SaveIMU(g_sim.getIMUMeasurements(),"imu_data.csv");
+    g_sim.SaveIMU(g_sim.getIMUMeasurements<PoseGeneratorConstAcc>(),"openMVGFormat/imu_data.csv");
 }
 
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam)
@@ -232,5 +271,63 @@ void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationDa
         std::cerr
                 << "Cannot save computed matches in: "
                 << std::string(sImageDir + "/matches.putative.txt");
+    }
+}
+
+void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& imagePath, generator::CameraPinhole* pCam)
+{
+    using namespace openMVG::image;
+
+    check_and_create_dir(imagePath);
+
+    int width = pCam->getWidth();
+    int height = pCam->getHeight();
+    generator::MapPoints& map_points = sfm_data.map_points;
+    generator::KeyFrames& key_frames = sfm_data.key_frames;
+
+    auto assignColor = [](Image<RGBColor>& img, RGBColor& color, int u, int v, int w)
+    {
+        int startU = u - w;
+        int endU = u + w;
+        int startV = v - w;
+        int endV = v + w;
+
+        if(startU < 0)
+            startU = 0;
+        if(endU >= img.Width())
+            endU = img.Width()-1;
+        if(startV < 0)
+            startV = 0;
+        if(endV >= img.Height())
+            endV = img.Height()-1;
+
+        for(int i = startU; i < endU; i++)
+        {
+            for(int j = startV; j < endV; j++)
+            {
+                img(j,i) = color;
+            }
+        }
+    };
+
+    int kf_count = 0;
+    for(auto & key_frame : key_frames)
+    {
+        std::string img_name = imagePath + "/VIRTUAL_IMG_"+std::to_string(kf_count) + ".JPG";
+        Image<RGBColor> img(width,height,true,RGBColor(255,255,255));
+        std::vector<unsigned int>& obs = key_frame.second.obs;
+        for(unsigned int point3d_id : obs)
+        {
+            Eigen::Vector2d& xp = map_points[point3d_id].obs[key_frame.second.Id];
+            generator::Color& color = map_points[point3d_id].color;
+
+            int u = int(xp.x());
+            int v = int(xp.y());
+//            img(v,u) = RGBColor(color.r,color.g,color.b);
+            RGBColor rgb(color.r,color.g,color.b);
+            assignColor(img,rgb,u,v,2);
+        }
+        WriteImage(img_name.c_str(),img);
+        kf_count++;
     }
 }

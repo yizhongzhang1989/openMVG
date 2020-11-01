@@ -5,6 +5,7 @@
 #include "PointGenerator.h"
 #include "PoseGeneratorBase.h"
 #include "CameraBase.h"
+#include "ColorGenerator.h"
 #include "types.h"
 
 namespace generator
@@ -63,11 +64,23 @@ public:
     static void AddNoise(const Simulation_Data& sfm_data, Simulation_Data& sfm_data_noisy, NoiseConfig& cfg_noise);
     void Save(Simulation_Data& sfm_data, const std::string& outPath);
     void SaveIMU(const IMUMeasurements& imu_data, const std::string& imu_file);
-    const IMUMeasurements& getIMUMeasurements() const;
+
+    template<typename PoseGeneratorType>
+    const IMUMeasurements& getIMUMeasurements() const
+    {
+        PoseGeneratorType* pPoseGenerator = dynamic_cast<PoseGeneratorType*>(mpPoseGenerator);
+        if(pPoseGenerator && pPoseGenerator->hasIMU())
+        {
+            return pPoseGenerator->getIMUMeasurements();
+        }
+        else
+            throw std::runtime_error("Can not get IMU measurements");
+    }
 private:
     PoseGeneratorBase<Pose>* mpPoseGenerator;
     PointGenerator* mpPointGenerator;
     CameraBase<Eigen::Vector3d,Eigen::Vector2d>* mpCamera;
+    ColorGenerator<Color> mColorGenerator;
 };
 
 }  // namespace generator

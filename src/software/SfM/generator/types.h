@@ -59,6 +59,22 @@ struct IMUMeasurement
 };
 typedef STLVector<IMUMeasurement> IMUMeasurements;
 
+struct Color
+{
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+    Color()
+    : r(0), g(0), b(0)
+    {
+        ;
+    }
+    Color(unsigned char r, unsigned char g, unsigned char b)
+    : r(r), g(g), b(b)
+    {
+        ;
+    }
+};
 struct MapPoint
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -66,6 +82,7 @@ struct MapPoint
     Eigen::Vector3d X;
 //    std::map<unsigned int, Eigen::Vector2d> obs;
     STLMap<unsigned int, Eigen::Vector2d> obs;
+    Color color;
     MapPoint()
     :Id(-1)
     {
@@ -74,6 +91,11 @@ struct MapPoint
     }
     MapPoint(unsigned int id, const Eigen::Vector3d& X)
     : Id(id), X(X)
+    {
+        obs.clear();
+    }
+    MapPoint(unsigned int id, const Eigen::Vector3d& X, const Color& color)
+    : Id(id), X(X), color(color)
     {
         obs.clear();
     }

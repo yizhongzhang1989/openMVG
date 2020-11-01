@@ -4,6 +4,7 @@
 
 #include "PoseGeneratorBase.h"
 #include "types.h"
+#include <iostream>
 
 namespace generator
 {
@@ -15,23 +16,27 @@ public:
     /// r: radius of circle;  A: amptitude of sine;
     /// fc: rotation frequency (r/s);  fs: frequency of sine;
     /// T: sampling period.
-    PoseGeneratorCircleSine(double r, double A, double fc, double fs, double T, bool storeIMU = false)
+    PoseGeneratorCircleSine(double r, double A, double fc, double fs, double T, bool storeIMU = false, LookDirection direction = FORWARD)
+    : r_(r), A_(A), direction(direction), t_cam(0.0), t_imu(0.0), storeIMU_(storeIMU)
     {
-        r_ = r;
-        A_ = A;
         omegaCircle = 2 * PI * fc;
         omegaSine = 2 * PI * fs;
+
         deltaT = T;
+        deltaT_IMU = deltaT / 100;
 
-        theta = 0;
-        alpha = 0;
-
-        timestamp = 0.0;
-        storeIMU_ = storeIMU;
+        IMUs.clear();
     }
 
     Pose Generate() override
     {
+        static const Eigen::Vector3d gravity(0.0,0.0,-GRAVITY);
+
+        /// angle of rotation (rad)
+        double theta = omegaCircle * t_cam;
+        /// angle of sine (rad)
+        double alpha = omegaSine * t_cam;
+
         Pose p;
 
         // generate position, t: local ->global, position of camera center, t_wc
@@ -53,6 +58,8 @@ public:
         Eigen::Vector3d ry(-x,-y,0);
         Eigen::Vector3d rx = ry.cross(rz);
 
+        Eigen::Vector3d v = rz;
+
         rx = rx / rx.norm();
         ry = ry / ry.norm();
         rz = rz / rz.norm();
@@ -68,31 +75,53 @@ public:
         // p.t: global -> local, t_cw
         p.t = - R.transpose() * t;
 
+        std::cout<<"vG = "<<v.transpose()<<std::endl;
+        std::cout<<"vI = "<<(p.q*v).transpose()<<std::endl;
+
         // generate IMU measurements
         if(storeIMU_)
         {
-            double omegaCircle2 = omegaCircle * omegaCircle;
-            double dx2 = -x * omegaCircle2;
-            double dy2 = -y * omegaCircle2;
-            double dz2 = -z * omegaSine * omegaSine;
+            while(t_imu <= t_cam)
+            {
+                theta = omegaCircle * t_imu;
+                alpha = omegaSine * t_imu;
 
-            double sin_alpha = sin(alpha);
-            double cos_alpha = cos(alpha);
-            double cos2_alpha = cos_alpha * cos_alpha;
-            double omegaSine2 = omegaSine * omegaSine;
+                double sin_theta = sin(theta);
+                double cos_theta = cos(theta);
+                double omegaCircle2 = omegaCircle * omegaCircle;
+                double sin_alpha = sin(alpha);
+                double cos_alpha = cos(alpha);
+                double cos2_alpha = cos_alpha * cos_alpha;
+                double omegaSine2 = omegaSine * omegaSine;
 
-            double omega_x = -omegaCircle;
-            double omega_y = (sin_alpha * omegaSine2) / (1.0 + cos2_alpha * omegaSine2);
-            double omega_z = 0.0;
+                double dx2 = -r_ * cos_theta * omegaCircle2;
+                double dy2 = -r_ * sin_theta * omegaCircle2;
+                double dz2 = -A_ * sin_alpha * omegaSine2;
 
-            IMUs.emplace_back(Eigen::Vector3d(dx2,dy2,dz2),Eigen::Vector3d(omega_x,omega_y,omega_z),timestamp);
+                double omega_x = -omegaCircle;
+                double omega_y = (sin_alpha * omegaSine2) / (1.0 + cos2_alpha * omegaSine2);
+                double omega_z = 0.0;
+
+                x = r_ * cos_theta;
+                y = r_ * sin_theta;
+                rz = Eigen::Vector3d(-y*omegaCircle,x*omegaCircle,A_*cos_alpha*omegaSine);
+                ry = Eigen::Vector3d(-x,-y,0);
+                rx = ry.cross(rz);
+                rx = rx / rx.norm();
+                ry = ry / ry.norm();
+                rz = rz / rz.norm();
+                R.col(0) = rx;
+                R.col(1) = ry;
+                R.col(2) = rz;
+
+                Eigen::Vector3d acc_local = R.transpose() * (Eigen::Vector3d(dx2,dy2,dz2) + gravity);
+                IMUs.emplace_back(acc_local,Eigen::Vector3d(omega_x,omega_y,omega_z), t_imu);
+
+                t_imu += deltaT_IMU;
+            }
         }
 
-        // increase position
-        theta += omegaCircle * deltaT;
-        alpha += omegaSine * deltaT;
-
-        timestamp += deltaT;
+        t_cam += deltaT;
 
         return p;
     }
@@ -116,15 +145,16 @@ private:
     double A_;
     double omegaCircle;
     double omegaSine;
+
     double deltaT;
-    /// angle of rotation (rad)
-    double theta;
-    /// angle of sine (rad)
-    double alpha;
-    /// IMU measurements
+    double deltaT_IMU;
+    double t_cam, t_imu;
+
+    // IMU measurements
     bool storeIMU_;
     IMUMeasurements IMUs;
-    double timestamp;
+
+    LookDirection direction;
 
 };  // PoseGeneratorCircleSine
 

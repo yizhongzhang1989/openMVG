@@ -5,10 +5,17 @@
 namespace generator
 {
 
+#define GRAVITY 0.0
+
 template<typename PoseT>
 class PoseGeneratorBase
 {
 public:
+    enum LookDirection
+    {
+        FORWARD,
+        LEFTWARD
+    };
     typedef PoseT pose_type;
     virtual pose_type Generate() = 0;
     virtual double getDeltaT() const = 0;

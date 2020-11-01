@@ -26,7 +26,7 @@ bool SimulationGenerator::Generate(Simulation_Data& sfm_data, const SimulationCo
     unsigned int pt_id = 0;
     for(int i=0;i<cfg.n_points;i++)
     {
-        map_points[pt_id] = MapPoint(pt_id,mpPointGenerator->Generate());
+        map_points[pt_id] = MapPoint(pt_id,mpPointGenerator->Generate(),mColorGenerator.Generate());
         pt_id++;
     }
 
@@ -51,6 +51,8 @@ bool SimulationGenerator::Generate(Simulation_Data& sfm_data, const SimulationCo
             Eigen::Vector3d& X = map_point.second.X;
 //            Eigen::Vector3d Xc = R * X + t;
             Eigen::Vector3d Xc = p.q * X + p.t;
+            if(Xc[2] <= 0.0)
+                continue;
             Eigen::Vector2d xp = mpCamera->Project(Xc);
             if(mpCamera->isInView(xp))
             {
@@ -178,6 +180,7 @@ static void check_and_create_dir(const std::string& path)
     }
 #endif
 }
+
 void SimulationGenerator::Save(Simulation_Data& sfm_data, const std::string& outPath)
 {
 //    if(access(outPath.c_str(),00) == -1)
@@ -328,24 +331,13 @@ void SimulationGenerator::SaveIMU(const IMUMeasurements& imu_data, const std::st
         <<"rot_qx,rot_qy,rot_qz,rot_qw,rot_error,gameRot_qx,gameRot_qy,gameRot_qz,gameRot_qw"<<std::endl;
     for(const auto & imu : imu_data)
     {
-        const double t = imu.timestamp;
+        const double t = imu.timestamp * 1e3;  // time in ms
         const Eigen::Vector3d& acc = imu.acc;
         const Eigen::Vector3d& gyro = imu.gyro;
-        f<<t<<","<<acc.x()<<","<<acc.y()<<","<<acc.z()<<","<<gyro.x()<<","<<gyro.y()<<","<<gyro.z()<<","
+        f<<int(t)<<","<<acc.x()<<","<<acc.y()<<","<<acc.z()<<","<<gyro.x()<<","<<gyro.y()<<","<<gyro.z()<<","
             <<"0.0,0.0,0.0,0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0"<<std::endl;
     }
     f.close();
-}
-
-const IMUMeasurements& SimulationGenerator::getIMUMeasurements() const
-{
-    PoseGeneratorCircleSine* pPoseGeneratorCircleSine = dynamic_cast<PoseGeneratorCircleSine*>(mpPoseGenerator);
-    if(pPoseGeneratorCircleSine && pPoseGeneratorCircleSine->hasIMU())
-    {
-        return pPoseGeneratorCircleSine->getIMUMeasurements();
-    }
-    else
-        throw std::runtime_error("Can not get IMU measurements");
 }
 
 }  // namespace generator

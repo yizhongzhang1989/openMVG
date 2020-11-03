@@ -72,6 +72,8 @@ struct SfM_Data
   Mat3 IG_Ric;
   Vec3 IG_tic;
 
+  std::set<IndexT> add_viewId_cur;
+
 
   /// Considered camera intrinsics (indexed by view.id_intrinsic)
   Intrinsics intrinsics;

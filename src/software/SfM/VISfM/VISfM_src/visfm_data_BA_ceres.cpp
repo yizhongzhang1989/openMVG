@@ -676,6 +676,8 @@ namespace openMVG
                     problem.SetParameterBlockConstant(parameter_block);
             }
 
+
+            std::cout << "start imus factor only" << std::endl;
             ceres::LossFunction * imu_LossFunction = nullptr;
 //                    new ceres::CauchyLoss(Square(4.0));
             {
@@ -686,13 +688,44 @@ namespace openMVG
                 for(; pose_j != sfm_data.poses.end(); pose_j++, pose_i++)
                 {
 //                    break;
+//                    continue;
                     const IndexT indexPose = pose_j->first;
+                    if( sfm_data.imus.count(indexPose) == 0 )
+                    {
+                        std::cout << "imu nullptr" << std::endl;
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_i->first) == 0 )
+                    {
+                        std::cout << "Speeds pose_i nullptr" << std::endl;
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_j->first) == 0 )
+                    {
+                        std::cout << "Speeds pose_j nullptr" << std::endl;
+                        continue;
+                    }
+                    if( map_speed.count(pose_i->first) == 0 )
+                    {
+                        std::cout << "map Speeds pose_i nullptr" << std::endl;
+                        continue;
+                    }
+                    if( map_speed.count(pose_j->first) == 0 )
+                    {
+                        std::cout << "map Speeds pose_j nullptr" << std::endl;
+                        continue;
+                    }
                     auto imu_ptr = sfm_data.imus.at(indexPose);
+
+
                     if(  sfm_data.Speeds.at(pose_j->first).al_opti && sfm_data.Speeds.at(pose_i->first).al_opti ) continue;
 //                    std::cout << "imu_ptr.sum_dt_ = " << imu_ptr.sum_dt_ << std::endl;
                     if( imu_ptr.sum_dt_ > 0.3 ) continue;
                     if( imu_ptr.good_to_opti_ == false ) continue;
 
+
+
+//                    if( !map_poses.count(pose_i->first) || !map_poses.count(pose_j->first) ) continue;
                     auto imu_factor = new IMUFactor(imu_ptr);
                     problem.AddResidualBlock(imu_factor, imu_LossFunction,
                                              &map_poses.at(pose_i->first)[0],
@@ -702,7 +735,9 @@ namespace openMVG
                 }
             }
 
-            PrintAvgImuError( sfm_data, map_poses, map_speed );
+            std::cout << "end imus factor" << std::endl;
+
+//            PrintAvgImuError( sfm_data, map_poses, map_speed );
 
             if (options.control_point_opt.bUse_control_points)
             {
@@ -734,7 +769,7 @@ namespace openMVG
                 std::cout << summary.FullReport() << std::endl;
 
 
-            PrintAvgImuError( sfm_data, map_poses, map_speed );
+//            PrintAvgImuError( sfm_data, map_poses, map_speed );
 
             // If no error, get back refined parameters
             if (!summary.IsSolutionUsable())
@@ -812,7 +847,7 @@ namespace openMVG
 
                 ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
                 problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
-//                problem.SetParameterBlockConstant(ex_paparm);
+                problem.SetParameterBlockConstant(ex_paparm);
             }
 
             // Data wrapper for refinement:
@@ -881,11 +916,18 @@ namespace openMVG
                     }
                 }
             }
+//            problem.SetParameterBlockConstant( &map_poses.begin()->second[0] );
 
-//            std::cout << "start AddParameterBlock imus" << std::endl;
+            std::cout << "start AddParameterBlock imus" << std::endl;
             for( const auto& imu:sfm_data.imus )
             {
                 const IndexT indexSpd = imu.first;
+
+                if( sfm_data.Speeds.count(indexSpd) == 0 )
+                {
+                    std::cout << "Speeds nullptr" << std::endl;
+                    continue;
+                }
                 Vec3 speedV3d = sfm_data.Speeds.at(indexSpd).speed_;
                 Vec3 Ba = imu.second.linearized_ba_;
                 Vec3 Bg = imu.second.linearized_bg_;
@@ -908,7 +950,7 @@ namespace openMVG
                 problem.AddParameterBlock(parameter_block, map_speed.at(indexSpd).size());
             }
 
-//            std::cout << "start AddParameterBlock intrinsics" << std::endl;
+            std::cout << "start AddParameterBlock intrinsics" << std::endl;
             // Setup Intrinsics data & subparametrization
             for (const auto & intrinsic_it : sfm_data.intrinsics)
             {
@@ -953,7 +995,7 @@ namespace openMVG
                     new ceres::HuberLoss(Square(4.0))
                                                        : nullptr;
 
-//            std::cout << "start Add Factor ReProjection" << std::endl;
+            std::cout << "start Add Factor ReProjection" << std::endl;
             // For all visibility add reprojections errors:
             for (auto & structure_landmark_it : sfm_data.structure)
             {
@@ -1014,6 +1056,7 @@ namespace openMVG
                     problem.SetParameterBlockConstant(structure_landmark_it.second.X.data());
             }
 
+            int size_imu_factor = 0;
 //            IMUFactor::sqrt_info_weight /= 10;
             ceres::LossFunction * imu_LossFunction = //nullptr;
                     new ceres::CauchyLoss(Square(2.0));
@@ -1025,8 +1068,35 @@ namespace openMVG
                 auto pose_j = std::next(pose_i);
                 for(; pose_j != sfm_data.poses.end(); pose_j++, pose_i++)
                 {
-                    break;
                     const IndexT indexPose = pose_j->first;
+
+                    if( sfm_data.imus.count(indexPose) == 0 )
+                    {
+                        std::cout << "imu nullptr" << std::endl;
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_i->first) == 0 )
+                    {
+                        std::cout << "Speeds pose_i nullptr" << std::endl;
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_j->first) == 0 )
+                    {
+                        std::cout << "Speeds pose_j nullptr" << std::endl;
+                        continue;
+                    }
+                    if( map_speed.count(pose_i->first) == 0 )
+                    {
+                        std::cout << "map Speeds pose_i nullptr" << std::endl;
+                        continue;
+                    }
+                    if( map_speed.count(pose_j->first) == 0 )
+                    {
+                        std::cout << "map Speeds pose_j nullptr" << std::endl;
+                        continue;
+                    }
+
+
                     auto imu_ptr = sfm_data.imus.at(indexPose);
 //                    std::cout << "imu_ptr.sum_dt_ = " << imu_ptr.sum_dt_ << std::endl;
                     if( imu_ptr.sum_dt_ > 0.3 ) continue;
@@ -1038,6 +1108,7 @@ namespace openMVG
                                              &map_speed.at(pose_i->first)[0],
                                              &map_poses.at(pose_j->first)[0],
                                              &map_speed.at(pose_j->first)[0]);
+                    size_imu_factor++;
                 }
             }
 
@@ -1085,9 +1156,9 @@ namespace openMVG
                               << "Bundle Adjustment With IMU statistics (approximated RMSE):\n"
                               << " #views: " << sfm_data.views.size() << "\n"
                               << " #poses: " << sfm_data.poses.size() << "\n"
+                              << " #imus: " << size_imu_factor << "\n"
                               << " #points: " << sfm_data.structure.size() << "\n"
                               << " #intrinsics: " << sfm_data.intrinsics.size() << "\n"
-                              << " #tracks: " << sfm_data.structure.size() << "\n"
                               << " #residuals: " << summary.num_residuals << "\n"
                               << " Initial RMSE: " << std::sqrt(summary.initial_cost / summary.num_residuals) << "\n"
                               << " Final RMSE: " << std::sqrt(summary.final_cost / summary.num_residuals) << "\n"
@@ -1095,6 +1166,16 @@ namespace openMVG
                               << std::endl;
 //                    if (options.use_motion_priors_opt)
 //                        std::cout << "Usable motion priors: " << (int) b_usable_prior << std::endl;
+                }
+
+                {
+                    Eigen::Quaterniond Qic( ex_paparm[6], ex_paparm[3], ex_paparm[4], ex_paparm[5] );
+
+                    Vec3 tic(ex_paparm[0],
+                             ex_paparm[1],
+                             ex_paparm[2]);
+                    sfm_data.IG_Ric = Qic.toRotationMatrix();
+                    sfm_data.IG_tic = tic;
                 }
 
                 // Update camera poses with refined data
@@ -1144,6 +1225,11 @@ namespace openMVG
                 for( auto& imu:sfm_data.imus )
                 {
                     const IndexT indexIMU = imu.first;
+                    if( sfm_data.Speeds.count(indexIMU) == 0 )
+                    {
+                        std::cout << "Speeds nullptr" << std::endl;
+                        continue;
+                    }
                     Vec3 speed(map_speed.at(indexIMU)[0], map_speed.at(indexIMU)[1], map_speed.at(indexIMU)[2]);
                     Vec3 ba(map_speed.at(indexIMU)[3], map_speed.at(indexIMU)[4], map_speed.at(indexIMU)[5]);
                     Vec3 bg(map_speed.at(indexIMU)[6], map_speed.at(indexIMU)[7], map_speed.at(indexIMU)[8]);

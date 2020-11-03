@@ -57,6 +57,10 @@ public:
     bool VI_align();
     void update_imu_inte();
     void update_imu_time();
+
+    void update_imu_inte( SfM_Data &local_scene);
+    void update_imu_time( SfM_Data &local_scene);
+
     void update_state_speed();
     void rota_pose();
     void recover_g_s(const Eigen::Vector3d& correct_g, const Eigen::VectorXd& speeds_scale);
@@ -119,12 +123,18 @@ private:
     /// Bundle adjustment to refine Structure; Motion and Intrinsics
     bool BundleAdjustment();
 
-    bool BundleAdjustmentWithIMU();
+    bool BundleAdjustmentWithIMU(bool _global_ba = true);
+
+
+    bool BundleAdjustmentWithIMU_local( SfM_Data &local_scene );
 
     bool BundleAdjustment_optimizi_only_IMU();
 
     /// Discard track with too large residual error
     bool badTrackRejector(double dPrecision, size_t count = 0);
+
+
+    bool badTrackRejector( SfM_Data &local_scene, double dPrecision, size_t count = 0);
 
     //----
     //-- Data

@@ -39,6 +39,41 @@ struct Pose
     }
 };
 
+struct Triangle
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    Eigen::Vector3d v1, v2, v3;
+    Eigen::Vector3d normal;
+    Eigen::Vector3d center;
+    Triangle()
+    {
+        v1.setZero();
+        v2.setZero();
+        v3.setZero();
+        normal.setZero();
+        center.setZero();
+    }
+    Triangle(const Eigen::Vector3d& v1, const Eigen::Vector3d& v2, const Eigen::Vector3d& v3)
+            : v1(v1), v2(v2), v3(v3)
+    {
+        Eigen::Vector3d AB = v2 - v1;
+        Eigen::Vector3d AC = v3 - v1;
+        normal = AB.cross(AC);
+        normal.normalize();
+        center = (v1 + v2 + v3) / 3;
+    }
+    double getArea() const
+    {
+        double a = (v1 - v2).norm();
+        double b = (v1 - v3).norm();
+        double c = (v2 - v3).norm();
+        double p = 0.5 * (a + b + c);
+        double area = p * (p - a) * (p - b) * (p - c);
+        area = sqrt(area);
+        return area;
+    }
+};
+
 struct IMUMeasurement
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW

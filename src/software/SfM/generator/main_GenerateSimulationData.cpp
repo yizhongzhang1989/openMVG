@@ -15,11 +15,13 @@
 #include "openMVG/image/image_container.hpp"
 #include "openMVG/image/pixel_types.hpp"
 #include "openMVG/image/image_io.hpp"
+
 #include "PointGenerator.h"
 #include "CameraPinhole.h"
 #include "PoseGeneratorCircleSine.h"
 #include "PoseGeneratorConstAcc.h"
 #include "SimulationGenerator.h"
+#include "SurfaceSampler.h"
 
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam);
 void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPath, generator::CameraPinhole* pCam);
@@ -62,8 +64,8 @@ int main()
     using namespace generator;
 
     PointGenerator g_point(-25,25,-25,25,-25,25);
-//    PoseGeneratorCircleSine g_pose(5.0,0.01,1.0,0.1,0.005,true);
-    PoseGeneratorConstAcc g_pose(0.2,0.0,0.0,0.05,true,generator::PoseGeneratorConstAcc::FORWARD);
+    PoseGeneratorCircleSine g_pose(5.0,0.1,1.0,0.1,0.005,true);
+//    PoseGeneratorConstAcc g_pose(0.2,0.0,0.0,0.05,true,generator::PoseGeneratorConstAcc::FORWARD);
     CameraPinhole cam(320,320,320,240,640,480);
 
     // generation
@@ -94,7 +96,7 @@ int main()
 
     SaveSfMData("openMVGFormat",sfm_data,&cam);
 
-    g_sim.SaveIMU(g_sim.getIMUMeasurements<PoseGeneratorConstAcc>(),"openMVGFormat/imu_data.csv");
+    g_sim.SaveIMU(g_sim.getIMUMeasurements<PoseGeneratorCircleSine>(),"openMVGFormat/imu_data.csv");
 }
 
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam)

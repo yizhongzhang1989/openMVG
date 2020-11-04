@@ -22,42 +22,10 @@
 #include "PoseGeneratorConstAcc.h"
 #include "SimulationGenerator.h"
 #include "SurfaceSampler.h"
+#include "Utils.h"
 
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam);
 void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPath, generator::CameraPinhole* pCam);
-
-#ifdef _WIN32
-static std::string unix_path_to_win(const std::string& unix_format)
-{
-    std::string win_format(unix_format);
-    for (int i = 0; i < win_format.length(); i++)
-    {
-        if (win_format[i] == '/')
-        {
-            win_format[i] = '\\';
-        }
-    }
-
-    return win_format;
-}
-#endif
-
-static void check_and_create_dir(const std::string& path)
-{
-#ifdef _WIN32
-    if (_access(path.c_str(), 00) == -1)
-    {
-        std::string cmd = "mkdir " + unix_path_to_win(path);
-        system(cmd.c_str());
-    }
-#elif __linux__
-    if (access(path.c_str(), 00) == -1)
-    {
-        std::string cmd = "mkdir -p " + path;
-        system(cmd.c_str());
-    }
-#endif
-}
 
 int main()
 {
@@ -280,7 +248,7 @@ void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& image
 {
     using namespace openMVG::image;
 
-    check_and_create_dir(imagePath);
+    Utils::check_and_create_dir(imagePath);
 
     int width = pCam->getWidth();
     int height = pCam->getHeight();

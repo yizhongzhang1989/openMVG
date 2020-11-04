@@ -1,20 +1,12 @@
-#include "SimulationGenerator.h"
-#include "PoseGeneratorCircleSine.h"
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <random>
 #include <chrono>
 
-#ifdef _WIN32
-#include <io.h>
-#elif __linux__
-#include <unistd.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
-#endif
-
-// see https://www.cnblogs.com/renyu310/p/6485066.html for instructions of directory operation
+#include "SimulationGenerator.h"
+#include "PoseGeneratorCircleSine.h"
+#include "Utils.h"
 
 namespace generator
 {
@@ -62,6 +54,7 @@ bool SimulationGenerator::Generate(Simulation_Data& sfm_data, const SimulationCo
         }
     }
     std::cout<<"association finished."<<std::endl;
+    return true;
 }
 
 void SimulationGenerator::AddNoise(const Simulation_Data& sfm_data, Simulation_Data& sfm_data_noisy, NoiseConfig& cfg_noise)
@@ -148,56 +141,11 @@ void SimulationGenerator::AddNoise(const Simulation_Data& sfm_data, Simulation_D
     std::cout<<"add noise for points finished."<<std::endl;
 }
 
-#ifdef _WIN32
-static std::string unix_path_to_win(const std::string& unix_format)
-{
-    std::string win_format(unix_format);
-    for (int i = 0; i < win_format.length(); i++)
-    {
-        if (win_format[i] == '/')
-        {
-            win_format[i] = '\\';
-        }
-    }
-
-    return win_format;
-}
-#endif
-
-static void check_and_create_dir(const std::string& path)
-{
-#ifdef _WIN32
-    if (_access(path.c_str(), 00) == -1)
-    {
-        std::string cmd = "mkdir " + unix_path_to_win(path);
-        system(cmd.c_str());
-    }
-#elif __linux__
-    if (access(path.c_str(), 00) == -1)
-    {
-        std::string cmd = "mkdir -p " + path;
-        system(cmd.c_str());
-    }
-#endif
-}
-
 void SimulationGenerator::Save(Simulation_Data& sfm_data, const std::string& outPath)
 {
-//    if(access(outPath.c_str(),00) == -1)
-//    {
-////        mkdir(outPath.c_str(),S_IRWXU);
-//        std::string cmd = "mkdir -p " + outPath;
-//        system(cmd.c_str());
-//    }
-    check_and_create_dir(outPath);
+    Utils::check_and_create_dir(outPath);
     std::string kp_outPath = outPath + "/keypoints/";
-//    if(access(kp_outPath.c_str(),00) == -1)
-//    {
-////        mkdir(outPath.c_str(),S_IRWXU);
-//        std::string cmd = "mkdir -p " + kp_outPath;
-//        system(cmd.c_str());
-//    }
-    check_and_create_dir(kp_outPath);
+    Utils::check_and_create_dir(kp_outPath);
 
     MapPoints& map_points = sfm_data.map_points;
     KeyFrames& key_frames = sfm_data.key_frames;

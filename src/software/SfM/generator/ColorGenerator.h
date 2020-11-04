@@ -16,7 +16,7 @@ public:
     ColorGenerator()
             : e(std::chrono::system_clock::now().time_since_epoch().count())
     {
-        n = std::uniform_int_distribution<unsigned char>(0,255);
+        n = std::uniform_int_distribution<unsigned short>(0,255);
     }
     ColorType Generate()
     {
@@ -27,8 +27,8 @@ public:
     }
 private:
     std::default_random_engine e;
-    std::uniform_int_distribution<unsigned char> n;
-};
+    std::uniform_int_distribution<unsigned short> n;
+};  // class ColorGenerator
 
 }  // namespace generator
 

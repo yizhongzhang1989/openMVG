@@ -4,7 +4,7 @@
 
 #include <random>
 #include <chrono>
-#include <eigen3/Eigen/Core>
+#include <Eigen/Core>
 
 namespace generator
 {

@@ -1,4 +1,8 @@
+include_directories(${EIGEN_INCLUDE_DIRS})
+
 add_library(simulation_generator SimulationGenerator.cpp)
+set_property(TARGET simulation_generator PROPERTY FOLDER OpenMVG/software)
+install(TARGETS simulation_generator DESTINATION lib/)
 
 add_executable(openMVG_main_GenerateSimulationData main_GenerateSimulationData.cpp)
 target_link_libraries(openMVG_main_GenerateSimulationData

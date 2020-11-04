@@ -2,8 +2,8 @@
 #ifndef TYPES_H_
 #define TYPES_H_
 
-#include <eigen3/Eigen/Core>
-#include <eigen3/Eigen/Geometry>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 #include <map>
 #include <utility>
 #include <vector>

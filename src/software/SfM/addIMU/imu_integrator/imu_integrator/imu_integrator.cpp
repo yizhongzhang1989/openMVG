@@ -2,7 +2,7 @@
 #include <fstream>
 
 #include "imu_integrator.h"
-#include <yaml-cpp/yaml.h>
+//#include <yaml-cpp/yaml.h>
 
 namespace IMUDynamics
 {
@@ -89,7 +89,7 @@ void IMUIntegrator::setup_msckf(const std::string config)
 {
     // TODO: reading the parameters from external yaml config file, or remove this part.
     std::ifstream fin;
-    YAML::Node cfg;
+   /* YAML::Node cfg;
     if(!config.empty())
     {
         fin.open(config);
@@ -100,7 +100,7 @@ void IMUIntegrator::setup_msckf(const std::string config)
         }
         cfg = YAML::Load(fin);
         cfg["has_cfg"] = true;
-    }
+    }*/
     
     camera_.f_u = 457.587;
     camera_.f_v = 456.134;
@@ -108,7 +108,7 @@ void IMUIntegrator::setup_msckf(const std::string config)
     camera_.c_v = 255.238;
     camera_.q_CI.setIdentity();
     camera_.p_C_I.setZero();
-    if(cfg["has_cfg"])
+    /*if(cfg["has_cfg"])
     {
         YAML::Node cam = cfg["cam0"];
         YAML::Node intrinsics = cam["intrinsics"];
@@ -133,7 +133,7 @@ void IMUIntegrator::setup_msckf(const std::string config)
         }
         camera_.q_CI = Quaternionf(R);
         camera_.p_C_I = t;
-    }
+    }*/
     
     float feature_cov = 2.0;
 

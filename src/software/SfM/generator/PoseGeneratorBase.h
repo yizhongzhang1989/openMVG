@@ -18,7 +18,8 @@ public:
     };
     typedef PoseT pose_type;
     virtual pose_type Generate() = 0;
-    virtual double getDeltaT() const = 0;
+    // get sampling period in ms
+    virtual int getDeltaT() const = 0;
 };
 
 }  // namespace generator

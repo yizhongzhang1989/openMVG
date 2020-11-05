@@ -4,7 +4,6 @@
 
 #include <random>
 #include <chrono>
-#include <iostream>
 #include "types.h"
 #include "OBJFileReader.h"
 
@@ -55,8 +54,6 @@ public:
             int num_points_i = std::ceil(areas[i] * num_points / sum_area);
             STLVector<Eigen::Vector3d> point_cloud_i = SampleTriangle(triangles[i], num_points_i);
             point_cloud.insert(point_cloud.end(),point_cloud_i.begin(),point_cloud_i.end());
-
-            std::cout<<"triangle "<<i<<" sampling "<<num_points_i<<" points."<<std::endl;
         }
         return point_cloud;
     }
@@ -82,8 +79,6 @@ public:
             int num_points_i = std::ceil(areas[i] * num_points / sum_area);
             STLVector<Eigen::Vector3d> point_cloud_i = SampleTriangle(triangles[i], num_points_i);
             point_cloud.insert(point_cloud.end(),point_cloud_i.begin(),point_cloud_i.end());
-
-            std::cout<<"triangle "<<i<<" sampling "<<num_points_i<<" points."<<std::endl;
         }
         return point_cloud;
     }

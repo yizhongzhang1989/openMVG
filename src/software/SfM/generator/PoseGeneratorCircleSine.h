@@ -4,7 +4,7 @@
 
 #include "PoseGeneratorBase.h"
 #include "types.h"
-#include <iostream>
+//#include <iostream>
 
 namespace generator
 {
@@ -16,14 +16,11 @@ public:
     /// r: radius of circle;  A: amptitude of sine;
     /// fc: rotation frequency (r/s);  fs: frequency of sine;
     /// T: sampling period.
-    PoseGeneratorCircleSine(double r, double A, double fc, double fs, double freq_img, double freq_imu, bool storeIMU = false, LookDirection direction = FORWARD)
-    : r_(r), A_(A), direction(direction), t_cam(0.0), t_imu(0.0), storeIMU_(storeIMU)
+    PoseGeneratorCircleSine(double r, double A, double fc, double fs, int deltaT, int deltaT_IMU, bool storeIMU = false, LookDirection direction = FORWARD)
+    : r_(r), A_(A), direction(direction), deltaT(deltaT), deltaT_IMU(deltaT_IMU), t_cam_ms(0), t_imu_ms(0), storeIMU_(storeIMU)
     {
         omegaCircle = 2 * PI * fc;
         omegaSine = 2 * PI * fs;
-
-        deltaT = 1.0 / freq_img;
-        deltaT_IMU = 1.0 / freq_imu;
 
         IMUs.clear();
     }
@@ -32,9 +29,10 @@ public:
     {
         static const Eigen::Vector3d gravity(0.0,0.0,-GRAVITY);
 
-        /// angle of rotation (rad)
+        double t_cam = 1e-3 * t_cam_ms;
+        // angle of rotation (rad)
         double theta = omegaCircle * t_cam;
-        /// angle of sine (rad)
+        // angle of sine (rad)
         double alpha = omegaSine * t_cam;
 
         Pose p;
@@ -75,14 +73,15 @@ public:
         // p.t: global -> local, t_cw
         p.t = - R.transpose() * t;
 
-        std::cout<<"vG = "<<v.transpose()<<std::endl;
-        std::cout<<"vI = "<<(p.q*v).transpose()<<std::endl;
+//        std::cout<<"vG = "<<v.transpose()<<std::endl;
+//        std::cout<<"vI = "<<(p.q*v).transpose()<<std::endl;
 
         // generate IMU measurements
         if(storeIMU_)
         {
-            while(t_imu <= t_cam)
+            while(t_imu_ms <= t_cam_ms)
             {
+                double t_imu = 1e-3 * t_imu_ms;
                 theta = omegaCircle * t_imu;
                 alpha = omegaSine * t_imu;
 
@@ -115,17 +114,18 @@ public:
                 R.col(2) = rz;
 
                 Eigen::Vector3d acc_local = R.transpose() * (Eigen::Vector3d(dx2,dy2,dz2) + gravity);
-                IMUs.emplace_back(acc_local,Eigen::Vector3d(omega_x,omega_y,omega_z), t_imu);
+                IMUs.emplace_back(acc_local,Eigen::Vector3d(omega_x,omega_y,omega_z), t_imu_ms);
 
-                t_imu += deltaT_IMU;
+                t_imu_ms += deltaT_IMU;
             }
         }
 
-        t_cam += deltaT;
+        t_cam_ms += deltaT;
 
         return p;
     }
-    double getDeltaT() const override
+
+    int getDeltaT() const override
     {
         return deltaT;
     }
@@ -145,16 +145,16 @@ private:
     double A_;
     double omegaCircle;
     double omegaSine;
-
-    double deltaT;
-    double deltaT_IMU;
-    double t_cam, t_imu;
-
-    // IMU measurements
-    bool storeIMU_;
-    IMUMeasurements IMUs;
-
     LookDirection direction;
+    // sampling period in ms
+    int deltaT;
+    int deltaT_IMU;
+    // current time in ms
+    int t_cam_ms;
+    int t_imu_ms;
+    // IMU measurements
+    IMUMeasurements IMUs;
+    bool storeIMU_;
 
 };  // PoseGeneratorCircleSine
 

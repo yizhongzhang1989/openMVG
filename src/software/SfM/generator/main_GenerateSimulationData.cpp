@@ -23,6 +23,7 @@
 #include "PoseGeneratorCircleSine.h"
 #include "PoseGeneratorConstAcc.h"
 #include "PoseGeneratorLine.h"
+//#include "PoseGeneratorFunctional.h"
 #include "SimulationGenerator.h"
 #include "SurfaceSampler.h"
 #include "Utils.h"
@@ -129,15 +130,15 @@ int main(int argc, char** argv)
     {
         case CIRCLE_SINE:
         {
-            g_pose = std::make_shared<PoseGeneratorCircleSine>(5.0,0.1,1.0,0.1,30,200,true);
+            g_pose = std::make_shared<PoseGeneratorCircleSine>(5.0,0.1,1.0,0.1,33,5,true);
         }break;
         case CONST_ACC:
         {
-            g_pose = std::make_shared<PoseGeneratorConstAcc>(0.2,0.0,0.0,30,200,true,generator::PoseGeneratorConstAcc::FORWARD);
+            g_pose = std::make_shared<PoseGeneratorConstAcc>(0.2,0.0,0.0,33,5,true,generator::PoseGeneratorConstAcc::FORWARD);
         }break;
         case LINE:
         {
-            g_pose = std::make_shared<PoseGeneratorLine>(30,200,true);
+            g_pose = std::make_shared<PoseGeneratorLine>(33,5,true);
         }break;
         default:
         {

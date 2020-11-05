@@ -13,16 +13,14 @@ class PoseGeneratorLine : public PoseGeneratorBase<Pose>
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    PoseGeneratorLine(double freq_img, double freq_imu, bool storeIMU)
-    : t_cam(0.0), t_imu(0.0), storeIMU_(storeIMU)
+    PoseGeneratorLine(int deltaT, int deltaT_IMU, bool storeIMU = false)
+    : t_cam_ms(0), t_imu_ms(0), storeIMU_(storeIMU), deltaT(deltaT), deltaT_IMU(deltaT_IMU)
     {
         IMUs.clear();
-
-        deltaT = 1.0 / freq_img;
-        deltaT_IMU = 1.0 / freq_imu;
     }
     Pose Generate() override
     {
+        double t_cam = 1e-3 * t_cam_ms;
         double omega = 2 * PI * t_cam;
         double sin_omega = sin(omega);
 
@@ -42,8 +40,9 @@ public:
 
         if(storeIMU_)
         {
-            while(t_imu <= t_cam)
+            while(t_imu_ms <= t_cam_ms)
             {
+                double t_imu = 1e-3 * t_imu_ms;
                 double PI_2 = 2 * PI;
                 double PI_2_2 = PI_2 * PI_2;
                 double omega_imu = PI_2 * t_imu;
@@ -54,18 +53,18 @@ public:
                 double dz2 = - 0.05 * sin_omega_imu * PI_2_2;
                 Eigen::Vector3d acc(dx2,dy2,dz2);
                 Eigen::Vector3d gyro(0.0,0.0,0.0);
-                IMUs.emplace_back(acc,gyro,t_imu);
+                IMUs.emplace_back(acc,gyro,t_imu_ms);
 
-                t_imu += deltaT_IMU;
+                t_imu_ms += deltaT_IMU;
             }
         }
 
-        t_cam += deltaT;
+        t_cam_ms += deltaT;
 
         return p;
     }
 
-    double getDeltaT() const override
+    int getDeltaT() const override
     {
         return deltaT;
     }
@@ -80,10 +79,13 @@ public:
         return storeIMU_;
     }
 private:
-    double deltaT;
-    double deltaT_IMU;
-    double t_cam;
-    double t_imu;
+    // sampling period in ms
+    int deltaT;
+    int deltaT_IMU;
+    // current time in ms
+    int t_cam_ms;
+    int t_imu_ms;
+    // IMU measurements
     IMUMeasurements IMUs;
     bool storeIMU_;
 };

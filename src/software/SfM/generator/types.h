@@ -9,6 +9,7 @@
 #include <vector>
 #include <set>
 #include <string>
+#include <iostream>
 
 namespace Eigen
 {
@@ -30,11 +31,25 @@ using STLMap = std::map<KeyType,ValueType, std::less<KeyType>, Eigen::aligned_al
 struct Pose
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    Eigen::Quaterniond q;
-    Eigen::Vector3d t;
+    // global -> local
+    Eigen::Quaterniond q;  // rotation
+    Eigen::Vector3d t;  // translation
     Pose()
     {
         t.setZero();
+        q.setIdentity();
+    }
+};
+
+struct InversePose
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    // local -> global
+    Eigen::Quaterniond q;  // orientation
+    Eigen::Vector3d p;  // position
+    InversePose()
+    {
+        p.setZero();
         q.setIdentity();
     }
 };
@@ -79,14 +94,15 @@ struct IMUMeasurement
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     Eigen::Vector3d acc;
     Eigen::Vector3d gyro;
-    double timestamp;
+    // timestamp in ms
+    int timestamp;
     IMUMeasurement()
     : timestamp(0)
     {
         acc.setZero();
         gyro.setZero();
     }
-    IMUMeasurement(const Eigen::Vector3d& acc_, const Eigen::Vector3d& gyro_, double t)
+    IMUMeasurement(const Eigen::Vector3d& acc_, const Eigen::Vector3d& gyro_, int t)
     : acc(acc_), gyro(gyro_), timestamp(t)
     {
         ;
@@ -194,6 +210,14 @@ struct Bound
     : min_x(min_x), max_x(max_x), min_y(min_y), max_y(max_y), min_z(min_z), max_z(max_z)
     {
         ;
+    }
+    friend const std::ostream& operator<<(const std::ostream& out, const Bound& bound)
+    {
+        std::cout<<"min_x = "<<bound.min_x<<" , max_x = "<<bound.max_x<<std::endl;
+        std::cout<<"min_y = "<<bound.min_y<<" , max_y = "<<bound.max_y<<std::endl;
+        std::cout<<"min_z = "<<bound.min_z<<" , max_z = "<<bound.max_z<<std::endl;
+
+        return out;
     }
 };
 

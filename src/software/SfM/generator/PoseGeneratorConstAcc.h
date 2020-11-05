@@ -11,18 +11,17 @@ class PoseGeneratorConstAcc : public PoseGeneratorBase<Pose>
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    PoseGeneratorConstAcc(double acc_x, double acc_y, double acc_z, double freq_img, double freq_imu, bool storeIMU = false, LookDirection direction = FORWARD)
-    : acc_x(acc_x), acc_y(acc_y), acc_z(acc_z), direction(direction), t_cam(0.0), t_imu(0.0), storeIMU_(storeIMU)
+    PoseGeneratorConstAcc(double acc_x, double acc_y, double acc_z, int deltaT, int deltaT_IMU, bool storeIMU = false, LookDirection direction = FORWARD)
+    : acc_x(acc_x), acc_y(acc_y), acc_z(acc_z), direction(direction), t_cam_ms(0), t_imu_ms(0), storeIMU_(storeIMU), deltaT(deltaT), deltaT_IMU(deltaT_IMU)
     {
         IMUs.clear();
-
-        deltaT = 1.0 / freq_img;
-        deltaT_IMU = 1.0 / freq_imu;
     }
     Pose Generate() override
     {
         static const Eigen::Vector3d gravity(0.0,0.0,-GRAVITY);
         static const double eps = 1e-6;
+
+        double t_cam = 1e-3 * t_cam_ms;
 
         Pose p;
         Eigen::Vector3d acc(acc_x,acc_y,acc_z);
@@ -82,17 +81,18 @@ public:
         p.t = - R.transpose() * t;
 
         Eigen::Vector3d acc_local = p.q * (acc + gravity);
-        while(t_imu <= t_cam)
+        while(t_imu_ms <= t_cam_ms)
         {
-            IMUs.emplace_back(acc_local, Eigen::Vector3d::Zero(), t_imu);
-            t_imu += deltaT_IMU;
+            IMUs.emplace_back(acc_local, Eigen::Vector3d::Zero(), t_imu_ms);
+            t_imu_ms += deltaT_IMU;
         }
 
-        t_cam += deltaT;
+        t_cam_ms += deltaT;
 
         return p;
     }
-    double getDeltaT() const override
+
+    int getDeltaT() const override
     {
         return deltaT;
     }
@@ -109,10 +109,15 @@ public:
 
 private:
     double acc_x, acc_y, acc_z;
-    double deltaT, deltaT_IMU;
-    double t_cam, t_imu;
-    IMUMeasurements IMUs;
     LookDirection direction;
+    // sampling period in ms
+    int deltaT;
+    int deltaT_IMU;
+    // current time in ms
+    int t_cam_ms;
+    int t_imu_ms;
+    // IMU measurements
+    IMUMeasurements IMUs;
     bool storeIMU_;
 };
 }

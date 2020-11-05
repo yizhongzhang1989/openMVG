@@ -2,6 +2,8 @@
 #ifndef SIMULATION_GENERATOR_H_
 #define SIMULATION_GENERATOR_H_
 
+#include <utility>
+
 #include "PointGenerator.h"
 #include "PoseGeneratorBase.h"
 #include "CameraBase.h"
@@ -53,10 +55,24 @@ public:
             perturb_point2d = true;
         }
     };
+    enum PointGenerationMode
+    {
+        RANDOM_POINT,
+        SAMPLING_SURFACE
+    };
     SimulationGenerator(PoseGeneratorBase<Pose>* pPoseGenerator,
                         PointGenerator* pPointGenerator,
                         CameraBase<Eigen::Vector3d,Eigen::Vector2d>* pCamera)
-    :mpPoseGenerator(pPoseGenerator), mpPointGenerator(pPointGenerator), mpCamera(pCamera)
+    :mpPoseGenerator(pPoseGenerator), mpPointGenerator(pPointGenerator),
+    mpCamera(pCamera), mPointMode(RANDOM_POINT)
+    {
+        ;
+    }
+    SimulationGenerator(PoseGeneratorBase<Pose>* pPoseGenerator,
+                        std::string ObjFileName,
+                        CameraBase<Eigen::Vector3d,Eigen::Vector2d>* pCamera)
+            :mpPoseGenerator(pPoseGenerator), strObjFileName(std::move(ObjFileName)),
+            mpCamera(pCamera), mPointMode(SAMPLING_SURFACE), mpPointGenerator(nullptr)
     {
         ;
     }
@@ -81,6 +97,8 @@ private:
     PointGenerator* mpPointGenerator;
     CameraBase<Eigen::Vector3d,Eigen::Vector2d>* mpCamera;
     ColorGenerator<Color> mColorGenerator;
+    const PointGenerationMode mPointMode;
+    std::string strObjFileName;
 };
 
 }  // namespace generator

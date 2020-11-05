@@ -16,14 +16,14 @@ public:
     /// r: radius of circle;  A: amptitude of sine;
     /// fc: rotation frequency (r/s);  fs: frequency of sine;
     /// T: sampling period.
-    PoseGeneratorCircleSine(double r, double A, double fc, double fs, double T, bool storeIMU = false, LookDirection direction = FORWARD)
+    PoseGeneratorCircleSine(double r, double A, double fc, double fs, double freq_img, double freq_imu, bool storeIMU = false, LookDirection direction = FORWARD)
     : r_(r), A_(A), direction(direction), t_cam(0.0), t_imu(0.0), storeIMU_(storeIMU)
     {
         omegaCircle = 2 * PI * fc;
         omegaSine = 2 * PI * fs;
 
-        deltaT = T;
-        deltaT_IMU = deltaT / 100;
+        deltaT = 1.0 / freq_img;
+        deltaT_IMU = 1.0 / freq_imu;
 
         IMUs.clear();
     }
@@ -135,7 +135,7 @@ public:
         return IMUs;
     }
 
-    bool hasIMU()
+    bool hasIMU() const
     {
         return storeIMU_;
     }

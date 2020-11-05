@@ -180,6 +180,23 @@ struct Simulation_Data
     }
 };
 
+struct Bound
+{
+    double min_x,max_x;
+    double min_y,max_y;
+    double min_z,max_z;
+    Bound()
+    : min_x(0.0), max_x(0.0), min_y(0.0), max_y(0.0), min_z(0.0), max_z(0.0)
+    {
+        ;
+    }
+    Bound(double min_x, double max_x, double min_y, double max_y, double min_z, double max_z)
+    : min_x(min_x), max_x(max_x), min_y(min_y), max_y(max_y), min_z(min_z), max_z(max_z)
+    {
+        ;
+    }
+};
+
 }  // namespace generator
 
 #endif  // TYPES_H_

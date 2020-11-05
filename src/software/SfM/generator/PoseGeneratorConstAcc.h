@@ -11,11 +11,13 @@ class PoseGeneratorConstAcc : public PoseGeneratorBase<Pose>
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    PoseGeneratorConstAcc(double acc_x, double acc_y, double acc_z, double T, bool storeIMU = false, LookDirection direction = FORWARD)
-    : acc_x(acc_x), acc_y(acc_y), acc_z(acc_z), deltaT(T), direction(direction), t_cam(0), t_imu(0)
+    PoseGeneratorConstAcc(double acc_x, double acc_y, double acc_z, double freq_img, double freq_imu, bool storeIMU = false, LookDirection direction = FORWARD)
+    : acc_x(acc_x), acc_y(acc_y), acc_z(acc_z), direction(direction), t_cam(0.0), t_imu(0.0), storeIMU_(storeIMU)
     {
-        deltaT_IMU = deltaT / 10;
-        storeIMU_ = storeIMU;
+        IMUs.clear();
+
+        deltaT = 1.0 / freq_img;
+        deltaT_IMU = 1.0 / freq_imu;
     }
     Pose Generate() override
     {
@@ -100,7 +102,7 @@ public:
         return IMUs;
     }
 
-    bool hasIMU()
+    bool hasIMU() const
     {
         return storeIMU_;
     }

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <memory>
 
 #include "openMVG/sfm/sfm_data.hpp"
 #include "openMVG/sfm/sfm_data_io.hpp"
@@ -15,11 +16,13 @@
 #include "openMVG/image/image_container.hpp"
 #include "openMVG/image/pixel_types.hpp"
 #include "openMVG/image/image_io.hpp"
+#include "third_party/cmdLine/cmdLine.h"
 
 #include "PointGenerator.h"
 #include "CameraPinhole.h"
 #include "PoseGeneratorCircleSine.h"
 #include "PoseGeneratorConstAcc.h"
+#include "PoseGeneratorLine.h"
 #include "SimulationGenerator.h"
 #include "SurfaceSampler.h"
 #include "Utils.h"
@@ -27,44 +30,189 @@
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam);
 void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPath, generator::CameraPinhole* pCam);
 
-int main()
+int main(int argc, char** argv)
 {
     using namespace generator;
 
-    PointGenerator g_point(-25,25,-25,25,-25,25);
-    PoseGeneratorCircleSine g_pose(5.0,0.1,1.0,0.1,0.005,true);
-//    PoseGeneratorConstAcc g_pose(0.2,0.0,0.0,0.05,true,generator::PoseGeneratorConstAcc::FORWARD);
-    CameraPinhole cam(320,320,320,240,640,480);
+    CmdLine cmd;
 
-    // generation
-    SimulationGenerator g_sim(&g_pose,&g_point,&cam);
+    std::string sObjFile = "";
+    std::string sOutDir = "";
+
+    // generator config
     SimulationGenerator::SimulationConfig cfg;
     cfg.n_points = 1500;
     cfg.n_poses = 200;
     cfg.image_width = 640;
     cfg.image_height = 480;
+
+    // bound
+    Bound bound;
+    bound.max_x = 25.0, bound.min_x = -25.0;
+    bound.max_y = 25.0, bound.min_y = -25.0;
+    bound.max_z = 25.0, bound.min_z = -25.0;
+
+    enum TrajectoryType
+    {
+        CIRCLE_SINE = 0,
+        CONST_ACC = 1,
+        LINE = 2
+    };
+    TrajectoryType trajectory_type = CIRCLE_SINE;
+    int trajectory_type_aux = 0;
+
+    // required
+    cmd.add( make_option('o', sOutDir, "outdir") );
+    // Optional
+    cmd.add(make_option('i', sObjFile, "obj_file"));
+    cmd.add(make_option('n',cfg.n_points,"n_points"));
+    cmd.add(make_option('N',cfg.n_poses,"n_poses"));
+    cmd.add(make_option('x',bound.min_x,"min_x"));
+    cmd.add(make_option('X',bound.max_x,"max_x"));
+    cmd.add(make_option('y',bound.min_y,"min_y"));
+    cmd.add(make_option('Y',bound.max_y,"max_y"));
+    cmd.add(make_option('z',bound.min_z,"min_z"));
+    cmd.add(make_option('Z',bound.max_z,"max_z"));
+    cmd.add(make_option('p',trajectory_type_aux,"trajectory_type"));
+
+    try
+    {
+        if (argc == 1) throw std::string("Invalid command line parameter.");
+        cmd.process(argc, argv);
+    }
+    catch (const std::string& s)
+    {
+        std::cerr << "Usage: " << argv[0] << '\n'
+                  << "[-o|--outdir path] \n"
+                  << "\n[Optional]\n"
+                  << "[-i|--obj_file] OBJ file representing 3D model (for point sampling) \n"
+                  << "[-n|--n_points] number of points in simulation \n"
+                  << "[-N|--n_poses] number of poses in simulation \n"
+                  << "[-x|--min_x] minimum x value (range of points) \n"
+                  << "[-X|--max_x] maximum x value (range of points) \n"
+                  << "[-y|--min_y] minimum y value (range of points) \n"
+                  << "[-Y|--max_y] maximum y value (range of points) \n"
+                  << "[-z|--min_z] minimum z value (range of points) \n"
+                  << "[-Z|--max_z] maximum z value (range of points) \n"
+                  << "[-p|--trajectory_type] trajectory type, currently support : [0|CIRCLE_SINE, 1|CONST_ACC, 2|lINE] \n"
+                  << std::endl;
+        std::cerr << s << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    trajectory_type = static_cast<TrajectoryType>(trajectory_type_aux);
+
+    std::cout << " You called : " <<std::endl
+              << argv[0] << std::endl
+              << "--obj_file " << sObjFile << std::endl
+              << "--outdir " << sOutDir << std::endl
+              << "--n_points "<< cfg.n_points << std::endl
+              << "--n_poses "<< cfg.n_poses << std::endl
+              << "--min_x "<< bound.min_x << std::endl
+              << "--max_x "<< bound.max_x << std::endl
+              << "--min_y "<< bound.min_y << std::endl
+              << "--max_y "<< bound.max_y << std::endl
+              << "--min_z "<< bound.min_z << std::endl
+              << "--max_z "<< bound.max_z << std::endl
+              << "--trajectory_type "<< trajectory_type << std::endl
+              << std::endl;
+
+    if(sOutDir.empty())
+    {
+        std::cerr<<"Output directory must be specified."<<std::endl;
+        return EXIT_FAILURE;
+    }
+    Utils::check_and_create_dir(sOutDir);
+
+    std::shared_ptr<PoseGeneratorBase<Pose>> g_pose;
+    switch(trajectory_type)
+    {
+        case CIRCLE_SINE:
+        {
+            g_pose = std::make_shared<PoseGeneratorCircleSine>(5.0,0.1,1.0,0.1,30,200,true);
+        }break;
+        case CONST_ACC:
+        {
+            g_pose = std::make_shared<PoseGeneratorConstAcc>(0.2,0.0,0.0,30,200,true,generator::PoseGeneratorConstAcc::FORWARD);
+        }break;
+        case LINE:
+        {
+            g_pose = std::make_shared<PoseGeneratorLine>(30,200,true);
+        }break;
+        default:
+        {
+            std::cerr<<"Unrecognized trajectory type : "<<trajectory_type<<std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    PointGenerator g_point(bound.min_x,bound.max_x,bound.min_y,bound.max_y,bound.min_z,bound.max_z);
+//    PoseGeneratorCircleSine g_pose(5.0,0.1,1.0,0.1,0.005,true);
+//    PoseGeneratorConstAcc g_pose(0.2,0.0,0.0,0.05,true,generator::PoseGeneratorConstAcc::FORWARD);
+    CameraPinhole cam(320,320,320,240,640,480);
+
+    std::shared_ptr<SimulationGenerator> g_sim;
+    // generation
+    if(sObjFile.empty())
+    {
+        g_sim = std::make_shared<SimulationGenerator>(g_pose.get(),&g_point,&cam);
+    }
+    else
+    {
+        g_sim = std::make_shared<SimulationGenerator>(g_pose.get(),sObjFile,&cam);
+    }
+
     Simulation_Data sfm_data;
-    g_sim.Generate(sfm_data,cfg);
-    g_sim.Save(sfm_data,"groundtruth");
-    SaveToImages(sfm_data,"images",&cam);
+    g_sim->Generate(sfm_data,cfg);
 
-    // add noise
-    Simulation_Data sfm_data_noisy;
-    SimulationGenerator::NoiseConfig cfg_noise;
-    cfg_noise.perturb_point2d = true;
-    cfg_noise.perturb_point3d = true;
-    cfg_noise.perturb_translation = true;
-    cfg_noise.perturb_rotation = true;
-    cfg_noise.stddev_point2d = 1.0;
-    cfg_noise.stddev_point3d = 0.1;
-    cfg_noise.stddev_translation = 0.1;
-    cfg_noise.stddev_rotation = 0.01;
-    g_sim.AddNoise(sfm_data,sfm_data_noisy,cfg_noise);
-    g_sim.Save(sfm_data_noisy,"noisyData");
+    // save as colmap format
+    std::string groundtruthPath = sOutDir + "/groundtruth/";
+    Utils::check_and_create_dir(groundtruthPath);
+    g_sim->Save(sfm_data,groundtruthPath);
+    // save to images (for visualization)
+    std::string imagePath = sOutDir + "/images/";
+    Utils::check_and_create_dir(imagePath);
+    SaveToImages(sfm_data,imagePath,&cam);
+    // save as openMVG format
+    std::string openMVGPath = sOutDir + "/openMVGFormat/";
+    Utils::check_and_create_dir(openMVGPath);
+    SaveSfMData(openMVGPath,sfm_data,&cam);
+    // save IMU
+    switch(trajectory_type)
+    {
+        case CIRCLE_SINE:
+        {
+            g_sim->SaveIMU(g_sim->getIMUMeasurements<PoseGeneratorCircleSine>(),openMVGPath + "/imu_data.csv");
+        }break;
+        case CONST_ACC:
+        {
+            g_sim->SaveIMU(g_sim->getIMUMeasurements<PoseGeneratorConstAcc>(),openMVGPath + "/imu_data.csv");
+        }break;
+        case LINE:
+        {
+            g_sim->SaveIMU(g_sim->getIMUMeasurements<PoseGeneratorLine>(),openMVGPath + "/imu_data.csv");
+        }break;
+        default:
+        {
+            std::cerr<<"Unrecognized trajectory type : "<<trajectory_type<<std::endl;
+            return EXIT_FAILURE;
+        }
+    }
 
-    SaveSfMData("openMVGFormat",sfm_data,&cam);
 
-    g_sim.SaveIMU(g_sim.getIMUMeasurements<PoseGeneratorCircleSine>(),"openMVGFormat/imu_data.csv");
+//    // add noise
+//    Simulation_Data sfm_data_noisy;
+//    SimulationGenerator::NoiseConfig cfg_noise;
+//    cfg_noise.perturb_point2d = true;
+//    cfg_noise.perturb_point3d = true;
+//    cfg_noise.perturb_translation = true;
+//    cfg_noise.perturb_rotation = true;
+//    cfg_noise.stddev_point2d = 1.0;
+//    cfg_noise.stddev_point3d = 0.1;
+//    cfg_noise.stddev_translation = 0.1;
+//    cfg_noise.stddev_rotation = 0.01;
+//    g_sim.AddNoise(sfm_data,sfm_data_noisy,cfg_noise);
+//    g_sim.Save(sfm_data_noisy,"noisyData");
 }
 
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam)
@@ -244,11 +392,11 @@ void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationDa
     }
 }
 
-void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& imagePath, generator::CameraPinhole* pCam)
+void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPath, generator::CameraPinhole* pCam)
 {
     using namespace openMVG::image;
 
-    Utils::check_and_create_dir(imagePath);
+    Utils::check_and_create_dir(outPath);
 
     int width = pCam->getWidth();
     int height = pCam->getHeight();
@@ -283,7 +431,7 @@ void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& image
     int kf_count = 0;
     for(auto & key_frame : key_frames)
     {
-        std::string img_name = imagePath + "/VIRTUAL_IMG_"+std::to_string(kf_count) + ".JPG";
+        std::string img_name = outPath + "/VIRTUAL_IMG_"+std::to_string(kf_count) + ".JPG";
         Image<RGBColor> img(width,height,true,RGBColor(255,255,255));
         std::vector<unsigned int>& obs = key_frame.second.obs;
         for(unsigned int point3d_id : obs)

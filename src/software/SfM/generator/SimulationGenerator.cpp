@@ -6,6 +6,7 @@
 
 #include "SimulationGenerator.h"
 #include "PoseGeneratorCircleSine.h"
+#include "SurfaceSampler.h"
 #include "Utils.h"
 
 namespace generator
@@ -16,11 +17,33 @@ bool SimulationGenerator::Generate(Simulation_Data& sfm_data, const SimulationCo
     // generate points
     MapPoints& map_points = sfm_data.map_points;
     unsigned int pt_id = 0;
-    for(int i=0;i<cfg.n_points;i++)
+    switch(mPointMode)
     {
-        map_points[pt_id] = MapPoint(pt_id,mpPointGenerator->Generate(),mColorGenerator.Generate());
-        pt_id++;
+        case RANDOM_POINT:
+        {
+            for(int i=0;i<cfg.n_points;i++)
+            {
+                map_points[pt_id] = MapPoint(pt_id,mpPointGenerator->Generate(),mColorGenerator.Generate());
+                pt_id++;
+            }
+        }break;
+        case SAMPLING_SURFACE:
+        {
+            STLVector<Eigen::Vector3d> sample_points = TriangleSampler::SampleObjFile(strObjFileName.c_str(), cfg.n_points);
+            Eigen::Vector3d center;
+            for(Eigen::Vector3d & point : sample_points)
+            {
+                center += point;
+            }
+            center /= sample_points.size();
+            for(size_t i = 0; i < sample_points.size(); i++)
+            {
+                map_points[pt_id] = MapPoint(pt_id,sample_points[i]-center,mColorGenerator.Generate());
+                pt_id++;
+            }
+        }break;
     }
+    std::cout<<"num points = "<<sfm_data.map_points.size()<<std::endl;
 
     // generate poses
     KeyFrames& key_frames = sfm_data.key_frames;

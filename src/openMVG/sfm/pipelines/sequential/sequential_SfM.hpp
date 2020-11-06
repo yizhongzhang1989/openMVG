@@ -46,6 +46,8 @@ public:
 
   virtual bool Process() override;
 
+  bool Process_Window();
+
   bool VI_Init( const IndexT start, const IndexT end );
 
   void setInitialPair(const Pair & initialPair)
@@ -102,8 +104,13 @@ private:
   /// Bundle adjustment to refine Structure; Motion and Intrinsics
   bool BundleAdjustment();
 
+  bool BundleAdjustmentWindows(SfM_Data& sfm_data);
+
   /// Discard track with too large residual error
   bool badTrackRejector(double dPrecision, size_t count = 0);
+
+
+  bool badTrackRejector( SfM_Data& sfm_data, double dPrecision, size_t count = 0);
 
   //----
   //-- Data

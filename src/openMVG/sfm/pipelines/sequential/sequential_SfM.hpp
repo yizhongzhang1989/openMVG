@@ -44,6 +44,8 @@ public:
 
   void coutIntrinsic();
 
+    std::string writeIntrinsic();
+
   virtual bool Process() override;
 
   bool Process_Window();

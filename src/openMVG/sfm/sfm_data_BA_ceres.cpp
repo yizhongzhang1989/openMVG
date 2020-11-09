@@ -327,7 +327,8 @@ bool Bundle_Adjustment_Ceres::Adjust
   //  - set it to nullptr if you don't want use a lossFunction.
   ceres::LossFunction * p_LossFunction =
     ceres_options_.bUse_loss_function_ ?
-      new ceres::HuberLoss(Square(4.0))
+    new ceres::CauchyLoss(4.0)
+//      new ceres::HuberLoss(Square(4.0))
       : nullptr;
 
   // For all visibility add reprojections errors:
@@ -463,7 +464,7 @@ bool Bundle_Adjustment_Ceres::Adjust
   ceres_config_options.sparse_linear_algebra_library_type =
     static_cast<ceres::SparseLinearAlgebraLibraryType>(ceres_options_.sparse_linear_algebra_library_type_);
   ceres_config_options.minimizer_progress_to_stdout = ceres_options_.bVerbose_;
-  ceres_config_options.logging_type = ceres::SILENT;
+  ceres_config_options.logging_type = ceres::SILENT;//SILENT;PER_MINIMIZER_ITERATION
   ceres_config_options.num_threads = ceres_options_.nb_threads_;
 #if CERES_VERSION_MAJOR < 2
   ceres_config_options.num_linear_solver_threads = ceres_options_.nb_threads_;
@@ -498,6 +499,8 @@ bool Bundle_Adjustment_Ceres::Adjust
         << " Initial RMSE: " << std::sqrt( summary.initial_cost / summary.num_residuals) << "\n"
         << " Final RMSE: " << std::sqrt( summary.final_cost / summary.num_residuals) << "\n"
         << " Time (s): " << summary.total_time_in_seconds << "\n"
+        << " num_successful_steps : " << summary.num_successful_steps << "\n"
+        << " num_unsuccessful_steps : " << summary.num_unsuccessful_steps << "\n"
         << std::endl;
       if (options.use_motion_priors_opt)
         std::cout << "Usable motion priors: " << (int)b_usable_prior << std::endl;

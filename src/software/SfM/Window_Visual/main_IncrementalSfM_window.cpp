@@ -79,6 +79,7 @@ int main(int argc, char **argv)
 
   std::string sSfM_Data_Filename;
   std::string sMatchesDir, sMatchFilename;
+  std::string sResultTime_Filename;
   std::string sOutDir = "";
   std::pair<std::string,std::string> initialPairString("","");
   std::string sIntrinsic_refinement_options = "ADJUST_ALL";
@@ -97,6 +98,7 @@ int main(int argc, char **argv)
   cmd.add( make_option('f', sIntrinsic_refinement_options, "refineIntrinsics") );
   cmd.add( make_switch('P', "prior_usage") );
   cmd.add( make_option('t', triangulation_method, "triangulation_method"));
+    cmd.add( make_option('r', sResultTime_Filename, "sResultTime_Filename"));
 
   cmd.add( make_switch('w', "window_mode"));
 
@@ -260,9 +262,13 @@ int main(int argc, char **argv)
       if (sfmEngine.Process_Window())
       {
 
-          sfmEngine.coutIntrinsic();
 
-          time.print_time();
+          std::ofstream file(sResultTime_Filename, std::ofstream::app);
+          std::string intrisic_str = sfmEngine.writeIntrinsic();
+          file << "---------------------------------------------\n";
+          file << intrisic_str;
+          time.write_time(file);
+          file << "---------------------------------------------\n";
 
           std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
@@ -282,6 +288,8 @@ int main(int argc, char **argv)
 
           return EXIT_SUCCESS;
       }
+      else
+          return EXIT_FAILURE;
   }
 
   if (sfmEngine.Process())

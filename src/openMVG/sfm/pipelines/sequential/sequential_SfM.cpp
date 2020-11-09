@@ -115,6 +115,32 @@ void SequentialSfMReconstructionEngine::coutIntrinsic()
 
 }
 
+std::string SequentialSfMReconstructionEngine::writeIntrinsic()
+{
+    std::stringstream out;
+    for (const auto & intrinsic_it : sfm_data_.intrinsics)
+    {
+        const IndexT indexCam = intrinsic_it.first;
+
+        if (isValid(intrinsic_it.second->getType()))
+        {
+            std::vector<double> Params = intrinsic_it.second->getParams();
+
+            for( auto &param : Params )
+            {
+                out << param << " ";
+            }
+            out << std::endl;
+        }
+        else
+        {
+            std::cerr << "Unsupported camera type." << std::endl;
+        }
+    }
+
+    return out.str();
+}
+
 bool SequentialSfMReconstructionEngine::Process() {
 
   //-------------------
@@ -322,9 +348,9 @@ bool SequentialSfMReconstructionEngine::Process_Window()
                             {
                                 local_scene_viewId.insert(pose_it->first);
                                 pose_it--;
-                                if( i ++ == 10 ) break;
+                                if( i ++ == 15 ) break;
                             }
-                            if( i == 11 ) local_scene_viewId.insert(pose_it->first);
+                            if( i == 16 ) local_scene_viewId.insert(pose_it->first);
                         }
                         {
                             auto pose_it = sfm_data_.poses.find(viewId);
@@ -333,7 +359,7 @@ bool SequentialSfMReconstructionEngine::Process_Window()
                             {
                                 local_scene_viewId.insert(pose_it->first);
                                 pose_it++;
-                                if( i ++ == 10 ) break;
+                                if( i ++ == 15 ) break;
                             }
                         }
                     }
@@ -374,13 +400,13 @@ bool SequentialSfMReconstructionEngine::Process_Window()
                 }
 
                 {
-                    std::ostringstream os1;
-                    os1 << std::setw(8) << std::setfill('0') << local_intersection << "_Resection";
-                    Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os1.str(), ".ply"), ESfM_Data(ALL));
-
-                    std::ostringstream os2;
-                    os2 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalScene";
-                    Save(local_scene, stlplus::create_filespec(sOut_directory_, os2.str(), ".ply"), ESfM_Data(ALL));
+//                    std::ostringstream os1;
+//                    os1 << std::setw(8) << std::setfill('0') << local_intersection << "_Resection";
+//                    Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os1.str(), ".ply"), ESfM_Data(ALL));
+//
+//                    std::ostringstream os2;
+//                    os2 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalScene";
+//                    Save(local_scene, stlplus::create_filespec(sOut_directory_, os2.str(), ".ply"), ESfM_Data(ALL));
                 }
 
                 // Perform BA until all point are under the given precision
@@ -391,9 +417,9 @@ bool SequentialSfMReconstructionEngine::Process_Window()
                 while (badTrackRejector(local_scene,4.0, 50));
 
                 {
-                    std::ostringstream os3;
-                    os3 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalSceneOptimized";
-                    Save(local_scene, stlplus::create_filespec(sOut_directory_, os3.str(), ".ply"), ESfM_Data(ALL));
+//                    std::ostringstream os3;
+//                    os3 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalSceneOptimized";
+//                    Save(local_scene, stlplus::create_filespec(sOut_directory_, os3.str(), ".ply"), ESfM_Data(ALL));
                 }
                 local_intersection++;
 
@@ -417,6 +443,12 @@ bool SequentialSfMReconstructionEngine::Process_Window()
         }
         ++resectionGroupIndex;
     }
+
+    do
+    {
+        BundleAdjustment( );
+    }
+    while (badTrackRejector(4.0, 50));
     // Ensure there is no remaining outliers
     if (badTrackRejector(4.0, 0))
     {
@@ -1756,14 +1788,24 @@ bool SequentialSfMReconstructionEngine::badTrackRejector(double dPrecision, size
   const size_t nbOutliers_residualErr = RemoveOutliers_PixelResidualError(sfm_data_, dPrecision, 2);
   const size_t nbOutliers_angleErr = RemoveOutliers_AngleError(sfm_data_, 2.0);
 
+    std::cout << "nbOutliers_residualErr = " << nbOutliers_residualErr << "\n"
+              << "dPrecision = " << dPrecision << "\n"
+              << "nbOutliers_angleErr = " << nbOutliers_angleErr << "\n"
+              << "count = " << count << std::endl;
+
   return (nbOutliers_residualErr + nbOutliers_angleErr) > count;
 }
 
 bool SequentialSfMReconstructionEngine::badTrackRejector(SfM_Data &sfm_data, double dPrecision, size_t count)
 {
     const size_t nbOutliers_residualErr = RemoveOutliers_PixelResidualError(sfm_data, dPrecision, 2);
-    const size_t nbOutliers_angleErr = RemoveOutliers_AngleError(sfm_data, 2.0);
+    const size_t nbOutliers_angleErr = 0;//RemoveOutliers_AngleError(sfm_data, 2.0);
 
+
+    std::cout << "nbOutliers_residualErr = " << nbOutliers_residualErr << "\n"
+              << "dPrecision = " << dPrecision << "\n"
+              << "nbOutliers_angleErr = " << nbOutliers_angleErr << "\n"
+              << "count = " << count << std::endl;
     return (nbOutliers_residualErr + nbOutliers_angleErr) > count;
 }
 

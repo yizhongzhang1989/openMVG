@@ -9,6 +9,9 @@
 #include <cstdlib>
 #include <chrono>
 #include <iostream>
+#include <sstream>
+#include <string>
+#include <fstream>
 
 class XinTime
 {
@@ -49,6 +52,34 @@ public:
             std::cout << minute << " minutes ";
         }
         std::cout << second << " seconds " << std::endl;
+    }
+
+    void write_time( std::ofstream& out_file )
+    {
+        end = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        double second = elapsed_seconds.count();
+
+        std::ostringstream out_put;
+        out_put << "Cost Time: ";
+//        std::cout << "Cost Time: ";
+        if( second > 60 )
+        {
+            int64_t minute = static_cast<int64_t>(second / 60.);
+            second = second - minute * 60;
+            if( minute > 60 )
+            {
+                int64_t hour = static_cast<int64_t>(minute / 60.);
+                minute = minute - hour * 60;
+                out_put << hour << " hours ";
+            }
+            out_put << minute << " minutes ";
+        }
+        out_put << second << " seconds " << std::endl;
+
+        std::cout << out_put.str() << std::endl;
+//        out_put << out_put.rdbuf() ;
+        out_file << out_put.str() ;
     }
 
 private:

@@ -27,9 +27,11 @@
 #include "SimulationGenerator.h"
 #include "SurfaceSampler.h"
 #include "Utils.h"
-#include "Visualizer.h"
 
+#ifdef USE_PANGOLIN
+#include "Visualizer.h"
 typedef slam_visualization::Visualizer<Eigen::Vector3d, generator::InversePose, Eigen::aligned_allocator<Eigen::Vector3d>, Eigen::aligned_allocator<generator::InversePose>> GeneratorVisualizer;
+#endif
 
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam);
 void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPath, generator::CameraPinhole* pCam);

@@ -30,43 +30,13 @@ bool SimulationGenerator::Generate(Simulation_Data& sfm_data, const SimulationCo
         case SAMPLING_SURFACE:
         {
             STLVector<Eigen::Vector3d> sample_points = TriangleSampler::SampleObjFile(strObjFileName.c_str(), cfg.n_points);
-
-            Eigen::Vector3d center;
-
-//            // for debugging
-//            Bound bound;
-//            auto update_bound = [&](const Eigen::Vector3d& point)
-//            {
-//                if(point.x()<bound.min_x)
-//                    bound.min_x = point.x();
-//                if(point.x()>bound.max_x)
-//                    bound.max_x = point.x();
-//                if(point.y()<bound.min_y)
-//                    bound.min_y = point.y();
-//                if(point.y()>bound.max_y)
-//                    bound.max_y = point.y();
-//                if(point.z()<bound.min_z)
-//                    bound.min_z = point.z();
-//                if(point.z()>bound.max_z)
-//                    bound.max_z = point.z();
-//            };
-
-            for(Eigen::Vector3d & point : sample_points)
-            {
-                center += point;
-//                update_bound(point);
-            }
-//            std::cout<<bound;
-
-            center /= sample_points.size();
             for(auto & sample_point : sample_points)
             {
-                map_points[pt_id] = MapPoint(pt_id,sample_point-center,mColorGenerator.Generate());
+                map_points[pt_id] = MapPoint(pt_id,sample_point,mColorGenerator.Generate());
                 pt_id++;
             }
         }break;
     }
-//    std::cout<<"num points = "<<sfm_data.map_points.size()<<std::endl;
 
     // generate poses
     KeyFrames& key_frames = sfm_data.key_frames;

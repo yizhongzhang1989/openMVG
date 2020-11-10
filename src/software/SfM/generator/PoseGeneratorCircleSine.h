@@ -29,6 +29,8 @@ public:
     {
         static const Eigen::Vector3d gravity(0.0,0.0,-GRAVITY);
 
+        static Eigen::Quaterniond q_last = Eigen::Quaterniond::Identity();
+
         double t_cam = 1e-3 * t_cam_ms;
         // angle of rotation (rad)
         double theta = omegaCircle * t_cam;
@@ -56,7 +58,7 @@ public:
         Eigen::Vector3d ry(-x,-y,0);
         Eigen::Vector3d rx = ry.cross(rz);
 
-        Eigen::Vector3d v = rz;
+//        Eigen::Vector3d v = rz;
 
         rx = rx / rx.norm();
         ry = ry / ry.norm();
@@ -70,6 +72,16 @@ public:
 
         // p.q: global -> local, q_cw
         p.q = Eigen::Quaterniond(R.transpose());
+        {
+            double norm1 = (p.q.coeffs() - q_last.coeffs()).norm();
+            double norm2 = (-p.q.coeffs() - q_last.coeffs()).norm();
+            if(norm1 > norm2)
+            {
+                Eigen::Quaterniond tmp = p.q;
+                p.q.coeffs() = -tmp.coeffs();
+            }
+            q_last = p.q;
+        }
         // p.t: global -> local, t_cw
         p.t = - R.transpose() * t;
 
@@ -97,9 +109,12 @@ public:
                 double dy2 = -r_ * sin_theta * omegaCircle2;
                 double dz2 = -A_ * sin_alpha * omegaSine2;
 
-                double omega_x = -omegaCircle;
-                double omega_y = (sin_alpha * omegaSine2) / (1.0 + cos2_alpha * omegaSine2);
-                double omega_z = 0.0;
+                double h_2 = r_ * r_ * omegaCircle2 + A_ * A_ * omegaSine2 * cos2_alpha;
+                double h2 = 1.0 / h_2;
+                double h = sqrt(h2);
+                double omega_x = - h * omegaCircle2 * r_;
+                double omega_y = A_ * r_ * omegaCircle * omegaSine2 * sin_alpha * h2;
+                double omega_z = A_ * omegaCircle * omegaSine * h * cos_alpha;
 
                 x = r_ * cos_theta;
                 y = r_ * sin_theta;

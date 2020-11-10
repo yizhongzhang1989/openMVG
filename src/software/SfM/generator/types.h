@@ -219,6 +219,21 @@ struct Bound
 
         return out;
     }
+    static void UpdateBound(const Eigen::Vector3d& point, Bound& bound)
+    {
+        if(point.x()<bound.min_x)
+            bound.min_x = point.x();
+        if(point.x()>bound.max_x)
+            bound.max_x = point.x();
+        if(point.y()<bound.min_y)
+            bound.min_y = point.y();
+        if(point.y()>bound.max_y)
+            bound.max_y = point.y();
+        if(point.z()<bound.min_z)
+            bound.min_z = point.z();
+        if(point.z()>bound.max_z)
+            bound.max_z = point.z();
+    }
 };
 
 }  // namespace generator

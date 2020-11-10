@@ -1,4 +1,6 @@
-include_directories(${EIGEN_INCLUDE_DIRS})
+find_package(Pangolin REQUIRED)
+
+include_directories(${EIGEN_INCLUDE_DIRS} ${Pangolin_INCLUDE_DIRS})
 
 add_library(simulation_generator SimulationGenerator.cpp)
 set_property(TARGET simulation_generator PROPERTY FOLDER OpenMVG/software)
@@ -13,7 +15,8 @@ target_link_libraries(openMVG_main_GenerateSimulationData
         openMVG_sfm
         ${STLPLUS_LIBRARY}
         vlsift
-        simulation_generator)
+        simulation_generator
+        ${Pangolin_LIBRARIES})
 
 set_property(TARGET openMVG_main_GenerateSimulationData PROPERTY FOLDER OpenMVG/software)
 install(TARGETS openMVG_main_GenerateSimulationData DESTINATION bin/)

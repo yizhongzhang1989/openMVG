@@ -23,10 +23,13 @@
 #include "PoseGeneratorCircleSine.h"
 #include "PoseGeneratorConstAcc.h"
 #include "PoseGeneratorLine.h"
-//#include "PoseGeneratorFunctional.h"
+#include "PoseGeneratorFunctional.h"
 #include "SimulationGenerator.h"
 #include "SurfaceSampler.h"
 #include "Utils.h"
+#include "Visualizer.h"
+
+typedef slam_visualization::Visualizer<Eigen::Vector3d, generator::InversePose, Eigen::aligned_allocator<Eigen::Vector3d>, Eigen::aligned_allocator<generator::InversePose>> GeneratorVisualizer;
 
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam);
 void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPath, generator::CameraPinhole* pCam);
@@ -130,15 +133,15 @@ int main(int argc, char** argv)
     {
         case CIRCLE_SINE:
         {
-            g_pose = std::make_shared<PoseGeneratorCircleSine>(5.0,0.1,1.0,0.1,33,5,true);
+            g_pose = std::make_shared<PoseGeneratorCircleSine>(5.0,1.0,1.0,4.0,50,5,true);
         }break;
         case CONST_ACC:
         {
-            g_pose = std::make_shared<PoseGeneratorConstAcc>(0.2,0.0,0.0,33,5,true,generator::PoseGeneratorConstAcc::FORWARD);
+            g_pose = std::make_shared<PoseGeneratorConstAcc>(0.2,0.0,0.0,50,5,true,generator::PoseGeneratorConstAcc::FORWARD);
         }break;
         case LINE:
         {
-            g_pose = std::make_shared<PoseGeneratorLine>(33,5,true);
+            g_pose = std::make_shared<PoseGeneratorLine>(50,5,true);
         }break;
         default:
         {
@@ -199,7 +202,6 @@ int main(int argc, char** argv)
             return EXIT_FAILURE;
         }
     }
-
 
 //    // add noise
 //    Simulation_Data sfm_data_noisy;

@@ -39,6 +39,17 @@ struct Pose
         t.setZero();
         q.setIdentity();
     }
+    Pose operator*(const Pose& other) const
+    {
+        Pose res;
+        res.q = this->q * other.q;
+        res.t = this->t + this->q * other.t;
+        return res;
+    }
+    Eigen::Vector3d operator*(const Eigen::Vector3d& X)
+    {
+        return (this->q * X + this->t);
+    }
 };
 
 struct InversePose

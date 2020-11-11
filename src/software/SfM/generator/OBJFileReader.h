@@ -39,6 +39,29 @@ public:
 
         return true;
     }
+
+    static bool ReadVerticesOnlyFromObj(const char* obj_file_name, STLVector<Eigen::Vector3d>& vertices)
+    {
+        std::vector<double> v_list;
+        if(readVertexOnlyFromObj(obj_file_name,v_list))
+        {
+            if(v_list.size() % 3)
+            {
+                std::cerr<<"error reading: total numbers not divisible by 3."<<std::endl;
+                return false;
+            }
+            int n_points = v_list.size() / 3;
+            vertices.clear();
+            for(int i = 0; i < n_points; i++)
+            {
+                vertices.emplace_back(v_list[i * 3], v_list[i * 3 + 1], v_list[i * 3 + 2]);
+            }
+        }
+        else
+            return false;
+
+        return true;
+    }
 private:
 /**
 * read obj file and create vertex list
@@ -165,6 +188,54 @@ private:
         }
 
         return 1;
+    }
+
+    template<typename T>
+    static inline bool readVertexOnlyFromObj(const char* obj_file_name, std::vector<T>& v_list)
+    {
+        std::ifstream obj(obj_file_name); // load obj failed, do not touch old data
+        if (!obj.is_open())
+        {
+            std::cout << "error: readVertexListFromObj, cannot open " << obj_file_name << std::endl;
+            return false;
+        }
+
+        std::vector<T> v;
+
+        std::string line;
+        int line_idx = 0;
+        while (std::getline(obj, line))
+        {
+            line_idx++;
+            std::stringstream ss;
+            std::string cmd;
+            ss << line;
+            ss >> cmd;
+
+            if (cmd == "v")
+            {                 //     got a vertex, insert into v
+                T xyz[3] = { 0, 0, 0 };
+                int i = 0;
+                while (i<3 && ss >> xyz[i])
+                    i++;
+                if (i < 3)
+                {
+                    std::cout << "read " << obj_file_name << " error:" << std::endl;
+                    std::cout << "line " << line_idx << " : " << line << std::endl;
+                    std::cout << "insert v anyway" << std::endl;
+                }
+                v.push_back(xyz[0]);
+                v.push_back(xyz[1]);
+                v.push_back(xyz[2]);
+            }
+        }
+
+        obj.close();
+
+        //  create v_list
+        v_list = v;
+
+        return true;
     }
 };
 

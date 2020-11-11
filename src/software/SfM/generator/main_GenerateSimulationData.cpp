@@ -35,6 +35,7 @@ typedef slam_visualization::Visualizer<Eigen::Vector3d, generator::InversePose, 
 
 void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam);
 void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPath, generator::CameraPinhole* pCam);
+bool ParseExtrinsics(const std::string& str, std::vector<double>& params);
 
 int main(int argc, char** argv)
 {
@@ -44,6 +45,7 @@ int main(int argc, char** argv)
 
     std::string sObjFile = "";
     std::string sOutDir = "";
+    std::string sExtrinsics = "";
 
     // generator config
     SimulationGenerator::SimulationConfig cfg;
@@ -80,6 +82,7 @@ int main(int argc, char** argv)
     cmd.add(make_option('z',bound.min_z,"min_z"));
     cmd.add(make_option('Z',bound.max_z,"max_z"));
     cmd.add(make_option('p',trajectory_type_aux,"trajectory_type"));
+    cmd.add(make_option('e',sExtrinsics,"extrinsics"));
 
     try
     {
@@ -101,6 +104,7 @@ int main(int argc, char** argv)
                   << "[-z|--min_z] minimum z value (range of points) \n"
                   << "[-Z|--max_z] maximum z value (range of points) \n"
                   << "[-p|--trajectory_type] trajectory type, currently support : [0|CIRCLE_SINE, 1|CONST_ACC, 2|lINE] \n"
+                  << "[-e|--extrinsics] extrinsics from IMU to camera (T_cam_imu), format: (tx ty tz qx qy qz qw) \n"
                   << std::endl;
         std::cerr << s << std::endl;
         return EXIT_FAILURE;
@@ -135,7 +139,7 @@ int main(int argc, char** argv)
     {
         case CIRCLE_SINE:
         {
-            g_pose = std::make_shared<PoseGeneratorCircleSine>(5.0,1.0,1.0,4.0,50,5,true);
+            g_pose = std::make_shared<PoseGeneratorCircleSine>(5.0,0.2,0.1,1.0,50,5,true);
         }break;
         case CONST_ACC:
         {
@@ -161,11 +165,31 @@ int main(int argc, char** argv)
     // generation
     if(sObjFile.empty())
     {
-        g_sim = std::make_shared<SimulationGenerator>(g_pose.get(),&g_point,&cam);
+        g_sim = std::shared_ptr<SimulationGenerator>(new SimulationGenerator(g_pose.get(),&g_point,&cam));
+//        g_sim = std::make_shared<SimulationGenerator>(g_pose.get(),&g_point,&cam);
     }
     else
     {
-        g_sim = std::make_shared<SimulationGenerator>(g_pose.get(),sObjFile,&cam);
+        g_sim = std::shared_ptr<SimulationGenerator>(new SimulationGenerator(g_pose.get(),sObjFile,&cam));
+//        g_sim = std::make_shared<SimulationGenerator>(g_pose.get(),sObjFile,&cam);
+    }
+
+    if(!sExtrinsics.empty())
+    {
+        std::vector<double> params;
+        if(ParseExtrinsics(sExtrinsics,params))
+        {
+            Pose T_cam_imu;
+            T_cam_imu.t = Eigen::Vector3d(params[0],params[1],params[2]);
+            T_cam_imu.q = Eigen::Quaterniond(params[6],params[3],params[4],params[5]);
+            T_cam_imu.q.normalize();
+            g_sim->setExtrinsics(T_cam_imu);
+        }
+        else
+        {
+            std::cerr<<"failed to parse extrinsics: "<<sExtrinsics<<std::endl;
+            return EXIT_FAILURE;
+        }
     }
 
     Simulation_Data sfm_data;
@@ -453,4 +477,18 @@ void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPa
         WriteImage(img_name.c_str(),img);
         kf_count++;
     }
+}
+
+bool ParseExtrinsics(const std::string& str, std::vector<double>& params)
+{
+    std::stringstream ss;
+    ss<<str;
+    double d;
+    params.clear();
+    for(int i = 0; i < 7 && !ss.eof(); i++)
+    {
+        ss>>d;
+        params.push_back(d);
+    }
+    return params.size() == 7;
 }

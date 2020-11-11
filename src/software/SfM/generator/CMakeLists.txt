@@ -38,5 +38,31 @@ else()
             simulation_generator)
 endif()
 
+add_executable(openMVG_main_GenerateSimulationData2 main_GenerateSimulationData2.cpp)
+if(VISUALIZATION_ON)
+    target_link_libraries(openMVG_main_GenerateSimulationData2
+            PRIVATE
+            openMVG_system
+            openMVG_image
+            openMVG_features
+            openMVG_sfm
+            ${STLPLUS_LIBRARY}
+            vlsift
+            simulation_generator
+            ${Pangolin_LIBRARIES})
+else()
+    target_link_libraries(openMVG_main_GenerateSimulationData2
+            PRIVATE
+            openMVG_system
+            openMVG_image
+            openMVG_features
+            openMVG_sfm
+            ${STLPLUS_LIBRARY}
+            vlsift
+            simulation_generator)
+endif()
+
 set_property(TARGET openMVG_main_GenerateSimulationData PROPERTY FOLDER OpenMVG/software)
 install(TARGETS openMVG_main_GenerateSimulationData DESTINATION bin/)
+set_property(TARGET openMVG_main_GenerateSimulationData2 PROPERTY FOLDER OpenMVG/software)
+install(TARGETS openMVG_main_GenerateSimulationData2 DESTINATION bin/)

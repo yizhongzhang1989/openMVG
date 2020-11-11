@@ -57,8 +57,9 @@ bool SimulationGenerator::Generate(Simulation_Data& sfm_data, const SimulationCo
         for(auto & map_point : map_points)
         {
             Eigen::Vector3d& X = map_point.second.X;
+            Eigen::Vector3d Xi = p.q * X + p.t;
 //            Eigen::Vector3d Xc = R * X + t;
-            Eigen::Vector3d Xc = p.q * X + p.t;
+            Eigen::Vector3d Xc = T_cam_imu.q * Xi + T_cam_imu.t;
             if(Xc[2] <= 0.0)
                 continue;
             Eigen::Vector2d xp = mpCamera->Project(Xc);
@@ -172,7 +173,7 @@ void SimulationGenerator::Save(Simulation_Data& sfm_data, const std::string& out
     f<<fixed;
     f<<setprecision(7);
     double timestamp = 0.0;
-    double deltaT = mpPoseGenerator->getDeltaT();
+    double deltaT = mpPoseGenerator->getDeltaT() * 1e-3;
     for(auto & key_frame : key_frames)
     {
         Pose& p = key_frame.second.pose;
@@ -186,6 +187,38 @@ void SimulationGenerator::Save(Simulation_Data& sfm_data, const std::string& out
     }
     f.close();
     std::cout<<"trajectory saved."<<std::endl;
+
+    // save camera trajectory
+    f.open(outPath + "/trajectoryCamera.txt");
+    f<<fixed;
+    f<<setprecision(7);
+    timestamp = 0.0;
+    deltaT = mpPoseGenerator->getDeltaT() * 1e-3;
+    for(auto & key_frame : key_frames)
+    {
+        Pose& p = key_frame.second.pose;
+        Pose p_cam = T_cam_imu * p;
+
+        Eigen::Quaterniond q = p_cam.q.inverse();
+        Eigen::Vector3d t = - (q * p_cam.t);
+        f<<timestamp<<" "<<t[0]<<" "<<t[1]<<" "<<t[2]<<" "
+         <<q.coeffs()[0]<<" "<<q.coeffs()[1]<<" "<<q.coeffs()[2]<<" "<<q.coeffs()[3]<<endl;
+
+        timestamp += deltaT;
+    }
+    f.close();
+    std::cout<<"camera trajectory saved."<<std::endl;
+
+    // save extrinsics
+    f.open(outPath + "/extrinsics.txt");
+    f<<"# tx, ty, tz, qx, qy, qz, qw (from imu to camera)"<<endl;
+    {
+        const Eigen::Vector3d& t = T_cam_imu.t;
+        const Eigen::Quaterniond& q = T_cam_imu.q;
+        f<<t[0]<<" "<<t[1]<<" "<<t[2]<<" "<<q.coeffs()[0]<<" "<<q.coeffs()[1]<<" "<<q.coeffs()[2]<<" "<<q.coeffs()[3]<<endl;
+    }
+    f.close();
+    std::cout<<"extrinsics saved."<<std::endl;
 
     // save cameras
     std::vector<double> params;

@@ -80,6 +80,10 @@ public:
     static void AddNoise(const Simulation_Data& sfm_data, Simulation_Data& sfm_data_noisy, NoiseConfig& cfg_noise);
     void Save(Simulation_Data& sfm_data, const std::string& outPath);
     void SaveIMU(const IMUMeasurements& imu_data, const std::string& imu_file);
+    void setExtrinsics(const Pose& T_cam_imu)
+    {
+        this->T_cam_imu = T_cam_imu;
+    }
 
     template<typename PoseGeneratorType>
     const IMUMeasurements& getIMUMeasurements() const
@@ -99,6 +103,7 @@ private:
     ColorGenerator<Color> mColorGenerator;
     const PointGenerationMode mPointMode;
     std::string strObjFileName;
+    Pose T_cam_imu;  // transformation from imu to camera
 };
 
 }  // namespace generator

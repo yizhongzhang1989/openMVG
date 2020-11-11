@@ -186,6 +186,15 @@ public:
             glVertex3f(-w,h,z); glVertex3f(w,h,z);
             glVertex3f(-w,-h,z); glVertex3f(w,-h,z);
 
+            // draw axis
+            const double axis_length = 0.05;
+            glColor3f(1.0,0.0,0.0);
+            glVertex3f(0,0,0); glVertex3f(axis_length,0,0);
+            glColor3f(0.0,1.0,0.0);
+            glVertex3f(0,0,0); glVertex3f(0,axis_length,0);
+            glColor3f(0.0,0.0,1.0);
+            glVertex3f(0,0,0); glVertex3f(0,0,axis_length);
+
             glEnd();
 
             glPopMatrix();
@@ -284,6 +293,14 @@ public:
     void UpdateColorOptions(const ColorOptions& options)
     {
         cfg_color = options;
+    }
+    pangolin::OpenGlRenderState* GetRenderState() const
+    {
+        return s_cam;
+    }
+    pangolin::View* GetView() const
+    {
+        return d_cam;
     }
 
 private:

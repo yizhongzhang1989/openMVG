@@ -4,7 +4,7 @@
 
 #include <utility>
 
-#include "PointGenerator.h"
+#include "PointGeneratorBase.h"
 #include "PoseGeneratorBase.h"
 #include "CameraBase.h"
 #include "ColorGenerator.h"
@@ -55,27 +55,17 @@ public:
             perturb_point2d = true;
         }
     };
-    enum PointGenerationMode
-    {
-        RANDOM_POINT,
-        SAMPLING_SURFACE
-    };
-    SimulationGenerator(PoseGeneratorBase<Pose>* pPoseGenerator,
-                        PointGenerator* pPointGenerator,
+    typedef PoseGeneratorBase<Pose, Eigen::aligned_allocator<Pose>> PoseGeneratorBaseType;
+    typedef PointGeneratorBase<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d>> PointGeneratorBaseType;
+
+    SimulationGenerator(PoseGeneratorBaseType* pPoseGenerator,
+                        PointGeneratorBaseType* pPointGenerator,
                         CameraBase<Eigen::Vector3d,Eigen::Vector2d>* pCamera)
-    :mpPoseGenerator(pPoseGenerator), mpPointGenerator(pPointGenerator),
-    mpCamera(pCamera), mPointMode(RANDOM_POINT)
+    :mpPoseGenerator(pPoseGenerator), mpPointGenerator(pPointGenerator), mpCamera(pCamera)
     {
         ;
     }
-    SimulationGenerator(PoseGeneratorBase<Pose>* pPoseGenerator,
-                        std::string ObjFileName,
-                        CameraBase<Eigen::Vector3d,Eigen::Vector2d>* pCamera)
-            :mpPoseGenerator(pPoseGenerator), strObjFileName(std::move(ObjFileName)),
-            mpCamera(pCamera), mPointMode(SAMPLING_SURFACE), mpPointGenerator(nullptr)
-    {
-        ;
-    }
+
     bool Generate(Simulation_Data& sfm_data, const SimulationConfig& cfg);
     static void AddNoise(const Simulation_Data& sfm_data, Simulation_Data& sfm_data_noisy, NoiseConfig& cfg_noise);
     void Save(Simulation_Data& sfm_data, const std::string& outPath);
@@ -97,12 +87,10 @@ public:
             throw std::runtime_error("Can not get IMU measurements");
     }
 private:
-    PoseGeneratorBase<Pose>* mpPoseGenerator;
-    PointGenerator* mpPointGenerator;
+    PoseGeneratorBaseType* mpPoseGenerator;
+    PointGeneratorBaseType* mpPointGenerator;
     CameraBase<Eigen::Vector3d,Eigen::Vector2d>* mpCamera;
     ColorGenerator<Color> mColorGenerator;
-    const PointGenerationMode mPointMode;
-    std::string strObjFileName;
     Pose T_cam_imu;  // transformation from imu to camera
 };
 

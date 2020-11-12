@@ -15,35 +15,22 @@ namespace generator
 bool SimulationGenerator::Generate(Simulation_Data& sfm_data, const SimulationConfig& cfg)
 {
     // generate points
+    STLVector<Eigen::Vector3d> generated_points = mpPointGenerator->Generate(cfg.n_points);
     MapPoints& map_points = sfm_data.map_points;
     unsigned int pt_id = 0;
-    switch(mPointMode)
+    for(auto & sample_point : generated_points)
     {
-        case RANDOM_POINT:
-        {
-            for(int i=0;i<cfg.n_points;i++)
-            {
-                map_points[pt_id] = MapPoint(pt_id,mpPointGenerator->Generate(),mColorGenerator.Generate());
-                pt_id++;
-            }
-        }break;
-        case SAMPLING_SURFACE:
-        {
-            STLVector<Eigen::Vector3d> sample_points = TriangleSampler::SampleObjFile(strObjFileName.c_str(), cfg.n_points);
-            for(auto & sample_point : sample_points)
-            {
-                map_points[pt_id] = MapPoint(pt_id,sample_point,mColorGenerator.Generate());
-                pt_id++;
-            }
-        }break;
+        map_points[pt_id] = MapPoint(pt_id,sample_point,mColorGenerator.Generate());
+        pt_id++;
     }
 
     // generate poses
+    STLVector<Pose> generated_poses = mpPoseGenerator->Generate(cfg.n_poses);
     KeyFrames& key_frames = sfm_data.key_frames;
     unsigned int kf_id = 0;
-    for(int i=0;i<cfg.n_poses;i++)
+    for(auto & sample_pose : generated_poses)
     {
-        key_frames[kf_id] = KeyFrame(kf_id,mpPoseGenerator->Generate());
+        key_frames[kf_id] = KeyFrame(kf_id,sample_pose);
         kf_id++;
     }
     std::cout<<"generation finished."<<std::endl;

@@ -23,9 +23,7 @@
 #include "PoseGeneratorCircleSine.h"
 #include "PoseGeneratorConstAcc.h"
 #include "PoseGeneratorLine.h"
-#include "PoseGeneratorFunctional.h"
 #include "SimulationGenerator.h"
-#include "SurfaceSampler.h"
 #include "Utils.h"
 
 #ifdef USE_PANGOLIN
@@ -116,15 +114,16 @@ int main(int argc, char** argv)
               << argv[0] << std::endl
               << "--obj_file " << sObjFile << std::endl
               << "--outdir " << sOutDir << std::endl
-              << "--n_points "<< cfg.n_points << std::endl
-              << "--n_poses "<< cfg.n_poses << std::endl
-              << "--min_x "<< bound.min_x << std::endl
-              << "--max_x "<< bound.max_x << std::endl
-              << "--min_y "<< bound.min_y << std::endl
-              << "--max_y "<< bound.max_y << std::endl
-              << "--min_z "<< bound.min_z << std::endl
-              << "--max_z "<< bound.max_z << std::endl
-              << "--trajectory_type "<< trajectory_type << std::endl
+              << "--n_points " << cfg.n_points << std::endl
+              << "--n_poses " << cfg.n_poses << std::endl
+              << "--min_x " << bound.min_x << std::endl
+              << "--max_x " << bound.max_x << std::endl
+              << "--min_y " << bound.min_y << std::endl
+              << "--max_y " << bound.max_y << std::endl
+              << "--min_z " << bound.min_z << std::endl
+              << "--max_z " << bound.max_z << std::endl
+              << "--trajectory_type " << trajectory_type << std::endl
+              << "--extrinsics " << sExtrinsics <<std::endl
               << std::endl;
 
     if(sOutDir.empty())
@@ -134,7 +133,8 @@ int main(int argc, char** argv)
     }
     Utils::check_and_create_dir(sOutDir);
 
-    std::shared_ptr<PoseGeneratorBase<Pose>> g_pose;
+    // create pose generator
+    std::shared_ptr<PoseGeneratorBase<Pose, Eigen::aligned_allocator<Pose>>> g_pose;
     switch(trajectory_type)
     {
         case CIRCLE_SINE:
@@ -156,23 +156,21 @@ int main(int argc, char** argv)
         }
     }
 
-    PointGenerator g_point(bound.min_x,bound.max_x,bound.min_y,bound.max_y,bound.min_z,bound.max_z);
-//    PoseGeneratorCircleSine g_pose(5.0,0.1,1.0,0.1,0.005,true);
-//    PoseGeneratorConstAcc g_pose(0.2,0.0,0.0,0.05,true,generator::PoseGeneratorConstAcc::FORWARD);
-    CameraPinhole cam(320,320,320,240,640,480);
-
-    std::shared_ptr<SimulationGenerator> g_sim;
-    // generation
+    // create point generator
+    std::shared_ptr<PointGeneratorBase<Eigen::Vector3d,Eigen::aligned_allocator<Eigen::Vector3d>>> g_point;
     if(sObjFile.empty())
     {
-        g_sim = std::shared_ptr<SimulationGenerator>(new SimulationGenerator(g_pose.get(),&g_point,&cam));
-//        g_sim = std::make_shared<SimulationGenerator>(g_pose.get(),&g_point,&cam);
+        g_point = std::make_shared<PointGenerator>(bound.min_x,bound.max_x,bound.min_y,bound.max_y,bound.min_z,bound.max_z);
     }
     else
     {
-        g_sim = std::shared_ptr<SimulationGenerator>(new SimulationGenerator(g_pose.get(),sObjFile,&cam));
-//        g_sim = std::make_shared<SimulationGenerator>(g_pose.get(),sObjFile,&cam);
+        g_point = std::make_shared<PointGenerator>(sObjFile);
     }
+
+    // create camera
+    CameraPinhole cam(320,320,320,240,cfg.image_width,cfg.image_height);
+
+    SimulationGenerator g_sim(g_pose.get(),g_point.get(),&cam);
 
     if(!sExtrinsics.empty())
     {
@@ -183,7 +181,7 @@ int main(int argc, char** argv)
             T_cam_imu.t = Eigen::Vector3d(params[0],params[1],params[2]);
             T_cam_imu.q = Eigen::Quaterniond(params[6],params[3],params[4],params[5]);
             T_cam_imu.q.normalize();
-            g_sim->setExtrinsics(T_cam_imu);
+            g_sim.setExtrinsics(T_cam_imu);
         }
         else
         {
@@ -193,12 +191,12 @@ int main(int argc, char** argv)
     }
 
     Simulation_Data sfm_data;
-    g_sim->Generate(sfm_data,cfg);
+    g_sim.Generate(sfm_data,cfg);
 
     // save as colmap format
     std::string groundtruthPath = sOutDir + "/groundtruth/";
     Utils::check_and_create_dir(groundtruthPath);
-    g_sim->Save(sfm_data,groundtruthPath);
+    g_sim.Save(sfm_data,groundtruthPath);
     // save to images (for visualization)
     std::string imagePath = sOutDir + "/images/";
     Utils::check_and_create_dir(imagePath);
@@ -212,15 +210,15 @@ int main(int argc, char** argv)
     {
         case CIRCLE_SINE:
         {
-            g_sim->SaveIMU(g_sim->getIMUMeasurements<PoseGeneratorCircleSine>(),openMVGPath + "/imu_data.csv");
+            g_sim.SaveIMU(g_sim.getIMUMeasurements<PoseGeneratorCircleSine>(),openMVGPath + "/imu_data.csv");
         }break;
         case CONST_ACC:
         {
-            g_sim->SaveIMU(g_sim->getIMUMeasurements<PoseGeneratorConstAcc>(),openMVGPath + "/imu_data.csv");
+            g_sim.SaveIMU(g_sim.getIMUMeasurements<PoseGeneratorConstAcc>(),openMVGPath + "/imu_data.csv");
         }break;
         case LINE:
         {
-            g_sim->SaveIMU(g_sim->getIMUMeasurements<PoseGeneratorLine>(),openMVGPath + "/imu_data.csv");
+            g_sim.SaveIMU(g_sim.getIMUMeasurements<PoseGeneratorLine>(),openMVGPath + "/imu_data.csv");
         }break;
         default:
         {

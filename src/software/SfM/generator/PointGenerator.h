@@ -2,36 +2,36 @@
 #ifndef POINT_GENERATOR_H_
 #define POINT_GENERATOR_H_
 
-#include <random>
-#include <chrono>
 #include <Eigen/Core>
+#include "PointGeneratorBase.h"
+#include "types.h"
+#include "SurfaceSampler.h"
 
 namespace generator
 {
 
-class PointGenerator
+class PointGenerator : public PointGeneratorBase<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d>>
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    PointGenerator(double minx, double maxx, double miny, double maxy, double minz, double maxz)
-    :e(std::chrono::system_clock::now().time_since_epoch().count())
-    {
-        nx = std::uniform_real_distribution<double>(minx,maxx);
-        ny = std::uniform_real_distribution<double>(miny,maxy);
-        nz = std::uniform_real_distribution<double>(minz,maxz);
-    }
-    Eigen::Vector3d Generate()
-    {
-        double x = nx(e);
-        double y = ny(e);
-        double z = nz(e);
 
-        return {x,y,z};
+    PointGenerator(double minx, double maxx, double miny, double maxy, double minz, double maxz)
+    : PointGeneratorBase(minx, maxx, miny, maxy, minz, maxz)
+    {
+        ;
+    }
+    explicit PointGenerator(const std::string& sFileName)
+    : PointGeneratorBase(sFileName)
+    {
+        ;
     }
 private:
-    std::default_random_engine e;
-    std::uniform_real_distribution<double> nx,ny,nz;
-};  // class PointGenerator
+    bool GenerateSampling(const std::string& sFileName, int num_points, Points& points) override
+    {
+        points = TriangleSampler::SampleObjFile(sFileName.c_str(),num_points);
+        return true;
+    }
+};
 
 }  // namespace generator
 

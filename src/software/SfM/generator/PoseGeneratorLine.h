@@ -8,7 +8,7 @@
 namespace generator
 {
 
-class PoseGeneratorLine : public PoseGeneratorBase<Pose>
+class PoseGeneratorLine : public PoseGeneratorBase<Pose, Eigen::aligned_allocator<Pose>>
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -62,6 +62,16 @@ public:
         t_cam_ms += deltaT;
 
         return p;
+    }
+
+    STLVector<Pose> Generate(int num_poses) override
+    {
+        STLVector<Pose> poses;
+        for(int i = 0; i < num_poses; i++)
+        {
+            poses.push_back(Generate());
+        }
+        return poses;
     }
 
     int getDeltaT() const override

@@ -131,7 +131,7 @@ namespace sfm{
                 Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
 
                 // Perform BA until all point are under the given precision
-                if( resectionGroupIndex % 10 == 0 )
+//                if( resectionGroupIndex % 10 == 0 )
                 {
                     do
                     {
@@ -150,7 +150,7 @@ namespace sfm{
                     }
                     while (badTrackRejector(4.0, 50));
                 }
-                else
+                /*else
                 {
                     std::cout << "start local BA " << std::endl;
                     SfM_Data local_scene;
@@ -239,6 +239,253 @@ namespace sfm{
                     }
 
                     update_state_speed();
+                    // Perform BA until all point are under the given precision
+                    do
+                    {
+//                        update_imu_time(local_scene);
+//                        update_imu_inte(local_scene);
+                        std::cout <<"BundleAdjustment_optimizi_only_IMU()" << std::endl;
+                        BundleAdjustment_optimizi_only_IMU();
+                        std::cout <<"BundleAdjustmentWithIMU_local()"  << std::endl;
+                        BundleAdjustmentWithIMU_local( local_scene );
+                        std::cout <<"BundleAdjustment over"  << std::endl;
+//                    std::cout << "end BundleAdjustmentWithIMU" << std::endl;
+                    }
+                    while (badTrackRejector(local_scene,4.0, 50));
+
+                    {
+                        std::ostringstream os3;
+                        os3 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalSceneOptimized";
+                        Save(local_scene, stlplus::create_filespec(sOut_directory_, os3.str(), ".ply"), ESfM_Data(ALL));
+                    }
+                    local_intersection++;
+
+                    {
+//                for (unsigned int i = start_camera; i < end_camera; i++)
+                        for( auto&view_index:local_scene_viewId )
+                        {
+                            const View *view_I = sfm_data_.GetViews().at(view_index).get();
+                            sfm_data_.intrinsics[view_I->id_intrinsic] = local_scene.intrinsics[view_I->id_intrinsic];
+                            sfm_data_.poses[view_I->id_pose] = local_scene.poses[view_I->id_pose];
+                        }
+                        // update camera 3d points and 2d points
+                        for (auto &structure_landmark_it : local_scene.structure) {
+                            sfm_data_.structure[structure_landmark_it.first].X =
+                                    local_scene.structure[structure_landmark_it.first].X;
+                        }
+                    }
+                }*/
+
+                eraseUnstablePosesAndObservations(sfm_data_);
+            }
+            ++resectionGroupIndex;
+        }
+        // Ensure there is no remaining outliers
+        if (badTrackRejector(4.0, 0))
+        {
+            eraseUnstablePosesAndObservations(sfm_data_);
+        }
+
+        //-- Reconstruction done.
+        //-- Display some statistics
+        std::cout << "\n\n-------------------------------" << "\n"
+                  << "-- Structure from Motion (statistics):\n"
+                  << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+                  << " from " << sfm_data_.GetViews().size() << " input images.\n"
+                  << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "\n"
+                  << "-------------------------------" << "\n";
+
+        Histogram<double> h;
+        ComputeResidualsHistogram(&h);
+        std::cout << "\nHistogram of residuals:\n" << h.ToString() << std::endl;
+
+        if (!sLogging_file_.empty())
+        {
+            using namespace htmlDocument;
+            std::ostringstream os;
+            os << "Structure from Motion process finished.";
+            html_doc_stream_->pushInfo("<hr>");
+            html_doc_stream_->pushInfo(htmlMarkup("h1",os.str()));
+
+            os.str("");
+            os << "-------------------------------" << "<br>"
+               << "-- Structure from Motion (statistics):<br>"
+               << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+               << " from " <<sfm_data_.GetViews().size() << " input images.<br>"
+               << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "<br>"
+               << "-------------------------------" << "<br>";
+            html_doc_stream_->pushInfo(os.str());
+
+            html_doc_stream_->pushInfo(htmlMarkup("h2","Histogram of reprojection-residuals"));
+
+            const std::vector<double> xBin = h.GetXbinsValue();
+            const auto range = autoJSXGraphViewport<double>(xBin, h.GetHist());
+
+            htmlDocument::JSXGraphWrapper jsxGraph;
+            jsxGraph.init("3DtoImageResiduals",600,300);
+            jsxGraph.addXYChart(xBin, h.GetHist(), "line,point");
+            jsxGraph.UnsuspendUpdate();
+            jsxGraph.setViewport(range);
+            jsxGraph.close();
+            html_doc_stream_->pushInfo(jsxGraph.toStr());
+        }
+
+        {
+            {
+                auto it_pose =  sfm_data_.poses.begin();
+                auto tw0 = it_pose->second.center();
+                auto it0 = it_pose->first;
+                while( std::next(it_pose) != sfm_data_.poses.end() ) it_pose++;
+                auto tw1 = it_pose->second.center();
+                auto it1 = it_pose->first;
+                std::cout << "it0 = " << it0 << std::endl;
+                std::cout << "it1 = " << it1 << std::endl;
+                std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
+            }
+        }
+        return true;
+    }
+
+    bool SequentialVISfMReconstructionEngine::Process_window()
+    {
+        // Compute robust Resection of remaining images
+        // - group of images will be selected and resection + scene completion will be tried
+        size_t resectionGroupIndex = 0;
+        size_t local_intersection = 0;
+        std::vector<uint32_t> vec_possible_resection_indexes;
+        while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
+        {
+            bool bImageAdded = false;
+            sfm_data_.add_viewId_cur.clear();
+            // Add images to the 3D reconstruction
+            for (const auto & iter : vec_possible_resection_indexes)
+            {
+                bImageAdded |= Resection(iter);
+                set_remaining_view_id_.erase(iter);
+                sfm_data_.add_viewId_cur.insert(iter );
+            }
+
+            if (bImageAdded)
+            {
+                // Scene logging as ply for visual debug
+                std::ostringstream os;
+                os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
+                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+
+                // Perform BA until all point are under the given precision
+                if( resectionGroupIndex % 10 == 0 )
+                {
+                    std::cout << "start full BA " << std::endl;
+                    do
+                    {
+//                      std::cout << "start update_state_speed" << std::endl;
+                        update_state_speed();
+//                      std::cout << "start update_state_speed" << std::endl;
+                        update_imu_time();
+//                      std::cout << "start update_imu_inte" << std::endl;
+                        update_imu_inte();
+//                      std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
+                        BundleAdjustment_optimizi_only_IMU();
+//                      std::cout << "start BundleAdjustmentWithIMU" << std::endl;
+//                      std::cout << "end BundleAdjustment_optimizi_only_IMU" << std::endl;
+                        BundleAdjustmentWithIMU( );
+//                      std::cout << "end BundleAdjustmentWithIMU" << std::endl;
+                    }
+                    while (badTrackRejector(4.0, 50));
+                }
+                else
+                {
+                    std::cout << "start local BA " << std::endl;
+                    SfM_Data local_scene;
+                    Landmarks original_local_landmarks;
+
+                    std::set< IndexT > local_scene_viewId;
+                    {
+                        for( auto&viewId:sfm_data_.add_viewId_cur )
+                        {
+                            {
+                                auto pose_it = sfm_data_.poses.find(viewId);
+                                int i=0;
+                                while( pose_it != sfm_data_.poses.begin() )
+                                {
+                                    local_scene_viewId.insert(pose_it->first);
+                                    pose_it--;
+                                    if( i ++ == 15 ) break;
+                                }
+                                if( i == 16 ) local_scene_viewId.insert(pose_it->first);
+                            }
+                            {
+                                auto pose_it = sfm_data_.poses.find(viewId);
+                                int i=0;
+                                while( pose_it != sfm_data_.poses.end() )
+                                {
+                                    local_scene_viewId.insert(pose_it->first);
+                                    pose_it++;
+                                    if( i ++ == 15 ) break;
+                                }
+                            }
+                        }
+
+                        for( auto viewId:local_scene_viewId )
+                        {
+                            const View *view_I = sfm_data_.GetViews().at(viewId).get();
+                            local_scene.views.insert(*sfm_data_.GetViews().find(view_I->id_view));
+                            local_scene.intrinsics.insert(*sfm_data_.GetIntrinsics().find(view_I->id_intrinsic));
+                            local_scene.poses.insert(*sfm_data_.GetPoses().find(view_I->id_pose));
+                            assert( view_I->id_view == view_I->id_pose );
+                        }
+                    }
+
+                    {
+                        local_scene.imus = sfm_data_.imus;
+                        local_scene.Speeds = sfm_data_.Speeds;
+                        local_scene.IG_tic = sfm_data_.IG_tic;
+                        local_scene.IG_Ric = sfm_data_.IG_Ric;
+
+                        update_imu_time();
+                        update_imu_inte();
+                        update_imu_time(local_scene);
+                        update_imu_inte(local_scene);
+
+                        update_state_speed();
+                        update_state_speed(local_scene);
+                    }
+
+                    std::cout <<"local_scene_viewId.size() = " << local_scene_viewId.size() << std::endl;
+
+                    for (auto &structure_landmark_it : sfm_data_.structure) {
+                        const Observations &obs = structure_landmark_it.second.obs;
+                        Observations local_obs;
+                        bool f_use_landmark = false;
+                        for (const auto &obs_it : obs) {
+                            const View *view = sfm_data_.views.at(obs_it.first).get();
+                            if( local_scene_viewId.count( view->id_view ) == 1)
+//                    if (view->id_pose >= start_camera && view->id_pose < end_camera)
+                            {
+                                local_obs[obs_it.first] = obs_it.second;
+                                f_use_landmark = true;
+                            }
+                        }
+                        if (f_use_landmark) {
+                            original_local_landmarks[structure_landmark_it.first].obs =
+                            local_scene.structure[structure_landmark_it.first].obs = std::move(local_obs);
+
+                            original_local_landmarks[structure_landmark_it.first].X =
+                            local_scene.structure[structure_landmark_it.first].X =
+                                    sfm_data_.structure[structure_landmark_it.first].X;
+                        }
+                    }
+
+                    {
+                        std::ostringstream os1;
+                        os1 << std::setw(8) << std::setfill('0') << local_intersection << "_Resection";
+                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os1.str(), ".ply"), ESfM_Data(ALL));
+
+                        std::ostringstream os2;
+                        os2 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalScene";
+                        Save(local_scene, stlplus::create_filespec(sOut_directory_, os2.str(), ".ply"), ESfM_Data(ALL));
+                    }
+
                     // Perform BA until all point are under the given precision
                     do
                     {
@@ -855,6 +1102,41 @@ namespace sfm{
         }
     }
 
+    void SequentialVISfMReconstructionEngine::update_state_speed(SfM_Data &local_scene)
+    {
+        auto it_pose = local_scene.poses.begin();
+        while( it_pose != local_scene.poses.end() )
+        {
+            IndexT cur_t = sfm_data_.timestamps.at( it_pose->first );
+            auto id_pose = it_pose->first;
+            if( local_scene.Speeds.count( id_pose ) == 0 )
+            {
+//                std::cout << "start construction IMU_Speed" << std::endl;
+                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.)); // TODO xinli
+//                std::cout << "end construction IMU_Speed" << std::endl;
+                local_scene.Speeds.insert( std::make_pair(id_pose, speed) );
+                {
+                    auto it_speed = local_scene.Speeds.find( id_pose );
+                    auto it_speed_next = std::next(it_speed);
+                    if( it_speed_next != local_scene.Speeds.end() )
+                    {
+                        it_speed->second.speed_ = it_speed_next->second.speed_;
+                    }
+                    else
+                    {
+                        if( local_scene.Speeds.size() > 2 )
+                        {
+                            auto it_speed_prev = std::prev(it_speed);
+                            it_speed->second.speed_ = it_speed_prev->second.speed_;
+                        }
+                    }
+                }
+//                std::cout << "end insert imu" << std::endl;
+            }
+            it_pose++;
+        }
+    }
+
     bool SequentialVISfMReconstructionEngine::check_imu_observibility()
     {
         //check imu observibility
@@ -1341,6 +1623,35 @@ namespace sfm{
         return bundle_adjustment_obj.Adjust_onlyIMU(sfm_data_, ba_refine_options);
     }
 
+    bool SequentialVISfMReconstructionEngine::BundleAdjustment_optimizi_only_IMU(SfM_Data &local_scene)
+    {
+        Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
+        if ( local_scene.GetPoses().size() > 100 &&
+             (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::CX_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::EIGEN_SPARSE))
+                )
+            // Enable sparse BA only if a sparse lib is available and if there more than 100 poses
+        {
+            options.preconditioner_type_ = ceres::JACOBI;
+            options.linear_solver_type_ = ceres::SPARSE_SCHUR;
+        }
+        else
+        {
+            options.linear_solver_type_ = ceres::DENSE_SCHUR;
+        }
+        Bundle_Adjustment_IMU_Ceres bundle_adjustment_obj(options);
+//        Bundle_Adjustment_Ceres bundle_adjustment_obj(options);
+        const Optimize_Options ba_refine_options
+                ( ReconstructionEngine::intrinsic_refinement_options_,
+                  Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
+                  Structure_Parameter_Type::ADJUST_ALL, // Adjust scene structure
+                  Control_Point_Parameter(),
+                  this->b_use_motion_prior_
+                );
+        return bundle_adjustment_obj.Adjust_onlyIMU(local_scene, ba_refine_options);
+    }
+
     /**
      * @brief Discard tracks with too large residual error
      *
@@ -1365,7 +1676,8 @@ namespace sfm{
     bool SequentialVISfMReconstructionEngine::badTrackRejector(SfM_Data &local_scene, double dPrecision, size_t count)
     {
         const size_t nbOutliers_residualErr = RemoveOutliers_PixelResidualError(local_scene, dPrecision, 2);
-        const size_t nbOutliers_angleErr = RemoveOutliers_AngleError(local_scene, 2.0);
+//        const size_t nbOutliers_angleErr = RemoveOutliers_AngleError(local_scene, 2.0);
+        const size_t nbOutliers_angleErr = 0;//
         std::cout << "nbOutliers_residualErr = " << nbOutliers_residualErr << "\n"
                   << "dPrecision = " << dPrecision << "\n"
                   << "nbOutliers_angleErr = " << nbOutliers_angleErr << "\n"

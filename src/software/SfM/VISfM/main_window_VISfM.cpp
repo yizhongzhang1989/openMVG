@@ -1,4 +1,8 @@
 //
+// Created by v-xinli1 on 11/13/2020.
+//
+
+//
 // Created by root on 10/12/20.
 //
 
@@ -188,8 +192,8 @@ int main(int argc, char **argv)
     {
 // EuRoc
         Ric << 0.0148655429818, -0.999880929698, 0.00414029679422,
-            0.999557249008, 0.0149672133247, 0.025715529948,
-            -0.0257744366974, 0.00375618835797, 0.999660727178;
+                0.999557249008, 0.0149672133247, 0.025715529948,
+                -0.0257744366974, 0.00375618835797, 0.999660727178;
         tic << -0.0216401454975, -0.064676986768, 0.00981073058949;
     }
     else if ( sSfM_IMU_FileType == std::string("Mate20Pro") )
@@ -205,8 +209,8 @@ int main(int argc, char **argv)
         Vec3 tci;
 
         Rci << -0.00080983, -0.99991118,  0.01330307,
-            -0.99981724,  0.0010637,   0.01908794,
-            -0.01910039, -0.01328518, -0.9997293;
+                -0.99981724,  0.0010637,   0.01908794,
+                -0.01910039, -0.01328518, -0.9997293;
         tci << 0.02532891, 0.03078696, 0.080411;
 
         Ric = Rci.transpose();
@@ -410,6 +414,7 @@ int main(int argc, char **argv)
         visfmEngine.setInitialPair(initialPairIndex);
     }
 
+
     XinTime time;
     if(visfmEngine.VI_Init(  ))
     {
@@ -434,14 +439,14 @@ int main(int argc, char **argv)
 //                 "/home/xinli/work/data/VI_visualIMU_init.bin",
 //                 ESfM_Data(ALL));
 //            return EXIT_SUCCESS;
-            if(visfmEngine.Process())
+            if(visfmEngine.Process_window())
             {
 
-                time.print_time();
 //                Save(visfmEngine.Get_SfM_Data(),
 //                     "/home/xinli/work/data/Allresutl.bin",
 //                     ESfM_Data(ALL));
 
+                time.print_time();
                 std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
                 std::cout << "...Generating SfM_Report.html" << std::endl;

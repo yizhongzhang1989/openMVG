@@ -42,10 +42,12 @@ int main(int argc , char** argv)
 
     std::string sSfM_Data_Filename_In, sInputTimes;
     std::string sOutputPose_Oout;
+    bool simu_mode = false;
 
     cmd.add(make_option('i', sSfM_Data_Filename_In, "input_file"));
     cmd.add(make_option('o', sOutputPose_Oout, "output_pose_file"));
     cmd.add(make_option('t', sInputTimes, "input_time_file"));
+    cmd.add( make_switch('s', "simu_mode"));
 //    cmd.add(make_option('t', sOutputPoint_Oout, "output_point_file"));
 
     try
@@ -58,6 +60,9 @@ int main(int argc , char** argv)
         std::cerr << "ERROR" << std::endl;
         return EXIT_FAILURE;
     }
+
+
+    simu_mode = cmd.used('s');
 
     SfM_Data sfm_data;
     if (!Load(sfm_data, sSfM_Data_Filename_In, ESfM_Data(ALL)))
@@ -104,7 +109,11 @@ int main(int argc , char** argv)
     std::vector<double> times;
     for( auto &pose:poses)
     {
-        double time = times_map.at(pose.first) / 1e9;
+        double time;
+        if( !simu_mode )
+            time = times_map.at(pose.first) / 1e9;
+        else
+            time = times_map.at(pose.first);
 
         Eigen::Matrix3d Rcw = pose.second.rotation();
         Eigen::Matrix3d Rwc = Rcw.transpose();

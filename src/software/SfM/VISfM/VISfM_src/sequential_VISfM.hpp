@@ -45,6 +45,7 @@ public:
 
     virtual bool Process() override;
 
+    bool Process_window();
     bool Process_onlyvisual();
 
     bool VI_Init( );
@@ -62,6 +63,7 @@ public:
     void update_imu_time( SfM_Data &local_scene);
 
     void update_state_speed();
+    void update_state_speed(SfM_Data &local_scene);
     void rota_pose();
     void recover_g_s(const Eigen::Vector3d& correct_g, const Eigen::VectorXd& speeds_scale);
     bool check_imu_observibility();
@@ -129,6 +131,8 @@ private:
     bool BundleAdjustmentWithIMU_local( SfM_Data &local_scene );
 
     bool BundleAdjustment_optimizi_only_IMU();
+
+    bool BundleAdjustment_optimizi_only_IMU(SfM_Data &local_scene);
 
     /// Discard track with too large residual error
     bool badTrackRejector(double dPrecision, size_t count = 0);

@@ -126,7 +126,7 @@ target_link_libraries(openMVG_main_IncrementalSfM
     ${STLPLUS_LIBRARY}
 )
 
-add_executable(main_IncrementalSfM_window ./Window_Visual/main_IncrementalSfM_window.cpp)
+add_executable(main_IncrementalSfM_window Window_SfM/main_IncrementalSfM_window.cpp)
 target_link_libraries(main_IncrementalSfM_window
         PRIVATE
         openMVG_system

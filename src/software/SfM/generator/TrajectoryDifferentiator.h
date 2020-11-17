@@ -10,15 +10,18 @@ namespace generator
 class TrajectoryDifferentiator
 {
 public:
-    static IMUMeasurements DifferentiateTrajectory(const STLVector<InversePose>& trajectory, int deltaT_ms)
+    static IMUMeasurements DifferentiateTrajectory(const STLVector<InversePose>& trajectory_original, int deltaT_ms)
     {
         IMUMeasurements IMUs;
 
-        if(trajectory.size() < 3)
+        if(trajectory_original.size() < 3)
         {
             std::cerr << "At least 3 poses are needed to differentiate a trajectory." << std::endl;
             return IMUs;
         }
+
+        STLVector<InversePose> trajectory = trajectory_original;
+        CorrectQuaternion(trajectory);
 
         int t_ms = 0;
         IMUs.reserve(trajectory.size());
@@ -75,6 +78,28 @@ public:
         }
 
         return IMUs;
+    }
+private:
+    static void CorrectQuaternion(STLVector<InversePose>& trajectory)
+    {
+        if (trajectory.empty())
+            return;
+        Eigen::Quaterniond last_q = trajectory[0].q;
+        for (InversePose& inv_pose : trajectory)
+        {
+            Eigen::Quaterniond& q = inv_pose.q;
+            Eigen::Quaterniond tmp_q;
+            tmp_q.coeffs() = -q.coeffs();
+
+            double norm1 = (q.coeffs() - last_q.coeffs()).norm();
+            double norm2 = (tmp_q.coeffs() - last_q.coeffs()).norm();
+            if (norm1 > norm2)
+            {
+                q = tmp_q;
+            }
+
+            last_q = q;
+        }
     }
 };
 

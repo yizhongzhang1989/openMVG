@@ -81,7 +81,7 @@ int main(int argc, char** argv)
     // generator config
     SimulationGenerator::SimulationConfig cfg;
     cfg.n_points = 1500;
-    cfg.n_poses = 200;
+    cfg.n_poses = -1;
     cfg.image_width = 640;
     cfg.image_height = 480;
 

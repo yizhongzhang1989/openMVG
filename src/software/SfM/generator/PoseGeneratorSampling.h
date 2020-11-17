@@ -29,12 +29,28 @@ public:
             pose.t = -(pose.q * inv_pose.p);
             mPoses.push_back(pose);
         }
+        std::cout << "Number pose Camera = " << mPoses.size() << std::endl;
 
         if(storeIMU_)
         {
             double T_sample_imu = deltaT_IMU * 1e-3;
             mInvPosesIMU = TrajectorySampler::SampleTrajectory(mFileName,total_duration,T_sample_imu);
             TotalIMUs = TrajectoryDifferentiator::DifferentiateTrajectory(mInvPosesIMU,deltaT_IMU);
+            std::cout << "Number pose IMU = " << mInvPosesIMU.size() << std::endl;
+            std::cout << "Number IMU measurements = " << TotalIMUs.size() << std::endl;
+
+
+            //char filename[1024];
+            //sprintf(filename, "E:/OpenMVG_IMU_synthetic_data/circle/tmp_pose_inv.txt");
+            //std::ofstream file(filename);
+            //for (int i = 0; i < mInvPosesIMU.size(); i++) {
+            //	Eigen::Vector3d p = mInvPosesIMU[i].p;
+            //    Eigen::Quaterniond q = mInvPosesIMU[i].q;
+            //    file << p[0] << ',' << p[1] << ',' << p[2] << ',' 
+            //        << q.coeffs()[0] << ',' << q.coeffs()[1] << ',' << q.coeffs()[2]<<','<< q.coeffs()[3] << std::endl;
+            //}
+            //file.close();
+
         }
         else
         {
@@ -59,6 +75,7 @@ public:
                 IMUs = TotalIMUs;
             }
 
+            std::cout << "resurn " << mPoses.size() << " poses." << std::endl;
             return mPoses;
         }
 
@@ -81,8 +98,10 @@ public:
                 idx_imu++;
                 t_imu += deltaT_IMU;
             }
+            std::cout << "resurn " << IMUs.size() << " IMU Measurements." << std::endl;
         }
 
+        std::cout << "resurn " << poses.size() << " poses." << std::endl;
         return poses;
     }
 

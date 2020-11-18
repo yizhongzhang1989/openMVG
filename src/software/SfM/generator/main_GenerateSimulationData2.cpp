@@ -449,11 +449,11 @@ void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationDa
         }
     }
 
-    if (!Save(map_Matches, std::string(sImageDir + "/matches.putative.txt")))
+    if (!Save(map_Matches, std::string(sImageDir + "/matches.putative.bin")))
     {
         std::cerr
                 << "Cannot save computed matches in: "
-                << std::string(sImageDir + "/matches.putative.txt");
+                << std::string(sImageDir + "/matches.putative.bin");
     }
 }
 

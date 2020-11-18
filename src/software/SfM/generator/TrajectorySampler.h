@@ -258,7 +258,7 @@ private:
 
         //static int flag = 0;
         //char filename[1024];
-        //sprintf(filename, "E:/OpenMVG_IMU_synthetic_data/circle/tmp_%d.txt", flag);
+        //sprintf(filename, "E:/OpenMVG_IMU_synthetic_data/circle_y/tmp_%d.txt", flag);
         //std::ofstream file(filename);
         //for (int i = 0; i < down_vertices_out.size(); i++) {
         //	Eigen::Vector3d r = up_vertices_out[i];

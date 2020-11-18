@@ -40,7 +40,7 @@ public:
             std::cout << "Number IMU measurements = " << TotalIMUs.size() << std::endl;
 
             //char filename[1024];
-            //sprintf(filename, "E:/OpenMVG_IMU_synthetic_data/circle/tmp_pose_inv.txt");
+            //sprintf(filename, "E:/OpenMVG_IMU_synthetic_data/circle_y/tmp_pose_inv.txt");
             //std::ofstream file(filename);
             //for (int i = 0; i < mInvPosesIMU.size(); i++) {
             //	Eigen::Vector3d p = mInvPosesIMU[i].p;

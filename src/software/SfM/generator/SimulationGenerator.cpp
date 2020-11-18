@@ -310,7 +310,6 @@ void SimulationGenerator::SaveIMU(const IMUMeasurements& imu_data, const std::st
     if(!f.is_open())
         return;
 
-    f<<std::fixed;
     f<<"time_stamp,acc_x,acc_y,acc_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z,step_count,"
         <<"rot_qx,rot_qy,rot_qz,rot_qw,rot_error,gameRot_qx,gameRot_qy,gameRot_qz,gameRot_qw"<<std::endl;
     for(const auto & imu : imu_data)
@@ -318,7 +317,7 @@ void SimulationGenerator::SaveIMU(const IMUMeasurements& imu_data, const std::st
         const int t = imu.timestamp;  // time in ms
         const Eigen::Vector3d& acc = imu.acc;
         const Eigen::Vector3d& gyro = imu.gyro;
-        f<<int(t)<<","<<acc.x()<<","<<acc.y()<<","<<acc.z()<<","<<gyro.x()<<","<<gyro.y()<<","<<gyro.z()<<","
+        f<<t<<std::setprecision(7)<<std::fixed<<","<<acc.x()<<","<<acc.y()<<","<<acc.z()<<","<<gyro.x()<<","<<gyro.y()<<","<<gyro.z()<<","
             <<"0.0,0.0,0.0,0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0"<<std::endl;
     }
     f.close();

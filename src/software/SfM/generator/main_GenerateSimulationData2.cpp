@@ -35,7 +35,7 @@ typedef slam_visualization::Visualizer<Eigen::Vector3d, generator::InversePose, 
 using namespace generator;
 using namespace std;
 
-void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam);
+void SaveSfMData(std::string sDataDir, std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam);
 void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPath, generator::CameraPinhole* pCam);
 bool ParseExtrinsics(const std::string& str, std::vector<double>& params);
 
@@ -198,7 +198,7 @@ int main(int argc, char** argv)
     // save as openMVG format
     std::string openMVGPath = sOutDir + "/openMVGFormat/";
     Utils::check_and_create_dir(openMVGPath);
-    SaveSfMData(openMVGPath,sfm_data,&cam);
+	SaveSfMData(openMVGPath, imagePath, sfm_data, &cam);
     // save IMU
     g_sim.SaveIMU(g_sim.getIMUMeasurements<PoseGeneratorSampling>(),openMVGPath + "/imu_data.csv");
 
@@ -280,7 +280,7 @@ int main(int argc, char** argv)
     return 0;
 }
 
-void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam)
+void SaveSfMData(std::string sDataDir, std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam)
 {
     using namespace openMVG;
     using namespace openMVG::sfm;
@@ -288,10 +288,10 @@ void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationDa
     using namespace openMVG::features;
     using namespace openMVG::matching;
 
-    if(access(sImageDir.c_str(),00) == -1)
+    if(access(sDataDir.c_str(),00) == -1)
     {
 //        mkdir(outPath.c_str(),S_IRWXU);
-        std::string cmd = "mkdir -p " + sImageDir;
+        std::string cmd = "mkdir -p " + sDataDir;
         system(cmd.c_str());
     }
 
@@ -339,7 +339,7 @@ void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationDa
 
     // Store SfM_Data views & intrinsic data
     Save(sfm_data,
-         stlplus::create_filespec( sImageDir, "sfm_data.json" ).c_str(),
+         stlplus::create_filespec( sDataDir, "sfm_data.json" ).c_str(),
          ESfM_Data(VIEWS|INTRINSICS));
 
     std::cout << std::endl
@@ -347,7 +347,7 @@ void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationDa
               << "usable #Intrinsic(s) listed in sfm_data: " << sfm_data.GetIntrinsics().size() << std::endl;
 
     std::unique_ptr<Image_describer> image_describer;
-    const std::string sImage_describer = stlplus::create_filespec(sImageDir, "image_describer", "json");
+    const std::string sImage_describer = stlplus::create_filespec(sDataDir, "image_describer", "json");
     image_describer.reset(new SIFT_Image_describer
                                   (SIFT_Image_describer::Params()));
     image_describer->Set_configuration_preset(features::EDESCRIBER_PRESET(-1));
@@ -372,7 +372,7 @@ void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationDa
     for(auto & key_frame : key_frames)
     {
         std::string img_name = "VIRTUAL_IMG_"+std::to_string(kf_count);
-        std::ofstream kp_f(sImageDir + "/" + img_name + ".feat");
+        std::ofstream kp_f(sDataDir + "/" + img_name + ".feat");
 
         std::vector<unsigned int>& obs = key_frame.second.obs;
         bool flag = false;
@@ -449,11 +449,11 @@ void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationDa
         }
     }
 
-    if (!Save(map_Matches, std::string(sImageDir + "/matches.putative.bin")))
+    if (!Save(map_Matches, std::string(sDataDir + "/matches.f.bin")))
     {
         std::cerr
                 << "Cannot save computed matches in: "
-                << std::string(sImageDir + "/matches.putative.bin");
+                << std::string(sDataDir + "/matches.f.bin");
     }
 }
 

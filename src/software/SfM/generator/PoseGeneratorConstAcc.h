@@ -11,8 +11,8 @@ class PoseGeneratorConstAcc : public PoseGeneratorBase<Pose, Eigen::aligned_allo
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    PoseGeneratorConstAcc(double acc_x, double acc_y, double acc_z, int deltaT, int deltaT_IMU, bool storeIMU = false, LookDirection direction = FORWARD)
-    : acc_x(acc_x), acc_y(acc_y), acc_z(acc_z), direction(direction), t_cam_ms(0), t_imu_ms(0), storeIMU_(storeIMU), deltaT(deltaT), deltaT_IMU(deltaT_IMU)
+    PoseGeneratorConstAcc(double acc_x, double acc_y, double acc_z, double deltaT_s, int deltaT_IMU_ms, bool storeIMU = false, LookDirection direction = FORWARD)
+    : acc_x(acc_x), acc_y(acc_y), acc_z(acc_z), direction(direction), t_cam(0.0), t_imu_ms(0), storeIMU_(storeIMU), deltaT(deltaT_s), deltaT_IMU(deltaT_IMU_ms)
     {
         IMUs.clear();
     }
@@ -20,8 +20,6 @@ public:
     {
         static const Eigen::Vector3d gravity(0.0,0.0,-GRAVITY);
         static const double eps = 1e-6;
-
-        double t_cam = 1e-3 * t_cam_ms;
 
         Pose p;
         Eigen::Vector3d acc(acc_x,acc_y,acc_z);
@@ -80,14 +78,19 @@ public:
         // p.t: global -> local, t_cw
         p.t = - R.transpose() * t;
 
-        Eigen::Vector3d acc_local = p.q * (acc + gravity);
-        while(t_imu_ms <= t_cam_ms)
+        if(storeIMU_)
         {
-            IMUs.emplace_back(acc_local, Eigen::Vector3d::Zero(), t_imu_ms);
-            t_imu_ms += deltaT_IMU;
+            Eigen::Vector3d acc_local = p.q * (acc + gravity);
+            double t_imu = 1e-3 * t_imu_ms;
+            while(t_imu <= t_cam)
+            {
+                IMUs.emplace_back(acc_local, Eigen::Vector3d::Zero(), t_imu_ms);
+                t_imu_ms += deltaT_IMU;
+                t_imu = 1e-3 * t_imu_ms;
+            }
         }
 
-        t_cam_ms += deltaT;
+        t_cam += deltaT;
 
         return p;
     }
@@ -102,7 +105,7 @@ public:
         return poses;
     }
 
-    int getDeltaT() const override
+    double getDeltaT() const override
     {
         return deltaT;
     }
@@ -120,11 +123,13 @@ public:
 private:
     double acc_x, acc_y, acc_z;
     LookDirection direction;
-    // sampling period in ms
-    int deltaT;
+    // camera sampling period in s
+    double deltaT;
+    // IMU sampling period in ms
     int deltaT_IMU;
-    // current time in ms
-    int t_cam_ms;
+    // camera current time in s
+    double t_cam;
+    // IMU current time in ms
     int t_imu_ms;
     // IMU measurements
     IMUMeasurements IMUs;

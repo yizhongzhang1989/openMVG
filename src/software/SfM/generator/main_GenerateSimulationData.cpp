@@ -134,20 +134,22 @@ int main(int argc, char** argv)
     Utils::check_and_create_dir(sOutDir);
 
     // create pose generator
+    double T_cam = 1.0 / 30;
+    int T_imu = 5;
     std::shared_ptr<PoseGeneratorBase<Pose, Eigen::aligned_allocator<Pose>>> g_pose;
     switch(trajectory_type)
     {
         case CIRCLE_SINE:
         {
-            g_pose = std::make_shared<PoseGeneratorCircleSine>(5.0,0.2,0.1,1.0,50,5,true);
+            g_pose = std::make_shared<PoseGeneratorCircleSine>(5.0,0.2,0.1,1.0,T_cam,T_imu,true);
         }break;
         case CONST_ACC:
         {
-            g_pose = std::make_shared<PoseGeneratorConstAcc>(0.2,0.0,0.0,50,5,true,generator::PoseGeneratorConstAcc::FORWARD);
+            g_pose = std::make_shared<PoseGeneratorConstAcc>(0.2,0.0,0.0,T_cam,T_imu,true,generator::PoseGeneratorConstAcc::FORWARD);
         }break;
         case LINE:
         {
-            g_pose = std::make_shared<PoseGeneratorLine>(50,5,true);
+            g_pose = std::make_shared<PoseGeneratorLine>(T_cam,T_imu,true);
         }break;
         default:
         {

@@ -16,8 +16,8 @@ public:
     /// r: radius of circle;  A: amptitude of sine;
     /// fc: rotation frequency (r/s);  fs: frequency of sine;
     /// T: sampling period.
-    PoseGeneratorCircleSine(double r, double A, double fc, double fs, int deltaT, int deltaT_IMU, bool storeIMU = false, LookDirection direction = FORWARD)
-    : r_(r), A_(A), direction(direction), deltaT(deltaT), deltaT_IMU(deltaT_IMU), t_cam_ms(0), t_imu_ms(0), storeIMU_(storeIMU)
+    PoseGeneratorCircleSine(double r, double A, double fc, double fs, double deltaT_s, int deltaT_IMU_ms, bool storeIMU = false, LookDirection direction = FORWARD)
+    : r_(r), A_(A), direction(direction), deltaT(deltaT_s), deltaT_IMU(deltaT_IMU_ms), t_cam(0.0), t_imu_ms(0), storeIMU_(storeIMU)
     {
         omegaCircle = 2 * PI * fc;
         omegaSine = 2 * PI * fs;
@@ -31,7 +31,6 @@ public:
 
         static Eigen::Quaterniond q_last = Eigen::Quaterniond::Identity();
 
-        double t_cam = 1e-3 * t_cam_ms;
         // angle of rotation (rad)
         double theta = omegaCircle * t_cam;
         // angle of sine (rad)
@@ -91,9 +90,9 @@ public:
         // generate IMU measurements
         if(storeIMU_)
         {
-            while(t_imu_ms <= t_cam_ms)
+            double t_imu = 1e-3 * t_imu_ms;
+            while(t_imu <= t_cam)
             {
-                double t_imu = 1e-3 * t_imu_ms;
                 theta = omegaCircle * t_imu;
                 alpha = omegaSine * t_imu;
 
@@ -132,10 +131,11 @@ public:
                 IMUs.emplace_back(acc_local,Eigen::Vector3d(omega_x,omega_y,omega_z), t_imu_ms);
 
                 t_imu_ms += deltaT_IMU;
+                t_imu = 1e-3 * t_imu_ms;
             }
         }
 
-        t_cam_ms += deltaT;
+        t_cam += deltaT;
 
         return p;
     }
@@ -150,7 +150,7 @@ public:
         return poses;
     }
 
-    int getDeltaT() const override
+    double getDeltaT() const override
     {
         return deltaT;
     }
@@ -171,11 +171,13 @@ private:
     double omegaCircle;
     double omegaSine;
     LookDirection direction;
-    // sampling period in ms
-    int deltaT;
+    // camera sampling period in s
+    double deltaT;
+    // IMU sampling period in ms
     int deltaT_IMU;
-    // current time in ms
-    int t_cam_ms;
+    // camera current time in s
+    double t_cam;
+    // IMU current time in ms
     int t_imu_ms;
     // IMU measurements
     IMUMeasurements IMUs;

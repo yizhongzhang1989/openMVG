@@ -10,7 +10,7 @@ namespace generator
 class TrajectoryDifferentiator
 {
 public:
-    static IMUMeasurements DifferentiateTrajectory(const STLVector<InversePose>& trajectory_original, int deltaT_ms)
+    static IMUMeasurements DifferentiateTrajectory(const STLVector<InversePose>& trajectory_original, int deltaT_ms, bool correct_quaternion = true)
     {
         IMUMeasurements IMUs;
 
@@ -20,8 +20,19 @@ public:
             return IMUs;
         }
 
-        STLVector<InversePose> trajectory = trajectory_original;
-        CorrectQuaternion(trajectory);
+        const STLVector<InversePose>* trajectory_ptr = nullptr;
+        STLVector<InversePose> trajectory_buff;
+        if(correct_quaternion)
+        {
+            trajectory_buff = trajectory_original;
+            CorrectQuaternion(trajectory_buff);
+            trajectory_ptr = &trajectory_buff;
+        }
+        else
+        {
+            trajectory_ptr = &trajectory_original;
+        }
+        const STLVector<InversePose>& trajectory = *trajectory_ptr;
 
         int t_ms = 0;
         IMUs.reserve(trajectory.size());

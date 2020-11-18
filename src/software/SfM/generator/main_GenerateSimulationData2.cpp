@@ -77,6 +77,8 @@ int main(int argc, char** argv)
     std::string sOutDir;
     std::string sExtrinsics;
     double total_duration = 10.0;
+    double f_cam = 30.0;
+    int f_imu = 200;
 
     // generator config
     SimulationGenerator::SimulationConfig cfg;
@@ -93,7 +95,8 @@ int main(int argc, char** argv)
     cmd.add(make_option('t',total_duration,"duration"));
     cmd.add(make_option('e',sExtrinsics,"extrinsics"));
     cmd.add(make_option('n',cfg.n_points,"n_points"));
-    cmd.add(make_option('N',cfg.n_poses,"n_poses"));
+    cmd.add(make_option('f',f_cam,"f_cam"));
+    cmd.add(make_option('F',f_imu,"f_imu"));
 
     try
     {
@@ -110,7 +113,8 @@ int main(int argc, char** argv)
                   << "[-t|--duration] total duration of trajectory in seconds, default is 10.0s \n"
                   << "[-e|--extrinsics] extrinsics from IMU to camera (T_cam_imu), format: (tx ty tz qx qy qz qw) \n"
                   << "[-n|--n_points] number of points in simulation \n"
-                  << "[-N|--n_poses] number of poses in simulation \n"
+                  << "[-f|--f_cam] frequency of camera (fps) \n"
+                  << "[-F|--f_imu] frequency of imu (Hz), must be divisible for 1000 \n"
                   << std::endl;
         std::cerr << s << std::endl;
         return EXIT_FAILURE;
@@ -122,9 +126,10 @@ int main(int argc, char** argv)
               << "--model_file " << sModelObjFile << std::endl
               << "--outdir "<< sOutDir << std::endl
               << "--duration " << total_duration << std::endl
-              << "--extrinsics " << sExtrinsics <<std::endl
+              << "--extrinsics " << sExtrinsics << std::endl
               << "--n_points " << cfg.n_points << std::endl
-              << "--n_poses " << cfg.n_poses << std::endl
+              << "--f_cam " << f_cam << std::endl
+              << "--f_imu " << f_imu << std::endl
               << std::endl;
 
     if(sOutDir.empty())
@@ -146,7 +151,16 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    PoseGeneratorSampling g_pose(sTrajectoryObjFile,total_duration,50,5,true);
+    if(1000 % f_imu)
+    {
+        std::cerr<<"frequency of IMU must be divisible for 1000."<<std::endl;
+        return EXIT_FAILURE;
+    }
+
+    double T_cam = 1.0 / f_cam;
+    int T_IMU = 1000 / f_imu;
+
+    PoseGeneratorSampling g_pose(sTrajectoryObjFile,total_duration,T_cam,T_IMU,true);
     PointGenerator g_point(sModelObjFile);
     CameraPinhole cam(320,320,320,240,cfg.image_width,cfg.image_height);
 

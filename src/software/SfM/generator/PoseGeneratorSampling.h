@@ -15,10 +15,10 @@ namespace generator
 class PoseGeneratorSampling : public PoseGeneratorBase<Pose, Eigen::aligned_allocator<Pose>>
 {
 public:
-    PoseGeneratorSampling(std::string  sFileName, double total_duration_s, int deltaT, int deltaT_IMU, bool storeIMU = false, LookDirection direction = FORWARD)
-    : mFileName(std::move(sFileName)), total_duration(total_duration_s), direction(direction), storeIMU_(storeIMU), deltaT(deltaT), deltaT_IMU(deltaT_IMU)
+    PoseGeneratorSampling(std::string sFileName, double total_duration_s, double deltaT_s, int deltaT_IMU_ms, bool storeIMU = false, LookDirection direction = FORWARD)
+    : mFileName(std::move(sFileName)), total_duration(total_duration_s), direction(direction), storeIMU_(storeIMU), deltaT(deltaT_s), deltaT_IMU(deltaT_IMU_ms)
     {
-        double T_sample_pose = deltaT * 1e-3;
+        double T_sample_pose = deltaT;
         mInvPoses = TrajectorySampler::SampleTrajectory(mFileName,total_duration,T_sample_pose);
         mPoses.clear();
         mPoses.reserve(mInvPoses.size());
@@ -38,7 +38,6 @@ public:
             TotalIMUs = TrajectoryDifferentiator::DifferentiateTrajectory(mInvPosesIMU,deltaT_IMU);
             std::cout << "Number pose IMU = " << mInvPosesIMU.size() << std::endl;
             std::cout << "Number IMU measurements = " << TotalIMUs.size() << std::endl;
-
 
             //char filename[1024];
             //sprintf(filename, "E:/OpenMVG_IMU_synthetic_data/circle/tmp_pose_inv.txt");
@@ -75,12 +74,11 @@ public:
                 IMUs = TotalIMUs;
             }
 
-            std::cout << "resurn " << mPoses.size() << " poses." << std::endl;
             return mPoses;
         }
 
         Poses poses;
-        int t_cam = -deltaT;
+        double t_cam = -deltaT;
         for(int i = 0; i < num_poses && i < mPoses.size(); i++)
         {
             poses.push_back(mPoses[i]);
@@ -90,22 +88,20 @@ public:
         if(storeIMU_)
         {
             IMUs.clear();
-            int t_imu = 0;
+            double t_imu = 0.0;
             int idx_imu = 0;
             while(t_imu <= t_cam)
             {
                 IMUs.push_back(TotalIMUs[idx_imu]);
                 idx_imu++;
-                t_imu += deltaT_IMU;
+                t_imu += 1e-3 * deltaT_IMU;
             }
-            std::cout << "resurn " << IMUs.size() << " IMU Measurements." << std::endl;
         }
 
-        std::cout << "resurn " << poses.size() << " poses." << std::endl;
         return poses;
     }
 
-    int getDeltaT() const override
+    double getDeltaT() const override
     {
         return deltaT;
     }
@@ -132,9 +128,10 @@ public:
 
 private:
     LookDirection direction;
-    // sampling period in ms
-    int deltaT;
-    int deltaT_IMU;
+    // camera sampling period in s
+    const double deltaT;
+    // IMU sampling period in ms
+    const int deltaT_IMU;
     // IMU measurements
     IMUMeasurements TotalIMUs;
     IMUMeasurements IMUs;

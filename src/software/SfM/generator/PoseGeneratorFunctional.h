@@ -16,8 +16,8 @@ public:
 
     typedef std::function<InversePose (double t)> PoseFunction;
 
-    PoseGeneratorFunctional(int deltaT, int deltaT_IMU, PoseFunction& func, bool storeIMU = false)
-            : t_cam_ms(0), t_imu_ms(0), storeIMU_(storeIMU), deltaT(deltaT), deltaT_IMU(deltaT_IMU), poseFunction(func)
+    PoseGeneratorFunctional(double deltaT_s, int deltaT_IMU_ms, PoseFunction& func, bool storeIMU = false)
+            : t_cam(0.0), t_imu_ms(0), storeIMU_(storeIMU), deltaT(deltaT_s), deltaT_IMU(deltaT_IMU_ms), poseFunction(func)
     {
         IMUs.clear();
     }
@@ -26,36 +26,38 @@ public:
     {
         static const double eps = 1e-6;
 
-        double t_cam = 1e-3 * t_cam_ms;
         InversePose inv_pose = poseFunction(t_cam);
         Pose pose;
         pose.q = inv_pose.q.inverse();
         pose.t = - (inv_pose.q.inverse() * inv_pose.p);
 
-        while(t_imu_ms <= t_cam_ms)
+        if(storeIMU_)
         {
             double t_imu = 1e-3 * t_imu_ms;
+            while(t_imu <= t_cam)
+            {
+                // differentiate pose
+                InversePose p_t = poseFunction(t_imu);
+                InversePose p_t_1 = poseFunction(t_imu + eps);
+                InversePose p_t_2 = poseFunction(t_imu + 2 * eps);
 
-            // differentiate pose
-            InversePose p_t = poseFunction(t_imu);
-            InversePose p_t_1 = poseFunction(t_imu + eps);
-            InversePose p_t_2 = poseFunction(t_imu + 2 * eps);
+                Eigen::Vector3d v_t = (p_t_1.p - p_t.p) / eps;
+                Eigen::Vector3d v_t_1 = (p_t_2.p - p_t_1.p) / eps;
+                Eigen::Vector3d a_t = (v_t_1 - v_t) / eps;
 
-            Eigen::Vector3d v_t = (p_t_1.p - p_t.p) / eps;
-            Eigen::Vector3d v_t_1 = (p_t_2.p - p_t_1.p) / eps;
-            Eigen::Vector3d a_t = (v_t_1 - v_t) / eps;
+                Eigen::Quaterniond dq = p_t.q.inverse() * p_t_1.q;
+                Eigen::Vector3d theta = 2 * dq.vec();
+                Eigen::Vector3d omega = - theta / eps;
 
-            Eigen::Quaterniond dq = p_t.q.inverse() * p_t_1.q;
-            Eigen::Vector3d theta = 2 * dq.vec();
-            Eigen::Vector3d omega = - theta / eps;
+                Eigen::Vector3d a_local = pose.q * a_t;
+                IMUs.emplace_back(a_local,omega,t_imu_ms);
 
-            Eigen::Vector3d a_local = pose.q * a_t;
-            IMUs.emplace_back(a_local,omega,t_imu_ms);
-
-            t_imu_ms + deltaT_IMU;
+                t_imu_ms += deltaT_IMU;
+                t_imu = 1e-3 * t_imu_ms;
+            }
         }
 
-        t_cam_ms + deltaT;
+        t_cam += deltaT;
 
         return pose;
     }
@@ -70,7 +72,7 @@ public:
         return poses;
     }
 
-    int getDeltaT() const override
+    double getDeltaT() const override
     {
         return deltaT;
     }
@@ -86,11 +88,13 @@ public:
     }
 private:
     PoseFunction& poseFunction;
-    // sampling period in ms
-    int deltaT;
+    // camera sampling period in s
+    double deltaT;
+    // IMU sampling period in ms
     int deltaT_IMU;
-    // current time in ms
-    int t_cam_ms;
+    // camera current time in s
+    double t_cam;
+    // IMU current time in ms
     int t_imu_ms;
     // IMU measurements
     IMUMeasurements IMUs;

@@ -13,14 +13,13 @@ class PoseGeneratorLine : public PoseGeneratorBase<Pose, Eigen::aligned_allocato
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    PoseGeneratorLine(int deltaT, int deltaT_IMU, bool storeIMU = false)
-    : t_cam_ms(0), t_imu_ms(0), storeIMU_(storeIMU), deltaT(deltaT), deltaT_IMU(deltaT_IMU)
+    PoseGeneratorLine(double deltaT_s, int deltaT_IMU_ms, bool storeIMU = false)
+    : t_cam(0.0), t_imu_ms(0), storeIMU_(storeIMU), deltaT(deltaT_s), deltaT_IMU(deltaT_IMU_ms)
     {
         IMUs.clear();
     }
     Pose Generate() override
     {
-        double t_cam = 1e-3 * t_cam_ms;
         double omega = 2 * PI * t_cam;
         double sin_omega = sin(omega);
 
@@ -40,9 +39,9 @@ public:
 
         if(storeIMU_)
         {
-            while(t_imu_ms <= t_cam_ms)
+            double t_imu = 1e-3 * t_imu_ms;
+            while(t_imu <= t_cam)
             {
-                double t_imu = 1e-3 * t_imu_ms;
                 double PI_2 = 2 * PI;
                 double PI_2_2 = PI_2 * PI_2;
                 double omega_imu = PI_2 * t_imu;
@@ -56,10 +55,11 @@ public:
                 IMUs.emplace_back(acc,gyro,t_imu_ms);
 
                 t_imu_ms += deltaT_IMU;
+                t_imu = 1e-3 * t_imu_ms;
             }
         }
 
-        t_cam_ms += deltaT;
+        t_cam += deltaT;
 
         return p;
     }
@@ -74,7 +74,7 @@ public:
         return poses;
     }
 
-    int getDeltaT() const override
+    double getDeltaT() const override
     {
         return deltaT;
     }
@@ -89,11 +89,13 @@ public:
         return storeIMU_;
     }
 private:
-    // sampling period in ms
-    int deltaT;
+    // camera sampling period in s
+    double deltaT;
+    // IMU sampling period in ms
     int deltaT_IMU;
-    // current time in ms
-    int t_cam_ms;
+    // camera current time in s
+    double t_cam;
+    // IMU current time in ms
     int t_imu_ms;
     // IMU measurements
     IMUMeasurements IMUs;

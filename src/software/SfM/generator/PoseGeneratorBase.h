@@ -26,7 +26,7 @@ public:
     // generate a number of poses
     virtual Poses Generate(int num_poses) = 0;
     // get sampling period in ms
-    virtual int getDeltaT() const = 0;
+    virtual double getDeltaT() const = 0;
 };
 
 }  // namespace generator

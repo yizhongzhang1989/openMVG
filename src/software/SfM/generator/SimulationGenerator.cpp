@@ -160,7 +160,7 @@ void SimulationGenerator::Save(Simulation_Data& sfm_data, const std::string& out
     f<<fixed;
     f<<setprecision(7);
     double timestamp = 0.0;
-    double deltaT = mpPoseGenerator->getDeltaT() * 1e-3;
+    double deltaT = mpPoseGenerator->getDeltaT();
     for(auto & key_frame : key_frames)
     {
         Pose& p = key_frame.second.pose;
@@ -180,7 +180,7 @@ void SimulationGenerator::Save(Simulation_Data& sfm_data, const std::string& out
     f<<fixed;
     f<<setprecision(7);
     timestamp = 0.0;
-    deltaT = mpPoseGenerator->getDeltaT() * 1e-3;
+    deltaT = mpPoseGenerator->getDeltaT();
     for(auto & key_frame : key_frames)
     {
         Pose& p = key_frame.second.pose;

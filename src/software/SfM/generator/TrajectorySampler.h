@@ -12,6 +12,120 @@ namespace generator
 class TrajectorySampler
 {
 public:
+    //  cubic spline interpolation with natrual boundary condition
+    template <class T>
+    class InterpCubicSplineNatural {
+    public:
+        InterpCubicSplineNatural(const std::vector<double>& x, const STLVector<T>& y) {
+            //	validate data
+            if (x.size() < 4) {
+                std::cout << "error: InterpCubicSplineNatural, too few points" << std::endl;
+                return;
+            }
+            if (x.size() != y.size()) {
+                std::cout << "error: InterpCubicSplineNatural, x.size() != y.size()" << std::endl;
+                return;
+            }
+            for (int i = 1; i < x.size(); i++) {
+                if (x[i] <= x[i - 1]) {
+                    std::cout << "error: InterpCubicSplineNatural, x must be increasing order" << std::endl;
+                    return;
+                }
+            }
+
+            this->x = x;
+            this->y = y;
+
+            PartialDirivitive();
+        }
+
+        T Interp(double x) {
+            if (x <= this->x[0])
+                return this->y[0];
+            if (x >= this->x.back())
+                return this->y.back();
+
+            auto iter = std::upper_bound(this->x.begin(), this->x.end(), x);
+            int idx = iter - this->x.begin() - 1;
+            if (idx < 0 || idx >= a.size()) {
+                std::cout << "error: InterpCubicSplineNatural::Interp, idx not correct: " << idx << std::endl;
+                return this->y[0];
+            }
+
+            double coef = x - this->x[idx];
+            double coef2 = coef * coef;
+            return a[idx] + b[idx] * coef + c[idx] * coef2 + d[idx] * coef2 * coef;
+        }
+
+    protected:
+        std::vector<double>		x;
+        STLVector<T>			y;
+
+        std::vector<T>			a, b, c, d;		//	a + b (x-xi) + c (x-xi)^2 + d (x-xi)^3
+
+        void PartialDirivitive() {
+            //	the algorithm can be found here: https://blog.csdn.net/limingmcu/article/details/91492214
+            std::vector<double> h(x.size() - 1, 0.0);
+            for (int i = 0; i < h.size(); i++)
+                h[i] = x[i + 1] - x[i];
+
+            //	setup the tri-digonal matrix
+            std::vector<double> a(x.size(), 0.0), b(x.size(), 0.0), c(x.size(), 0.0);
+            b[0] = 1.0;
+            b[x.size() - 1] = 1.0;
+            for (int i = 1; i < x.size() - 1; i++) {
+                a[i] = h[i - 1];
+                b[i] = 2 * (h[i - 1] + h[i]);
+                c[i] = h[i];
+            }
+
+            //	setup matrix right hand side
+            T zero = Zero();
+            std::vector<T> rhs(x.size(), zero);
+            for (int i = 1; i < x.size() - 1; i++) {
+                rhs[i] = ((y[i + 1] - y[i]) / h[i] - (y[i] - y[i - 1]) / h[i - 1]) * 6.0;
+            }
+
+            //	solve the system using Thomas method: https://wenku.baidu.com/view/5503af3589eb172dec63b719.html
+            std::vector<double> l(x.size(), 0.0), u(x.size(), 0.0);
+            u[0] = b[0];
+            for (int i = 1; i < x.size(); i++) {
+                l[i] = a[i] / u[i - 1];
+                u[i] = b[i] - c[i - 1] * l[i];
+            }
+
+            std::vector<T> f(x.size(), zero);
+            f[0] = rhs[0];
+            for (int i = 1; i < x.size(); i++) {
+                f[i] = rhs[i] - l[i] * f[i - 1];
+            }
+
+            std::vector<T> m(x.size(), zero);
+            m[x.size() - 1] = f[x.size() - 1] / u[x.size() - 1];
+            for (int i = x.size() - 2; i >= 0; i--) {
+                m[i] = (f[i] - c[i] * m[i + 1]) / u[i];
+            }
+
+            //	create third order coef for each segment
+            this->a.resize(x.size() - 1, zero);
+            this->b.resize(x.size() - 1, zero);
+            this->c.resize(x.size() - 1, zero);
+            this->d.resize(x.size() - 1, zero);
+            for (int i = 0; i < x.size() - 1; i++) {
+                this->a[i] = y[i];
+                this->b[i] = (y[i + 1] - y[i]) / h[i] - h[i] / 2.0 * m[i] - h[i] / 6.0 * (m[i + 1] - m[i]);
+                this->c[i] = m[i] / 2.0;
+                this->d[i] = (m[i + 1] - m[i]) / (6.0 * h[i]);
+            }
+        }
+
+        T Zero() {
+            return T();
+        }
+    };
+
+
+public:
     static STLVector<InversePose> SampleTrajectory(const std::string& objFile, double total_duration, double T_sample, STLVector<Eigen::Vector3d>* pOriginalVerticesOut = nullptr)
     {
         // read squares
@@ -105,7 +219,56 @@ private:
             inv_poses.push_back(inv_pose);
         }
     }
+
     static void InterpolateGrid(const STLVector<Eigen::Vector3d>& up_vertices_in, const STLVector<Eigen::Vector3d>& down_vertices_in,
+        const double total_duration, const double T_sample,
+        STLVector<Eigen::Vector3d>& up_vertices_out, STLVector<Eigen::Vector3d>& down_vertices_out)
+    {
+        assert(up_vertices_in.size() == down_vertices_in.size());
+        assert(total_duration > 0 && T_sample > 0);
+
+        int N_vertex = up_vertices_in.size();
+        int N_grid = N_vertex - 1;
+        double T_grid = total_duration / N_grid;
+
+        up_vertices_out.clear();
+        down_vertices_out.clear();
+
+        std::vector<double> coef;
+        for (int i = 0; i < N_vertex; i++)
+			coef.push_back(i);
+
+		InterpCubicSplineNatural<Eigen::Vector3d> cubic_spline_interp_up(coef, up_vertices_in);
+        InterpCubicSplineNatural<Eigen::Vector3d> cubic_spline_interp_down(coef, down_vertices_in);
+
+        double current_time = 0.0;
+        while (current_time < total_duration)
+        {
+            double pos = current_time / T_grid;
+
+            Eigen::Vector3d up_vertex = cubic_spline_interp_up.Interp(pos);
+            Eigen::Vector3d down_vertex = cubic_spline_interp_down.Interp(pos);
+
+            //  =======================================
+            up_vertices_out.push_back(up_vertex);
+            down_vertices_out.push_back(down_vertex);
+
+            current_time += T_sample;
+        }
+
+        //static int flag = 0;
+        //char filename[1024];
+        //sprintf(filename, "E:/OpenMVG_IMU_synthetic_data/circle/tmp_%d.txt", flag);
+        //std::ofstream file(filename);
+        //for (int i = 0; i < down_vertices_out.size(); i++) {
+        //	Eigen::Vector3d r = up_vertices_out[i];
+        //	file << r[0] << ',' << r[1] << ',' << r[2] << std::endl;
+        //}
+        //file.close();
+        //flag++;
+    }
+
+    static void InterpolateGridFirstOrder(const STLVector<Eigen::Vector3d>& up_vertices_in, const STLVector<Eigen::Vector3d>& down_vertices_in,
                          const double total_duration, const double T_sample,
                          STLVector<Eigen::Vector3d>& up_vertices_out, STLVector<Eigen::Vector3d>& down_vertices_out)
     {

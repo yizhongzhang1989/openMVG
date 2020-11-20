@@ -13,20 +13,6 @@ target_link_libraries(openMVG_main_SfMInit_ImageListing
     ${STLPLUS_LIBRARY}
 )
 
-###
-# Intrinsic image analysis and SfM_Data container initialization
-###
-add_executable(openMVG_main_SfMInit_ImageListing_EuRoc main_SfMInit_ImageListing_EuRoc.cpp)
-target_link_libraries(openMVG_main_SfMInit_ImageListing_EuRoc
-        PRIVATE
-        openMVG_system
-        openMVG_image
-        openMVG_features
-        openMVG_sfm
-        openMVG_exif
-        ${STLPLUS_LIBRARY}
-        )
-
 #convert a v0.6 lists.txt file to the new sfm_data.X format
 add_executable(openMVG_main_ConvertList main_ConvertList.cpp)
 target_link_libraries(openMVG_main_ConvertList
@@ -125,16 +111,6 @@ target_link_libraries(openMVG_main_IncrementalSfM
     openMVG_sfm
     ${STLPLUS_LIBRARY}
 )
-
-add_executable(main_IncrementalSfM_window Window_SfM/main_IncrementalSfM_window.cpp)
-target_link_libraries(main_IncrementalSfM_window
-        PRIVATE
-        openMVG_system
-        openMVG_image
-        openMVG_features
-        openMVG_sfm
-        ${STLPLUS_LIBRARY}
-        )
 
 add_executable(openMVG_main_IncrementalSfM2 main_IncrementalSfM2.cpp)
 target_link_libraries(openMVG_main_IncrementalSfM2
@@ -317,5 +293,3 @@ add_subdirectory(clustering)
 add_subdirectory(export)
 add_subdirectory(import)
 add_subdirectory(addIMU)
-add_subdirectory(VISfM)
-add_subdirectory(SimulationData_Gen)

@@ -71,7 +71,7 @@ private:
     /** 
      * Flag whether the initialization has finished.
      */
-    std::atomic<bool> imu_calibrated_;
+    bool imu_calibrated_;
     
     /** 
      * Queue of IMU readings used for IMU initialization. 

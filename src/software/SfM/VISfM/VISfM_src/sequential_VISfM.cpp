@@ -85,6 +85,11 @@ namespace sfm{
         matches_provider_ = provider;
     }
 
+    void SequentialVISfMReconstructionEngine::SetPoseGT(Poses &_pose)
+    {
+        sfm_data_.poses_gt = _pose;
+    }
+
     void SequentialVISfMReconstructionEngine::SetTimeStamp(std::vector<double> &times)
     {
         std::cout <<" times.size() = " <<  times.size() << std::endl;
@@ -132,15 +137,16 @@ namespace sfm{
 
                 // Perform BA until all point are under the given precision
 //                if( resectionGroupIndex % 10 == 0 )
-                {
+                {//                      std::cout << "start update_state_speed" << std::endl;
+                    update_state_speed();
+//                      std::cout << "start update_state_speed" << std::endl;
+                    update_imu_time();
+//                      std::cout << "start update_imu_inte" << std::endl;
+                    update_imu_inte();
+                    BundleAdjustment_optimizi_init_IMU( );
                     do
                     {
-//                      std::cout << "start update_state_speed" << std::endl;
-                        update_state_speed();
-//                      std::cout << "start update_state_speed" << std::endl;
-                        update_imu_time();
-//                      std::cout << "start update_imu_inte" << std::endl;
-                        update_imu_inte();
+
 //                      std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
                         BundleAdjustment_optimizi_only_IMU();
 //                      std::cout << "start BundleAdjustmentWithIMU" << std::endl;
@@ -375,20 +381,21 @@ namespace sfm{
                 // Perform BA until all point are under the given precision
                 if( resectionGroupIndex % 10 == 0 )
                 {
-                    std::cout << "start full BA " << std::endl;
+                    std::cout << "start full BA " << std::endl;//                      std::cout << "start update_state_speed" << std::endl;
+                    update_state_speed();
+//                      std::cout << "start update_state_speed" << std::endl;
+                    update_imu_time();
+//                      std::cout << "start update_imu_inte" << std::endl;
+                    update_imu_inte();
+                    BundleAdjustment_optimizi_init_IMU( );
                     do
                     {
-//                      std::cout << "start update_state_speed" << std::endl;
-                        update_state_speed();
-//                      std::cout << "start update_state_speed" << std::endl;
-                        update_imu_time();
-//                      std::cout << "start update_imu_inte" << std::endl;
-                        update_imu_inte();
-//                      std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
                         BundleAdjustment_optimizi_only_IMU();
+                        BundleAdjustment();
+//                      std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
 //                      std::cout << "start BundleAdjustmentWithIMU" << std::endl;
 //                      std::cout << "end BundleAdjustment_optimizi_only_IMU" << std::endl;
-                        BundleAdjustmentWithIMU( );
+//                        BundleAdjustmentWithIMU( );
 //                      std::cout << "end BundleAdjustmentWithIMU" << std::endl;
                     }
                     while (badTrackRejector(4.0, 50));
@@ -486,13 +493,14 @@ namespace sfm{
                         Save(local_scene, stlplus::create_filespec(sOut_directory_, os2.str(), ".ply"), ESfM_Data(ALL));
                     }
 
+                    BundleAdjustment_optimizi_init_IMU( local_scene );
                     // Perform BA until all point are under the given precision
                     do
                     {
 //                        update_imu_time(local_scene);
 //                        update_imu_inte(local_scene);
                         std::cout <<"BundleAdjustment_optimizi_only_IMU()" << std::endl;
-                        BundleAdjustment_optimizi_only_IMU();
+                        BundleAdjustment_optimizi_only_IMU( local_scene );
                         std::cout <<"BundleAdjustmentWithIMU_local()"  << std::endl;
                         BundleAdjustmentWithIMU_local( local_scene );
                         std::cout <<"BundleAdjustment over"  << std::endl;
@@ -521,12 +529,23 @@ namespace sfm{
                                     local_scene.structure[structure_landmark_it.first].X;
                         }
                     }
+                    sfm_data_.Speeds = local_scene.Speeds;
+                    sfm_data_.imus = local_scene.imus;
+
                 }
 
                 eraseUnstablePosesAndObservations(sfm_data_);
             }
             ++resectionGroupIndex;
         }
+
+
+        do
+        {
+//            BundleAdjustmentWithIMU(  );
+            BundleAdjustment( );
+        }
+        while (badTrackRejector(4.0, 50));
         // Ensure there is no remaining outliers
         if (badTrackRejector(4.0, 0))
         {
@@ -596,6 +615,82 @@ namespace sfm{
     bool SequentialVISfMReconstructionEngine::Process_onlyvisual()
     {
         return false;
+    }
+
+    bool SequentialVISfMReconstructionEngine::TestImuFactor()
+    {
+        // 1. update imus time
+        {
+            auto it_view = sfm_data_.views.begin();
+            double last_t = sfm_data_.timestamps.at( it_view->first );
+            it_view++;
+            while( it_view != sfm_data_.views.end() )
+            {
+                double cur_t = sfm_data_.timestamps.at( it_view->first );
+                auto id_pose = it_view->first;
+                if( sfm_data_.imus.count( id_pose ) == 0 )
+                {
+                    IMU_InteBase imubase_ptr(last_t, cur_t);
+                    sfm_data_.imus.insert( std::make_pair( id_pose,  imubase_ptr) );
+                }
+                last_t = cur_t;
+                it_view++;
+            }
+        }
+
+        // 2. update imus integration
+        {
+            for( auto & id_imubase:sfm_data_.imus )
+            {
+                double t0 = id_imubase.second.t0_;
+                double t1 = id_imubase.second.t1_;
+                std::vector< double > times;
+                std::vector<Vec3> accs;
+                std::vector<Vec3> gyrs;
+                bool good_flag;
+
+                std::tie( good_flag, times, accs, gyrs ) = sfm_data_.imu_dataset->GetMeasure(t0, t1);
+                id_imubase.second.integrate(accs, gyrs, times, good_flag);
+            }
+        }
+
+        // 3. update speed ini
+        {
+            auto it_view = sfm_data_.views.begin();
+            while( it_view != sfm_data_.views.end() )
+            {
+                auto id_pose = it_view->first;
+                if( id_pose == 0 )
+                {
+                    IMU_Speed speed(Eigen::Vector3d(0.,0.,0.));
+                    sfm_data_.Speeds.insert({ id_pose,  speed });
+                }
+                else
+                {
+                    Eigen::Vector3d speed3d = sfm_data_.Speeds.at(id_pose-1).speed_
+                            + sfm_data_.poses_gt.at(id_pose).rotation().transpose() * sfm_data_.imus.at(id_pose).delta_v_;
+                    IMU_Speed speed(speed3d);
+                    sfm_data_.Speeds.insert({ id_pose,  speed });
+                }
+                it_view++;
+            }
+        }
+
+        // 4. init poses
+        {
+            for( auto&view:sfm_data_.views )
+            {
+                Pose3 pose ;//= sfm_data_.poses_gt.at(view.second->id_pose);
+                sfm_data_.poses.insert( {view.first, pose} );
+            }
+        }
+
+        // 4. optimization
+        {
+            TestIMUFactorOptimization();
+        }
+
+        return true;
     }
 
     bool SequentialVISfMReconstructionEngine::VI_Init()
@@ -844,7 +939,7 @@ namespace sfm{
         }*/
 
         std::cout <<"-=------=-=-=-=-=-=-=-=" << std::endl;
-        double correct_scale = (speeds_scale.tail<1>())(0) / 100.;
+        double correct_scale = (speeds_scale.tail<1>())(0) / 100. * 1.5;
 //        correct_scale = 3.57;//(speeds_scale.tail<1>())(0) / 100.;
 
 
@@ -1141,11 +1236,13 @@ namespace sfm{
     {
         //check imu observibility
         {
+            std::cout << "sfm_data_.imus.size() = " << sfm_data_.imus.size() << std::endl;
             Eigen::Vector3d sum_g;
             double sum_i = 0.;
             for( const auto&imu:sfm_data_.imus )
             {
                 auto dt = imu.second.sum_dt_;
+//                std::cout << "imu.second.sum_dt_ = " << imu.second.sum_dt_ << std::endl;
                 if( dt == 0 ) continue;
                 Eigen::Vector3d tmp_g = imu.second.delta_v_ / dt;
                 sum_g += tmp_g;
@@ -1154,18 +1251,25 @@ namespace sfm{
 
             Eigen::Vector3d aver_g;
             aver_g = sum_g * 1.0 / sum_i;
+            Eigen::Vector3d var_xyz(0.,0.,0.);
             double var = 0;
             for( const auto&imu:sfm_data_.imus )
             {
                 auto dt = imu.second.sum_dt_;
                 if( dt == 0 ) continue;
                 Eigen::Vector3d tmp_g = imu.second.delta_v_ / dt;
+                Eigen::Vector3d tmp_V = (tmp_g - aver_g);
+                tmp_V(0) = tmp_V(0)* tmp_V(0);
+                tmp_V(1) = tmp_V(1)* tmp_V(1);
+                tmp_V(2) = tmp_V(2)* tmp_V(2);
+                var_xyz += tmp_V;
                 var += (tmp_g - aver_g).transpose() * (tmp_g - aver_g);
             }
-
+            var_xyz /= sum_i;
             var = std::sqrt(var / sum_i);
             //ROS_WARN("IMU variation %f!", var);
             std::cout << "IMU variation " << var << std::endl;
+            std::cout << "IMU variation " << var_xyz.transpose() << std::endl;
             if(var < 0.25)
             {
                 std::cout << "IMU excitation not enouth!" << std::endl;
@@ -1593,6 +1697,63 @@ namespace sfm{
         return bundle_adjustment_obj.Adjust(local_scene, ba_refine_options);
     }
 
+    bool SequentialVISfMReconstructionEngine::BundleAdjustment_optimizi_init_IMU()
+    {
+        Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
+        if ( sfm_data_.GetPoses().size() > 100 &&
+             (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::CX_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::EIGEN_SPARSE))
+                )
+            // Enable sparse BA only if a sparse lib is available and if there more than 100 poses
+        {
+            options.preconditioner_type_ = ceres::JACOBI;
+            options.linear_solver_type_ = ceres::SPARSE_SCHUR;
+        }
+        else
+        {
+            options.linear_solver_type_ = ceres::DENSE_SCHUR;
+        }
+        Bundle_Adjustment_IMU_Ceres bundle_adjustment_obj(options);
+//        Bundle_Adjustment_Ceres bundle_adjustment_obj(options);
+        const Optimize_Options ba_refine_options
+                ( ReconstructionEngine::intrinsic_refinement_options_,
+                  Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
+                  Structure_Parameter_Type::ADJUST_ALL, // Adjust scene structure
+                  Control_Point_Parameter(),
+                  this->b_use_motion_prior_
+                );
+        return bundle_adjustment_obj.Adjust_InitIMU(sfm_data_, ba_refine_options);
+    }
+
+    bool SequentialVISfMReconstructionEngine::BundleAdjustment_optimizi_init_IMU(SfM_Data &local_scene)
+    {
+        Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
+        if ( local_scene.GetPoses().size() > 100 &&
+             (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::CX_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::EIGEN_SPARSE))
+                )
+            // Enable sparse BA only if a sparse lib is available and if there more than 100 poses
+        {
+            options.preconditioner_type_ = ceres::JACOBI;
+            options.linear_solver_type_ = ceres::SPARSE_SCHUR;
+        }
+        else
+        {
+            options.linear_solver_type_ = ceres::DENSE_SCHUR;
+        }
+        Bundle_Adjustment_IMU_Ceres bundle_adjustment_obj(options);
+//        Bundle_Adjustment_Ceres bundle_adjustment_obj(options);
+        const Optimize_Options ba_refine_options
+                ( ReconstructionEngine::intrinsic_refinement_options_,
+                  Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
+                  Structure_Parameter_Type::ADJUST_ALL, // Adjust scene structure
+                  Control_Point_Parameter(),
+                  this->b_use_motion_prior_
+                );
+        return bundle_adjustment_obj.Adjust_InitIMU(local_scene, ba_refine_options);
+    }
 
     bool SequentialVISfMReconstructionEngine::BundleAdjustment_optimizi_only_IMU()
     {
@@ -1650,6 +1811,205 @@ namespace sfm{
                   this->b_use_motion_prior_
                 );
         return bundle_adjustment_obj.Adjust_onlyIMU(local_scene, ba_refine_options);
+    }
+
+    void SequentialVISfMReconstructionEngine::TestIMUFactorOptimization()
+    {
+        ceres::Problem problem;
+
+        Hash_Map<IndexT, std::vector<double>> map_poses;
+        Hash_Map<IndexT, std::vector<double>> map_poses_rotation;
+        Hash_Map<IndexT, std::vector<double>> map_poses_translation;
+        Hash_Map<IndexT, std::vector<double>> map_speed;
+        Hash_Map<IndexT, std::vector<double>> map_speed_baise;
+
+        for (const auto & pose_it : sfm_data_.poses)
+        {
+            const IndexT indexPose = pose_it.first;
+
+            const Pose3 & pose = pose_it.second;
+            const Mat3 Rwc = pose.rotation().transpose();
+            const Vec3 twc = pose.center();
+
+            Vec3 tci = - sfm_data_.IG_Ric.transpose() * sfm_data_.IG_tic;
+            Mat3 Rwi = Rwc * sfm_data_.IG_Ric.transpose();
+            Eigen::Quaterniond Qwi(Rwi);
+            Vec3 twi = twc + Rwc * tci;
+
+            map_poses_translation[indexPose] = {
+                    twi(0),
+                    twi(1),
+                    twi(2)
+            };
+
+            map_poses_rotation[indexPose] = {
+                    Qwi.x(),
+                    Qwi.y(),
+                    Qwi.z(),
+                    Qwi.w()
+            };
+
+            map_poses[indexPose] = {
+                    twi(0),
+                    twi(1),
+                    twi(2),
+                    Qwi.x(),
+                    Qwi.y(),
+                    Qwi.z(),
+                    Qwi.w()
+            };
+
+//            {
+//
+//                double * parameter_block = &map_poses.at(indexPose)[0];
+//                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+//                problem.AddParameterBlock(parameter_block, 7, local_parameterization);  // p,q
+//            }
+
+            {
+                double * parameter_roation_block = &map_poses_rotation.at(indexPose)[0];
+                ceres::LocalParameterization *local_parameterization = new PoseQuaternLocalParameterization();
+                problem.AddParameterBlock(parameter_roation_block, 4, local_parameterization);
+            }
+
+            {
+                double * parameter_translation_block = &map_poses_translation.at(indexPose)[0];
+                problem.AddParameterBlock(parameter_translation_block, 3);
+            }
+        }
+
+        for( const auto& imu:sfm_data_.imus )
+        {
+            const IndexT indexSpd = imu.first;
+            Vec3 speedV3d = sfm_data_.Speeds.at(indexSpd).speed_;
+//            map_speed[indexSpd] = {
+//                    speedV3d(0),
+//                    speedV3d(1),
+//                    speedV3d(2)
+//            };
+//            double * parameter_block = &map_speed.at(indexSpd)[0];
+//            problem.AddParameterBlock(parameter_block, 3);
+
+            Vec3 Ba = imu.second.linearized_ba_;
+            Vec3 Bg = imu.second.linearized_bg_;
+            map_speed_baise[indexSpd] = {
+                    speedV3d(0),
+                    speedV3d(1),
+                    speedV3d(2),
+
+                    Ba(0),
+                    Ba(1),
+                    Ba(2),
+
+                    Bg(0),
+                    Bg(1),
+                    Bg(2)
+
+            };
+            double * parameter_block = &map_speed_baise.at(indexSpd)[0];
+            problem.AddParameterBlock(parameter_block, 9);
+
+        }
+
+
+        ceres::LossFunction * LossFunction = nullptr;
+        // Add Factor
+        // 1. imu facotr
+        {
+            auto pose_i = sfm_data_.poses.begin(); pose_i++;
+            auto pose_j = std::next(pose_i);
+            for(; pose_j != sfm_data_.poses.end(); pose_j++, pose_i++)
+            {
+//                break;
+                const IndexT indexPose = pose_j->first;
+                auto imu_inte = sfm_data_.imus.at(indexPose);
+                auto imu_factor = new IMUFactorBAISE(imu_inte);
+                problem.AddResidualBlock(imu_factor, LossFunction,
+                                         &map_poses_translation.at(pose_i->first)[0],
+                                         &map_poses_rotation.at(pose_i->first)[0],
+                                         &map_speed_baise.at(pose_i->first)[0],
+                                         &map_poses_translation.at(pose_j->first)[0],
+                                         &map_poses_rotation.at(pose_j->first)[0],
+                                         &map_speed_baise.at(pose_j->first)[0]);
+
+//                auto imu_factor = new IMUFactorWOBAISE(imu_inte);
+//                problem.AddResidualBlock(imu_factor, LossFunction,
+//                                         &map_poses_translation.at(pose_i->first)[0],
+//                                         &map_poses_rotation.at(pose_i->first)[0],
+//                                         &map_speed.at(pose_i->first)[0],
+//                                         &map_poses_translation.at(pose_j->first)[0],
+//                                         &map_poses_rotation.at(pose_j->first)[0],
+//                                         &map_speed.at(pose_j->first)[0]);
+            }
+        }
+        // 2. soft constraints
+        {
+            int i = 0;
+            for( auto &it_pose:sfm_data_.poses_gt )
+            {
+//                break;
+                double soft;
+                if( i++ < 10 ) soft = 1;
+                else soft = 0;
+
+                const Pose3 & pose = it_pose.second;
+                const Mat3 Rwc = pose.rotation().transpose();
+                const Vec3 twc = pose.center();
+                Vec3 tci = - sfm_data_.IG_Ric.transpose() * sfm_data_.IG_tic;
+                Mat3 Rwi = Rwc * sfm_data_.IG_Ric.transpose();
+                Vec3 twi = twc + Rwc * tci;
+
+                const IndexT indexPose = it_pose.first;
+                auto translation_constrains = new IMUFactorSoftConstrainsTranslation( twi, soft );
+
+
+                auto rotation_constrains = new IMUFactorSoftConstrainsRotation( Rwi, soft );
+
+
+                problem.AddResidualBlock(rotation_constrains, LossFunction,
+                                         &map_poses_rotation.at(indexPose)[0]);
+                problem.AddResidualBlock(translation_constrains, LossFunction,
+                                         &map_poses_translation.at(indexPose)[0]);
+            }
+        }
+
+        ceres::Solver::Options ceres_config_options;
+        ceres_config_options.max_num_iterations = 500;
+        ceres_config_options.linear_solver_type = ceres::DENSE_SCHUR;
+        ceres_config_options.trust_region_strategy_type = ceres::DOGLEG;
+        ceres_config_options.minimizer_progress_to_stdout = true;
+        ceres_config_options.logging_type = ceres::PER_MINIMIZER_ITERATION;//PER_MINIMIZER_ITERATION;//SILENT;
+        ceres_config_options.num_threads = 1;
+
+        // Solve BA
+        ceres::Solver::Summary summary;
+        std::cout << "start Solve" << std::endl;
+        ceres::Solve(ceres_config_options, &problem, &summary);
+        std::cout << summary.FullReport() << std::endl;
+
+         {
+            for (auto &pose_it : sfm_data_.poses) {
+                const IndexT indexPose = pose_it.first;
+
+                Eigen::Quaterniond Qwi(map_poses_rotation.at(indexPose)[3],
+                                        map_poses_rotation.at(indexPose)[0],
+                                        map_poses_rotation.at(indexPose)[1],
+                                        map_poses_rotation.at(indexPose)[2] );
+                Vec3 twi(map_poses_translation.at(indexPose)[0],
+                         map_poses_translation.at(indexPose)[1],
+                         map_poses_translation.at(indexPose)[2]);
+                Mat3 Rwi = Qwi.toRotationMatrix();
+
+                Vec3 tci = - sfm_data_.IG_Ric.transpose() * sfm_data_.IG_tic;
+                Mat3 Rcw = ( Rwi * sfm_data_.IG_Ric ).transpose();
+                Vec3 twc = twi + Rwi * sfm_data_.IG_tic;
+
+                // Update the pose
+                pose_it.second.SetRoation(Rcw);
+                pose_it.second.SetCenter(twc);
+            }
+        }
+
     }
 
     /**

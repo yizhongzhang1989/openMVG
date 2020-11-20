@@ -283,6 +283,7 @@ int main(int argc, char **argv)
                   << "Invalid features." << std::endl;
         return EXIT_FAILURE;
     }
+    std::cout << "match load begin"<< std::endl;
     // Matches reading
     std::shared_ptr<Matches_Provider> matches_provider = std::make_shared<Matches_Provider>();
     if // Try to read the provided match filename or the default one (matches.f.txt/bin)
@@ -296,6 +297,8 @@ int main(int argc, char **argv)
                   << "Invalid matches file." << std::endl;
         return EXIT_FAILURE;
     }
+
+    std::cout << "match load over" << std::endl;
 
     if (sOutDir.empty())  {
         std::cerr << "\nIt is an invalid output directory" << std::endl;

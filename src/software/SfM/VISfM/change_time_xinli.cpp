@@ -20,9 +20,11 @@ int main(int argc, char **argv)
     {
         double time;
         fin >> time;
-        if( i++%2 == 0 )
+//        if( i++%2 == 0 )
         {
-            fout << time << std::endl;
+            double new_time;
+            new_time = 1403715273262142976 + time*1e9;
+            fout << new_time << std::endl;
         }
     }
     fin.close();
@@ -31,3 +33,7 @@ int main(int argc, char **argv)
 
     return 0;
 }
+
+//1403715273262142976
+//1403715273
+//262142976

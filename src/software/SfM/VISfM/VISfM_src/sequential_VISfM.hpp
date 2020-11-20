@@ -41,6 +41,7 @@ public:
     void SetFeaturesProvider(Features_Provider * provider);
     void SetMatchesProvider(Matches_Provider * provider);
     void SetTimeStamp( std::vector<double>& times );
+    void SetPoseGT( Poses& _pose );
     void SetIMUDataset( std::shared_ptr<IMU_Dataset> imudataset_ );
 
     virtual bool Process() override;
@@ -49,6 +50,8 @@ public:
     bool Process_onlyvisual();
 
     bool VI_Init( );
+
+    bool TestImuFactor();
 
     void solveGyroscopeBias();
     bool solve_vgs( Eigen::VectorXd& speeds_scale, Eigen::Vector3d& correct_g );
@@ -131,8 +134,12 @@ private:
     bool BundleAdjustmentWithIMU_local( SfM_Data &local_scene );
 
     bool BundleAdjustment_optimizi_only_IMU();
-
     bool BundleAdjustment_optimizi_only_IMU(SfM_Data &local_scene);
+
+    void TestIMUFactorOptimization();
+
+    bool BundleAdjustment_optimizi_init_IMU();
+    bool BundleAdjustment_optimizi_init_IMU(SfM_Data &local_scene);
 
     /// Discard track with too large residual error
     bool badTrackRejector(double dPrecision, size_t count = 0);

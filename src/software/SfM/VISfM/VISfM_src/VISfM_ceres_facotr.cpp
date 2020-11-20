@@ -9,7 +9,9 @@ namespace openMVG
 {
     namespace sfm
     {
+        Eigen::Matrix<double, 15, 15> IMUFactorBAISE::sqrt_info_weight = Eigen::Matrix<double, 15, 15>::Identity();
         Eigen::Matrix<double, 15, 15> IMUFactor::sqrt_info_weight = Eigen::Matrix<double, 15, 15>::Identity();
+        Eigen::Matrix<double, 12, 12> IMUFactorWOBAISE::sqrt_info_weight = Eigen::Matrix<double, 12, 12>::Identity();
         Eigen::Matrix2d VISfM_Projection::sqrt_info = Eigen::Matrix2d::Identity();
 
         VISfM_Projection::VISfM_Projection(Eigen::Vector2d &obs) : point_obs_(obs)
@@ -260,6 +262,128 @@ namespace openMVG
         }
 
 
+        IMUFactorSoftConstrainsTranslation::IMUFactorSoftConstrainsTranslation(const Vec3 &_twi, double soft)
+        {
+            twi_ = _twi;
+            soft_ = soft;
+        }
+
+        bool IMUFactorSoftConstrainsTranslation::Evaluate(const double *const *parameters, double *residuals, double **jacobians) const
+        {
+            Eigen::Vector3d twi(parameters[0][0], parameters[0][1], parameters[0][2]);
+
+            Eigen::Map<Eigen::Vector3d> residual(residuals);
+            residual = twi - twi_;
+            residual = soft_ * residual;
+
+            if( jacobians )
+            {
+                if(jacobians[0])
+                {
+                    Eigen::Map< Eigen::Matrix<double, 3, 3, Eigen::RowMajor> >jacobian_translation( jacobians[0] );
+                    jacobian_translation.setIdentity();
+                    jacobian_translation *= soft_;
+                }
+
+                bool numb_jaco = false;
+                if( numb_jaco )
+                {
+                    const double eps = 1e-6;
+                    Eigen::Matrix<double, 3, 3> num_jacobian;
+                    for (int k = 0; k < 3; k++)
+                    {
+                        Eigen::Vector3d twi_numb( parameters[0][0], parameters[0][1], parameters[0][2] );
+
+                        int a = k / 3, b = k % 3;
+                        Eigen::Vector3d delta = Eigen::Vector3d(b == 0, b == 1, b == 2) * eps;
+
+                        if (a == 0)
+                            twi_numb += delta;
+
+                        Eigen::Vector3d residual_numb;
+                        residual_numb = twi_numb - twi_;
+                        residual_numb = soft_ * residual_numb;
+                        num_jacobian.col(k) = (residual_numb - residual) / eps;
+                    }
+                    std::cout << "========================" << std::endl;
+                    if(jacobians[0])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> jacobian_translation(jacobians[0]);
+
+                        std::cout << jacobian_translation << std::endl;
+                        std::cout << "------------------------" << std::endl;
+                        std::cout << num_jacobian << std::endl;
+                    }
+                    std::cout << "========================" << std::endl;
+                }
+            }
+
+            return true;
+        }
+
+        IMUFactorSoftConstrainsRotation::IMUFactorSoftConstrainsRotation(const Mat3 &_Rwi, double soft)
+        {
+            Eigen::Quaterniond Qwi(_Rwi);
+            Qwi_double_ = { Qwi.w(), Qwi.x(), Qwi.y(), Qwi.z() };
+            soft_ = soft;
+        }
+
+        bool IMUFactorSoftConstrainsRotation::Evaluate(const double *const *parameters, double *residuals, double **jacobians) const
+        {
+            Eigen::Quaterniond Qwi_(Qwi_double_[0], Qwi_double_[1], Qwi_double_[2], Qwi_double_[3]);
+            Eigen::Quaterniond Qwi(parameters[0][3], parameters[0][0], parameters[0][1], parameters[0][2]);
+
+            Eigen::Map<Eigen::Vector3d> residual(residuals);
+
+            residual = 2 * (Qwi_.inverse() * Qwi).vec();
+            residual = soft_ * residual;
+
+            if( jacobians )
+            {
+                if(jacobians[0])
+                {
+                    Eigen::Map< Eigen::Matrix<double, 3, 4, Eigen::RowMajor> >jacobian_rotation( jacobians[0] );
+                    jacobian_rotation.setZero();
+                    jacobian_rotation.block<3,3>(0,0) = Utility::Qleft(Qwi_.inverse() * Qwi).bottomRightCorner<3, 3>();
+                    jacobian_rotation *= soft_;
+                }
+
+                bool numb_jaco = false;
+                if( numb_jaco )
+                {
+                    const double eps = 1e-6;
+                    Eigen::Matrix<double, 3, 3> num_jacobian;
+                    for (int k = 0; k < 3; k++)
+                    {
+                        Eigen::Quaterniond Qwi_numb(parameters[0][3], parameters[0][0], parameters[0][1], parameters[0][2]);
+                        int a = k / 3, b = k % 3;
+                        Eigen::Vector3d delta = Eigen::Vector3d(b == 0, b == 1, b == 2) * eps;
+                        if (a == 0)
+                            Qwi_numb = Qwi_numb * Utility::deltaQ(delta);
+
+                        Eigen::Vector3d residual_numb;
+                        residual_numb = 2 * (Qwi_.inverse() * Qwi_numb).vec();
+                        residual_numb = soft_ * residual_numb;
+                        num_jacobian.col(k) = (residual_numb - residual) / eps;
+                    }
+
+                    std::cout << "========================" << std::endl;
+                    if(jacobians[0])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 3, 4, Eigen::RowMajor>> jacobian_rotation(jacobians[0]);
+
+                        std::cout << jacobian_rotation << std::endl;
+                        std::cout << "------------------------" << std::endl;
+                        std::cout << num_jacobian << std::endl;
+                    }
+                    std::cout << "========================" << std::endl;
+                }
+            }
+
+            return true;
+
+
+        }
 
     }
 }

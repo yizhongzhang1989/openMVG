@@ -61,6 +61,7 @@ struct SfM_Data
   /// Considered poses (indexed by view.id_pose)
   Poses poses;
 
+  Poses poses_gt;
   // Considered IMU integration (indexed by view.id_pose)
   Imus imus;
   // Considered timestamp (indexed by view.id_pose)

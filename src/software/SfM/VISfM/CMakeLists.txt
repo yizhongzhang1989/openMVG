@@ -30,6 +30,23 @@ target_include_directories(main_window_VISfM PRIVATE ${CERES_INCLUDE_DIRS})
 set_property(TARGET main_window_VISfM PROPERTY FOLDER OpenMVG/software/VISfM)
 install(TARGETS main_window_VISfM DESTINATION bin/)
 
+
+add_executable(test_imu_factor test_imu_factor.cpp)
+#        VISfM_src/sequential_VISfM.cpp VISfM_src/sequential_VISfM.hpp VISfM_src/visfm_data_BA_ceres.cpp VISfM_src/visfm_data_BA_ceres.hpp VISfM_src/VISfM_ceres_facotr.cpp VISfM_src/VISfM_ceres_facotr.hpp VISfM_src/VISfM_ceres_param.cpp VISfM_src/VISfM_ceres_param.hpp VISfM_src/Utility.hpp VISfM_src/VI_static_Parm.hpp VISfM_src/IMU_InteBase.hpp VISfM_src/VI_static_Parm.cpp)
+target_link_libraries(test_imu_factor
+        PRIVATE
+        openMVG_vi_sfm
+        openMVG_system
+        openMVG_image
+        openMVG_features
+        openMVG_sfm
+        ${STLPLUS_LIBRARY}
+        )
+target_include_directories(test_imu_factor PRIVATE ${CERES_INCLUDE_DIRS})
+set_property(TARGET test_imu_factor PROPERTY FOLDER OpenMVG/software/VISfM)
+install(TARGETS test_imu_factor DESTINATION bin/)
+
+
 add_executable(openMVG_main_save_pose_point save_pose_point.cpp)
 target_link_libraries(openMVG_main_save_pose_point
         PRIVATE

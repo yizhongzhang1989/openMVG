@@ -64,3 +64,32 @@ C:\Users/v-xinli1\Documents\Data\LayoutBuilderTestData/20200501_GAP_1\20200501_1
 }
 
 
+
+-i
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\openMVGFormat\sfm_data.json
+-m
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\openMVGFormat
+-o
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\debug_ex_td
+-M
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\openMVGFormat\matches.putative.txt
+-T
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\time.txt
+-u
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\openMVGFormat\imu_data.csv
+-I
+Simu
+
+
+-i
+C:\Users\v-xinli1\Documents\Data\EuRoc\V2_01_easy\key_openMVG_seq_recon\sfm_data.json
+-m
+C:\Users\v-xinli1\Documents\Data\EuRoc\V2_01_easy\key_openMVG_seq_recon\matches
+-o
+C:\Users\v-xinli1\Documents\Data\EuRoc\V2_01_easy\key_openMVG_seq_recon\debug_ex_td
+-T
+C:\Users\v-xinli1\Documents\Data\EuRoc\V2_01_easy\V201.txt
+-u
+C:\Users\v-xinli1\Documents\Data\EuRoc\V2_01_easy\data.csv
+-I
+EuRoc

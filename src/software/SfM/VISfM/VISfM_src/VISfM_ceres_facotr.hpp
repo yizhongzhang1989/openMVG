@@ -192,6 +192,7 @@ namespace openMVG {
 //                Eigen::Matrix<double, 15, 15> sqrt_info;
 //                sqrt_info.setIdentity();
                 residual = sqrt_info_weight * sqrt_info * residual;
+//                std::cout << residual.transpose() << std::endl;
 
                 if (jacobians)
                 {
@@ -283,6 +284,402 @@ namespace openMVG {
 //            std::shared_ptr<IMU_InteBase> pre_integration;
         };
 
+        class IMUFactorWOBAISE : public ceres::SizedCostFunction<12, 3, 4, 3, 3, 4, 3>
+        {
+        public:
+            IMUFactorWOBAISE() = delete;
+//            IMUFactor(std::shared_ptr<IMU_InteBase> _pre_integration)
+
+            IMUFactorWOBAISE(const IMU_InteBase& _pre_integration)
+            :pre_integration(_pre_integration)
+            {
+            }
+
+            virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
+            {
+
+                Eigen::Vector3d Pi(parameters[0][0], parameters[0][1], parameters[0][2]);
+                Eigen::Quaterniond Qi(parameters[1][3], parameters[1][0], parameters[1][1], parameters[1][2]);
+                Eigen::Vector3d Vi(parameters[2][0], parameters[2][1], parameters[2][2]);
+
+                Eigen::Vector3d Pj(parameters[3][0], parameters[3][1], parameters[3][2]);
+                Eigen::Quaterniond Qj(parameters[4][3], parameters[4][0], parameters[4][1], parameters[4][2]);
+                Eigen::Vector3d Vj(parameters[5][0], parameters[5][1], parameters[5][2]);
+
+                Eigen::Map<Eigen::Matrix<double, 12, 1>> residual(residuals);
+                residual = pre_integration.evaluate(Pi, Qi, Vi, Eigen::Vector3d(0.,0.,0.), Eigen::Vector3d(0.,0.,0.),
+                                                    Pj, Qj, Vj, Eigen::Vector3d(0.,0.,0.), Eigen::Vector3d(0.,0.,0.)).head(12);
+
+//                Eigen::Matrix<double, 12, 12> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 12, 12>>(pre_integration.covariance.inverse()).matrixL().transpose();
+                Eigen::Matrix<double, 12, 12> sqrt_info;
+                sqrt_info.setIdentity();
+                residual = sqrt_info_weight * sqrt_info * residual;
+//                std::cout << residual.transpose() << std::endl;
+
+                if (jacobians)
+                {
+                    double sum_dt = pre_integration.sum_dt_;
+                    Eigen::Matrix3d dp_dba = pre_integration.jacobian.template block<3, 3>(O_P, O_BA);
+                    Eigen::Matrix3d dp_dbg = pre_integration.jacobian.template block<3, 3>(O_P, O_BG);
+
+                    Eigen::Matrix3d dq_dbg = pre_integration.jacobian.template block<3, 3>(O_R, O_BG);
+
+                    Eigen::Matrix3d dv_dba = pre_integration.jacobian.template block<3, 3>(O_V, O_BA);
+                    Eigen::Matrix3d dv_dbg = pre_integration.jacobian.template block<3, 3>(O_V, O_BG);
+
+                    if (jacobians[0])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 12, 3, Eigen::RowMajor>> jacobian_pose_P_i(jacobians[0]);
+                        jacobian_pose_P_i.setZero();
+
+                        jacobian_pose_P_i.block<3, 3>(O_P, O_P) = -Qi.inverse().toRotationMatrix();
+                        jacobian_pose_P_i = sqrt_info * jacobian_pose_P_i;
+                    }
+                    if (jacobians[1])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 12, 4, Eigen::RowMajor>> jacobian_pose_Q_i(jacobians[1]);
+                        jacobian_pose_Q_i.setZero();
+
+                        jacobian_pose_Q_i.block<3, 3>(O_P, O_R - O_R) = Utility::skewSymmetric(Qi.inverse() * (0.5 * VIstaticParm::G_ * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt));
+
+                        Eigen::Quaterniond corrected_delta_q = pre_integration.delta_q_;
+                        jacobian_pose_Q_i.block<3, 3>(O_R, O_R - O_R) = -(Utility::Qleft(Qj.inverse() * Qi) * Utility::Qright(corrected_delta_q)).bottomRightCorner<3, 3>();
+
+                        jacobian_pose_Q_i.block<3, 3>(O_V, O_R - O_R) = Utility::skewSymmetric(Qi.inverse() * (VIstaticParm::G_ * sum_dt + Vj - Vi));
+
+                        jacobian_pose_Q_i = sqrt_info * jacobian_pose_Q_i;
+                    }
+                    if (jacobians[2])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 12, 3, Eigen::RowMajor>> jacobian_speedbias_i(jacobians[2]);
+                        jacobian_speedbias_i.setZero();
+                        jacobian_speedbias_i.block<3, 3>(O_P, O_V - O_V) = -Qi.inverse().toRotationMatrix() * sum_dt;
+
+                        jacobian_speedbias_i.block<3, 3>(O_V, O_V - O_V) = -Qi.inverse().toRotationMatrix();
+
+                        jacobian_speedbias_i = sqrt_info * jacobian_speedbias_i;
+                    }
+                    if (jacobians[3])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 12, 3, Eigen::RowMajor>> jacobian_pose_P_j(jacobians[3]);
+                        jacobian_pose_P_j.setZero();
+
+                        jacobian_pose_P_j.block<3, 3>(O_P, O_P) = Qi.inverse().toRotationMatrix();
+
+                        jacobian_pose_P_j = sqrt_info * jacobian_pose_P_j;
+                    }
+                    if (jacobians[4])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 12, 4, Eigen::RowMajor>> jacobian_pose_Q_j(jacobians[4]);
+                        jacobian_pose_Q_j.setZero();
+
+                        Eigen::Quaterniond corrected_delta_q = pre_integration.delta_q_;
+                        jacobian_pose_Q_j.block<3, 3>(O_R, O_R - O_R) = Utility::Qleft(corrected_delta_q.inverse() * Qi.inverse() * Qj).bottomRightCorner<3, 3>();
+
+                        jacobian_pose_Q_j = sqrt_info * jacobian_pose_Q_j;
+                    }
+                    if (jacobians[5])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 12, 3, Eigen::RowMajor>> jacobian_speedbias_j(jacobians[5]);
+                        jacobian_speedbias_j.setZero();
+
+                        jacobian_speedbias_j.block<3, 3>(O_V, O_V - O_V) = Qi.inverse().toRotationMatrix();
+
+//                        jacobian_speedbias_j.block<3, 3>(O_BA, O_BA - O_V) = Eigen::Matrix3d::Identity();
+
+//                        jacobian_speedbias_j.block<3, 3>(O_BG, O_BG - O_V) = Eigen::Matrix3d::Identity();
+
+                        jacobian_speedbias_j = sqrt_info * jacobian_speedbias_j;
+                    }
+                }
+
+                return true;
+            }
+
+            /*virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
+            {
+
+                Eigen::Vector3d Pi(parameters[0][0], parameters[0][1], parameters[0][2]);
+                Eigen::Quaterniond Qi(parameters[0][6], parameters[0][3], parameters[0][4], parameters[0][5]);
+                Eigen::Vector3d Vi(parameters[1][0], parameters[1][1], parameters[1][2]);
+
+
+                Eigen::Vector3d Pj(parameters[2][0], parameters[2][1], parameters[2][2]);
+                Eigen::Quaterniond Qj(parameters[2][6], parameters[2][3], parameters[2][4], parameters[2][5]);
+                Eigen::Vector3d Vj(parameters[3][0], parameters[3][1], parameters[3][2]);
+
+                Eigen::Map<Eigen::Matrix<double, 12, 1>> residual(residuals);
+                residual = pre_integration.evaluate(Pi, Qi, Vi, Eigen::Vector3d(0.,0.,0.), Eigen::Vector3d(0.,0.,0.),
+                                                     Pj, Qj, Vj, Eigen::Vector3d(0.,0.,0.), Eigen::Vector3d(0.,0.,0.)).head(12);
+
+//                Eigen::Matrix<double, 12, 12> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 12, 12>>(pre_integration.covariance.inverse()).matrixL().transpose();
+                Eigen::Matrix<double, 15, 15> sqrt_info;
+                sqrt_info.setIdentity();
+                residual = sqrt_info_weight * sqrt_info * residual;
+//                std::cout << residual.transpose() << std::endl;
+
+                if (jacobians)
+                {
+                    double sum_dt = pre_integration.sum_dt_;
+                    Eigen::Matrix3d dp_dba = pre_integration.jacobian.template block<3, 3>(O_P, O_BA);
+                    Eigen::Matrix3d dp_dbg = pre_integration.jacobian.template block<3, 3>(O_P, O_BG);
+
+                    Eigen::Matrix3d dq_dbg = pre_integration.jacobian.template block<3, 3>(O_R, O_BG);
+
+                    Eigen::Matrix3d dv_dba = pre_integration.jacobian.template block<3, 3>(O_V, O_BA);
+                    Eigen::Matrix3d dv_dbg = pre_integration.jacobian.template block<3, 3>(O_V, O_BG);
+
+                    if (jacobians[0])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 12, 7, Eigen::RowMajor>> jacobian_pose_i(jacobians[0]);
+                        jacobian_pose_i.setZero();
+
+                        jacobian_pose_i.block<3, 3>(O_P, O_P) = -Qi.inverse().toRotationMatrix();
+                        jacobian_pose_i.block<3, 3>(O_P, O_R) = Utility::skewSymmetric(Qi.inverse() * (0.5 * VIstaticParm::G_ * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt));
+
+                        Eigen::Quaterniond corrected_delta_q = pre_integration.delta_q_;
+                        jacobian_pose_i.block<3, 3>(O_R, O_R) = -(Utility::Qleft(Qj.inverse() * Qi) * Utility::Qright(corrected_delta_q)).bottomRightCorner<3, 3>();
+
+                        jacobian_pose_i.block<3, 3>(O_V, O_R) = Utility::skewSymmetric(Qi.inverse() * (VIstaticParm::G_ * sum_dt + Vj - Vi));
+
+                        jacobian_pose_i = sqrt_info * jacobian_pose_i;
+                    }
+                    if (jacobians[1])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 12, 3, Eigen::RowMajor>> jacobian_speedbias_i(jacobians[1]);
+                        jacobian_speedbias_i.setZero();
+                        jacobian_speedbias_i.block<3, 3>(O_P, O_V - O_V) = -Qi.inverse().toRotationMatrix() * sum_dt;
+//                        jacobian_speedbias_i.block<3, 3>(O_P, O_BA - O_V) = -dp_dba;
+//                        jacobian_speedbias_i.block<3, 3>(O_P, O_BG - O_V) = -dp_dbg;
+
+//                        jacobian_speedbias_i.block<3, 3>(O_R, O_BG - O_V) = -Utility::Qleft(Qj.inverse() * Qi * pre_integration.delta_q_).bottomRightCorner<3, 3>() * dq_dbg;
+
+                        jacobian_speedbias_i.block<3, 3>(O_V, O_V - O_V) = -Qi.inverse().toRotationMatrix();
+//                        jacobian_speedbias_i.block<3, 3>(O_V, O_BA - O_V) = -dv_dba;
+//                        jacobian_speedbias_i.block<3, 3>(O_V, O_BG - O_V) = -dv_dbg;
+
+//                        jacobian_speedbias_i.block<3, 3>(O_BA, O_BA - O_V) = -Eigen::Matrix3d::Identity();
+
+//                        jacobian_speedbias_i.block<3, 3>(O_BG, O_BG - O_V) = -Eigen::Matrix3d::Identity();
+
+                        jacobian_speedbias_i = sqrt_info * jacobian_speedbias_i;
+
+                        //ROS_ASSERT(fabs(jacobian_speedbias_i.maxCoeff()) < 1e8);
+                        //ROS_ASSERT(fabs(jacobian_speedbias_i.minCoeff()) < 1e8);
+                    }
+                    if (jacobians[2])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 12, 7, Eigen::RowMajor>> jacobian_pose_j(jacobians[2]);
+                        jacobian_pose_j.setZero();
+
+                        jacobian_pose_j.block<3, 3>(O_P, O_P) = Qi.inverse().toRotationMatrix();
+
+
+                        Eigen::Quaterniond corrected_delta_q = pre_integration.delta_q_;
+                        jacobian_pose_j.block<3, 3>(O_R, O_R) = Utility::Qleft(corrected_delta_q.inverse() * Qi.inverse() * Qj).bottomRightCorner<3, 3>();
+
+                        jacobian_pose_j = sqrt_info * jacobian_pose_j;
+                    }
+                    if (jacobians[3])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 12, 3, Eigen::RowMajor>> jacobian_speedbias_j(jacobians[3]);
+                        jacobian_speedbias_j.setZero();
+
+                        jacobian_speedbias_j.block<3, 3>(O_V, O_V - O_V) = Qi.inverse().toRotationMatrix();
+
+//                        jacobian_speedbias_j.block<3, 3>(O_BA, O_BA - O_V) = Eigen::Matrix3d::Identity();
+
+//                        jacobian_speedbias_j.block<3, 3>(O_BG, O_BG - O_V) = Eigen::Matrix3d::Identity();
+
+                        jacobian_speedbias_j = sqrt_info * jacobian_speedbias_j;
+                    }
+                }
+
+                return true;
+            }*/
+
+            //bool Evaluate_Direct(double const *const *parameters, Eigen::Matrix<double, 15, 1> &residuals, Eigen::Matrix<double, 15, 30> &jacobians);
+
+            //void checkCorrection();
+            //void checkTransition();
+            //void checkJacobian(double **parameters);
+            IMU_InteBase pre_integration;
+            static Eigen::Matrix<double, 12, 12> sqrt_info_weight;
+//            std::shared_ptr<IMU_InteBase> pre_integration;
+        };
+
+
+        class IMUFactorBAISE : public ceres::SizedCostFunction<15, 3, 4, 9, 3, 4, 9>
+        {
+        public:
+            IMUFactorBAISE() = delete;
+//            IMUFactor(std::shared_ptr<IMU_InteBase> _pre_integration)
+
+            IMUFactorBAISE(const IMU_InteBase& _pre_integration)
+                    :pre_integration(_pre_integration)
+            {
+            }
+
+            virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
+            {
+
+                Eigen::Vector3d Pi(parameters[0][0], parameters[0][1], parameters[0][2]);
+                Eigen::Quaterniond Qi(parameters[1][3], parameters[1][0], parameters[1][1], parameters[1][2]);
+                Eigen::Vector3d Vi(parameters[2][0], parameters[2][1], parameters[2][2]);
+                Eigen::Vector3d Bai(parameters[2][3], parameters[2][4], parameters[2][5]);
+                Eigen::Vector3d Bgi(parameters[2][6], parameters[2][7], parameters[2][8]);
+
+
+                Eigen::Vector3d Pj(parameters[3][0], parameters[3][1], parameters[3][2]);
+                Eigen::Quaterniond Qj(parameters[4][3], parameters[4][0], parameters[4][1], parameters[4][2]);
+                Eigen::Vector3d Vj(parameters[5][0], parameters[5][1], parameters[5][2]);
+                Eigen::Vector3d Baj(parameters[5][3], parameters[5][4], parameters[5][5]);
+                Eigen::Vector3d Bgj(parameters[5][6], parameters[5][7], parameters[5][8]);
+
+                Eigen::Map<Eigen::Matrix<double, 15, 1>> residual(residuals);
+                residual = pre_integration.evaluate(Pi, Qi, Vi, Bai, Bgi,
+                                                    Pj, Qj, Vj, Baj, Bgj);
+
+//                Eigen::Matrix<double, 12, 12> sqrt_info = Eigen::LLT<Eigen::Matrix<double, 12, 12>>(pre_integration.covariance.inverse()).matrixL().transpose();
+                Eigen::Matrix<double, 15, 15> sqrt_info;
+                sqrt_info.setIdentity();
+                residual = sqrt_info_weight * sqrt_info * residual;
+//                std::cout << residual.transpose() << std::endl;
+
+                if (jacobians)
+                {
+                    double sum_dt = pre_integration.sum_dt_;
+                    Eigen::Matrix3d dp_dba = pre_integration.jacobian.template block<3, 3>(O_P, O_BA);
+                    Eigen::Matrix3d dp_dbg = pre_integration.jacobian.template block<3, 3>(O_P, O_BG);
+
+                    Eigen::Matrix3d dq_dbg = pre_integration.jacobian.template block<3, 3>(O_R, O_BG);
+
+                    Eigen::Matrix3d dv_dba = pre_integration.jacobian.template block<3, 3>(O_V, O_BA);
+                    Eigen::Matrix3d dv_dbg = pre_integration.jacobian.template block<3, 3>(O_V, O_BG);
+
+                    if (jacobians[0])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 15, 3, Eigen::RowMajor>> jacobian_pose_P_i(jacobians[0]);
+                        jacobian_pose_P_i.setZero();
+
+                        jacobian_pose_P_i.block<3, 3>(O_P, O_P) = -Qi.inverse().toRotationMatrix();
+                        jacobian_pose_P_i = sqrt_info * jacobian_pose_P_i;
+                    }
+                    if (jacobians[1])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 15, 4, Eigen::RowMajor>> jacobian_pose_Q_i(jacobians[1]);
+                        jacobian_pose_Q_i.setZero();
+
+                        jacobian_pose_Q_i.block<3, 3>(O_P, O_R - O_R) = Utility::skewSymmetric(Qi.inverse() * (0.5 * VIstaticParm::G_ * sum_dt * sum_dt + Pj - Pi - Vi * sum_dt));
+
+                        Eigen::Quaterniond corrected_delta_q = pre_integration.delta_q_;
+                        jacobian_pose_Q_i.block<3, 3>(O_R, O_R - O_R) = -(Utility::Qleft(Qj.inverse() * Qi) * Utility::Qright(corrected_delta_q)).bottomRightCorner<3, 3>();
+
+                        jacobian_pose_Q_i.block<3, 3>(O_V, O_R - O_R) = Utility::skewSymmetric(Qi.inverse() * (VIstaticParm::G_ * sum_dt + Vj - Vi));
+
+                        jacobian_pose_Q_i = sqrt_info * jacobian_pose_Q_i;
+                    }
+                    if (jacobians[2])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>> jacobian_speedbias_i(jacobians[2]);
+                        jacobian_speedbias_i.setZero();
+                        jacobian_speedbias_i.block<3, 3>(O_P, O_V - O_V) = -Qi.inverse().toRotationMatrix() * sum_dt;
+                        jacobian_speedbias_i.block<3, 3>(O_P, O_BA - O_V) = -dp_dba;
+                        jacobian_speedbias_i.block<3, 3>(O_P, O_BG - O_V) = -dp_dbg;
+
+                        jacobian_speedbias_i.block<3, 3>(O_R, O_BG - O_V) = -Utility::Qleft(Qj.inverse() * Qi * pre_integration.delta_q_).bottomRightCorner<3, 3>() * dq_dbg;
+
+                        jacobian_speedbias_i.block<3, 3>(O_V, O_V - O_V) = -Qi.inverse().toRotationMatrix();
+                        jacobian_speedbias_i.block<3, 3>(O_V, O_BA - O_V) = -dv_dba;
+                        jacobian_speedbias_i.block<3, 3>(O_V, O_BG - O_V) = -dv_dbg;
+
+                        jacobian_speedbias_i.block<3, 3>(O_BA, O_BA - O_V) = -Eigen::Matrix3d::Identity();
+
+                        jacobian_speedbias_i.block<3, 3>(O_BG, O_BG - O_V) = -Eigen::Matrix3d::Identity();
+
+                        jacobian_speedbias_i = sqrt_info * jacobian_speedbias_i;
+                    }
+                    if (jacobians[3])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 15, 3, Eigen::RowMajor>> jacobian_pose_P_j(jacobians[3]);
+                        jacobian_pose_P_j.setZero();
+
+                        jacobian_pose_P_j.block<3, 3>(O_P, O_P) = Qi.inverse().toRotationMatrix();
+
+                        jacobian_pose_P_j = sqrt_info * jacobian_pose_P_j;
+                    }
+                    if (jacobians[4])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 15, 4, Eigen::RowMajor>> jacobian_pose_Q_j(jacobians[4]);
+                        jacobian_pose_Q_j.setZero();
+
+                        Eigen::Quaterniond corrected_delta_q = pre_integration.delta_q_;
+                        jacobian_pose_Q_j.block<3, 3>(O_R, O_R - O_R) = Utility::Qleft(corrected_delta_q.inverse() * Qi.inverse() * Qj).bottomRightCorner<3, 3>();
+
+                        jacobian_pose_Q_j = sqrt_info * jacobian_pose_Q_j;
+                    }
+                    if (jacobians[5])
+                    {
+                        Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>> jacobian_speedbias_j(jacobians[5]);
+                        jacobian_speedbias_j.setZero();
+
+                        jacobian_speedbias_j.block<3, 3>(O_V, O_V - O_V) = Qi.inverse().toRotationMatrix();
+
+                        jacobian_speedbias_j.block<3, 3>(O_BA, O_BA - O_V) = Eigen::Matrix3d::Identity();
+
+                        jacobian_speedbias_j.block<3, 3>(O_BG, O_BG - O_V) = Eigen::Matrix3d::Identity();
+
+                        jacobian_speedbias_j = sqrt_info * jacobian_speedbias_j;
+                    }
+                }
+
+                return true;
+            }
+
+            //bool Evaluate_Direct(double const *const *parameters, Eigen::Matrix<double, 15, 1> &residuals, Eigen::Matrix<double, 15, 30> &jacobians);
+
+            //void checkCorrection();
+            //void checkTransition();
+            //void checkJacobian(double **parameters);
+            IMU_InteBase pre_integration;
+            static Eigen::Matrix<double, 15, 15> sqrt_info_weight;
+//            std::shared_ptr<IMU_InteBase> pre_integration;
+        };
+
+        class IMUFactorSoftConstrainsRotation : public ceres::SizedCostFunction<3, 4>
+        {
+        public:
+            IMUFactorSoftConstrainsRotation(const Mat3& _Rwi, double soft );
+
+            virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const;
+            void check(double **parameters);
+            static Eigen::Vector2d compute_error( double const *parameters_pose, double const *parameters_point, const Eigen::Vector2d& obs, bool& bad_point );
+//            Eigen::Quaterniond Qwi_;
+            std::vector<double> Qwi_double_;
+            double soft_;
+        };
+        class IMUFactorSoftConstrainsTranslation : public ceres::SizedCostFunction<3, 3>
+        {
+
+            virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const;
+            void check(double **parameters);
+            static Eigen::Vector2d compute_error( double const *parameters_pose, double const *parameters_point, const Eigen::Vector2d& obs, bool& bad_point );
+            Vec3 twi_;
+            double soft_;
+
+        public:
+            IMUFactorSoftConstrainsTranslation(const Vec3& _twi, double soft );
+        };
+        class IMUFactorSoftConstrainsVelocity : public ceres::SizedCostFunction<3, 3, 3>
+        {
+            IMUFactorSoftConstrainsVelocity(const Vec3& _Vi, double soft );
+
+            virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const;
+            void check(double **parameters);
+            static Eigen::Vector2d compute_error( double const *parameters_pose, double const *parameters_point, const Eigen::Vector2d& obs, bool& bad_point );
+            Vec3 Vi_;
+            double soft_;
+        };
     }
 }
 

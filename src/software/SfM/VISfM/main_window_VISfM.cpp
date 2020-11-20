@@ -30,6 +30,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <random>
 
 using namespace openMVG;
 using namespace openMVG::cameras;
@@ -70,6 +71,12 @@ bool computeIndexFromImageNames(
             initialPairIndex.second != UndefinedIndexT);
 }
 
+
+void PrintExtric(const SfM_Data & sfm_data)
+{
+    std::cout << "sfm_data.IG_Ric = \n" << sfm_data.IG_Ric << std::endl;
+    std::cout << "sfm_data.IG_tic = \n" << sfm_data.IG_tic << std::endl;
+}
 
 int main(int argc, char **argv)
 {
@@ -219,8 +226,32 @@ int main(int argc, char **argv)
     }
     else if( sSfM_IMU_FileType == std::string("Simu") )
     {
+//        Mat3 Rci;
+//        Vec3 tci;
+//        Rci << -0.00080983, -0.99991118,  0.01330307,
+//                -0.99981724,  0.0010637,   0.01908794,
+//                -0.01910039, -0.01328518, -0.9997293;
+//        tci << 0.02532891, 0.03078696, 0.080411;
+//        Ric = Rci.transpose();
+//        tic = -Ric * tci;
+
+//        Eigen::Matrix4d Tcc = Eigen::Matrix4d::Identity();
+//        Eigen::Vector3d tcc = Eigen::Vector3d(nt_(generator_), nt_(generator_), nt_(generator_));
+
+
+
+//        Eigen::Matrix3d Rcc = Eigen::Matrix3d::Identity();
+//        Rcc = Eigen::AngleAxisd( ( 3 )/180.*M_PI , Eigen::Vector3d::UnitZ())
+//              * Eigen::AngleAxisd( ( 3 )/180.*M_PI , Eigen::Vector3d::UnitY())
+//              * Eigen::AngleAxisd( ( 3 )/180.*M_PI , Eigen::Vector3d::UnitX());
+
         Ric.setIdentity();
-        tic.setZero();
+
+//        Ric = Ric * Rcc;
+        tic <<.0, .0, .0;
+//        tic <<.01, .01, .01;
+//        tic <<.01, .01, .01;
+//        tic <<.05,.05,.05;
     }
     else
     {
@@ -255,10 +286,15 @@ int main(int argc, char **argv)
     }
     else
     {
-        VIstaticParm::acc_n = 0.08;
-        VIstaticParm::acc_w = 0.00004;
-        VIstaticParm::gyr_n = 0.004;
-        VIstaticParm::gyr_w = 2.0e-6;
+        VIstaticParm::acc_n = 0.0;
+        VIstaticParm::acc_w = 0.0;
+        VIstaticParm::gyr_n = 0.0;
+        VIstaticParm::gyr_w = 0.0;
+
+//        VIstaticParm::acc_n = 1.0;
+//        VIstaticParm::acc_w = 1.0;
+//        VIstaticParm::gyr_n = 1.0;
+//        VIstaticParm::gyr_w = 1.0;
     }
 
 
@@ -287,6 +323,7 @@ int main(int argc, char **argv)
                   << "Invalid features." << std::endl;
         return EXIT_FAILURE;
     }
+    std::cout << "match load begin"<< std::endl;
     // Matches reading
     std::shared_ptr<Matches_Provider> matches_provider = std::make_shared<Matches_Provider>();
     if // Try to read the provided match filename or the default one (matches.f.txt/bin)
@@ -300,6 +337,7 @@ int main(int argc, char **argv)
                   << "Invalid matches file." << std::endl;
         return EXIT_FAILURE;
     }
+    std::cout << "match load over"<< std::endl;
 
     if (sOutDir.empty())  {
         std::cerr << "\nIt is an invalid output directory" << std::endl;
@@ -352,6 +390,8 @@ int main(int argc, char **argv)
         }
         fin.close();
     }
+
+    std::cout << "times load begin"<< std::endl;
 
     if( sSfM_IMU_Filename.empty() )
     {
@@ -447,6 +487,10 @@ int main(int argc, char **argv)
 //                     ESfM_Data(ALL));
 
                 time.print_time();
+                std::cout << "init ex\n";
+                PrintExtric(sfMData);
+                std::cout << "after oti" << std::endl;
+                PrintExtric(visfmEngine.Get_SfM_Data());
                 std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
                 std::cout << "...Generating SfM_Report.html" << std::endl;

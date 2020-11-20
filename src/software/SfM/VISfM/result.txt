@@ -1,0 +1,76 @@
+init ex
+sfm_data.IG_Ric =
+1 0 0
+0 1 0
+0 0 1
+sfm_data.IG_tic =
+0
+0
+0
+after oti
+sfm_data.IG_Ric =
+           1 -1.27799e-05 -4.93599e-06
+ 1.27811e-05            1  0.000256608
+ 4.93271e-06 -0.000256608            1
+sfm_data.IG_tic =
+-6.46505e-05
+-0.000683491
+-0.000854418
+
+init ex
+sfm_data.IG_Ric =
+1 0 0
+0 1 0
+0 0 1
+sfm_data.IG_tic =
+   0
+   0
+0.01
+after oti
+sfm_data.IG_Ric =
+           1 -1.31818e-05 -2.45738e-06
+ 1.31824e-05            1  0.000261349
+ 2.45394e-06 -0.000261349            1
+sfm_data.IG_tic =
+-6.46583e-05
+-0.000743998
+-0.000866323
+
+
+init ex
+sfm_data.IG_Ric =
+1 0 0
+0 1 0
+0 0 1
+sfm_data.IG_tic =
+   0
+0.01
+   0
+after oti
+sfm_data.IG_Ric =
+           1 -1.37524e-05  5.34187e-06
+ 1.37509e-05            1  0.000281397
+-5.34574e-06 -0.000281397            1
+sfm_data.IG_tic =
+-6.47519e-05
+  0.00873607
+-0.000858288
+
+init ex
+sfm_data.IG_Ric =
+1 0 0
+0 1 0
+0 0 1
+sfm_data.IG_tic =
+0.01
+   0
+   0
+after oti
+sfm_data.IG_Ric =
+           1 -1.34951e-05  3.92137e-05
+  1.3485e-05            1  0.000258822
+-3.92172e-05 -0.000258821            1
+sfm_data.IG_tic =
+-7.60104e-05
+-0.000976411
+-0.000855209

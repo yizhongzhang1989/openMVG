@@ -335,6 +335,7 @@ namespace openMVG
                 delta_q_.setIdentity();
                 jacobian.setIdentity();
                 covariance.setZero();
+//                covariance.setIdentity();
                 double last_t = static_cast<double>(t0_);
                 last_t /= 1000.;
                 if(!good_falg) return;
@@ -366,6 +367,7 @@ namespace openMVG
                 linearized_bg_ = _linearized_bg;
                 jacobian.setIdentity();
                 covariance.setZero();
+//                covariance.setIdentity();
                 for (int i = 0; i < static_cast<int>(dt_buf_.size()); i++)
                     propagate(dt_buf_[i], acc_buf_[i], gyr_buf_[i]);
             }
@@ -523,6 +525,7 @@ namespace openMVG
                 delta_q_.setIdentity();
                 jacobian.setIdentity();
                 covariance.setZero();
+//                covariance.setIdentity();
             }
 
             double sum_dt_; // scond

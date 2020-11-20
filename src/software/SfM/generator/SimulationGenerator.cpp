@@ -236,11 +236,13 @@ void SimulationGenerator::Save(Simulation_Data& sfm_data, const std::string& out
     int kf_count = 0;
     for(auto & key_frame : key_frames)
     {
-        string img_name = "VIRTUAL_IMG_"+std::to_string(kf_count);
+        char img_filename_idx[128];
+        sprintf(img_filename_idx, "%08d", kf_count);
+        string img_name = img_filename_idx;
         Eigen::Quaterniond& q = key_frame.second.pose.q;
         Eigen::Vector3d& t = key_frame.second.pose.t;
         f<<key_frame.second.Id<<" "<<q.coeffs()[3]<<" "<<q.coeffs()[0]<<" "<<q.coeffs()[1]<<" "<<q.coeffs()[2]<<" "
-         <<t[0]<<" "<<t[1]<<" "<<t[2]<<" "<<("0 " + img_name + ".JPG")<<endl;
+         <<t[0]<<" "<<t[1]<<" "<<t[2]<<" "<<("0 " + img_name + ".jpg")<<endl;
 
         // saving KeyPoints
         ofstream kp_f(kp_outPath + img_name + ".feat");

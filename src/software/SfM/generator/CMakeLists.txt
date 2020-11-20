@@ -11,7 +11,7 @@ endif()
 include_directories(${EIGEN_INCLUDE_DIRS})
 
 add_library(simulation_generator SimulationGenerator.cpp)
-set_property(TARGET simulation_generator PROPERTY FOLDER OpenMVG/software)
+set_property(TARGET simulation_generator PROPERTY FOLDER OpenMVG/software/synthetic_data)
 install(TARGETS simulation_generator DESTINATION lib/)
 
 add_executable(openMVG_main_GenerateSimulationData main_GenerateSimulationData.cpp)
@@ -62,7 +62,7 @@ else()
             simulation_generator)
 endif()
 
-set_property(TARGET openMVG_main_GenerateSimulationData PROPERTY FOLDER OpenMVG/software)
+set_property(TARGET openMVG_main_GenerateSimulationData PROPERTY FOLDER OpenMVG/software/synthetic_data)
 install(TARGETS openMVG_main_GenerateSimulationData DESTINATION bin/)
-set_property(TARGET openMVG_main_GenerateSimulationData2 PROPERTY FOLDER OpenMVG/software)
+set_property(TARGET openMVG_main_GenerateSimulationData2 PROPERTY FOLDER OpenMVG/software/synthetic_data)
 install(TARGETS openMVG_main_GenerateSimulationData2 DESTINATION bin/)

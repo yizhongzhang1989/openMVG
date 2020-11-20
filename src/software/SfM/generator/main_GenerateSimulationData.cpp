@@ -282,7 +282,9 @@ void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationDa
 
     for(int i=0;i<simulationData.key_frames.size();i++)
     {
-        View v("VIRTUAL_IMG_"+std::to_string(views.size())+".JPG", views.size(), views.size(), views.size(), width, height);
+        char img_filename[128];
+        sprintf(img_filename, "%08d.jpg", views.size());
+		View v(img_filename, views.size(), views.size(), views.size(), width, height);
 
         // Add intrinsic related to the image (if any)
         if (intrinsic == nullptr)
@@ -335,7 +337,9 @@ void SaveSfMData(std::string sImageDir, generator::Simulation_Data& simulationDa
     int kf_count = 0;
     for(auto & key_frame : key_frames)
     {
-        std::string img_name = "VIRTUAL_IMG_"+std::to_string(kf_count);
+        char img_filename[128];
+        sprintf(img_filename, "%08d", kf_count);
+        std::string img_name = img_filename;
         std::ofstream kp_f(sImageDir + "/" + img_name + ".feat");
 
         std::vector<unsigned int>& obs = key_frame.second.obs;
@@ -460,7 +464,9 @@ void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPa
     int kf_count = 0;
     for(auto & key_frame : key_frames)
     {
-        std::string img_name = outPath + "/VIRTUAL_IMG_"+std::to_string(kf_count) + ".JPG";
+        char img_filename[128];
+        sprintf(img_filename, "%08d.jpg", kf_count);
+        std::string img_name = outPath + "/" + img_filename;
         Image<RGBColor> img(width,height,true,RGBColor(255,255,255));
         std::vector<unsigned int>& obs = key_frame.second.obs;
         for(unsigned int point3d_id : obs)

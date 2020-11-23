@@ -37,7 +37,9 @@ public:
     const std::string & soutDirectory,
     const std::string & loggingFile = "");
 
-  ~SequentialSfMReconstructionEngine() override;
+    SequentialSfMReconstructionEngine();
+
+    ~SequentialSfMReconstructionEngine() override;
 
   void SetFeaturesProvider(Features_Provider * provider);
   void SetMatchesProvider(Matches_Provider * provider);
@@ -47,10 +49,6 @@ public:
     std::string writeIntrinsic();
 
   virtual bool Process() override;
-
-  bool Process_Window();
-
-  bool VI_Init( const IndexT start, const IndexT end );
 
   void setInitialPair(const Pair & initialPair)
   {
@@ -89,7 +87,7 @@ public:
 protected:
 
 
-private:
+//private:
 
   /// Return MSE (Mean Square Error) and a histogram of residual values.
   double ComputeResidualsHistogram(Histogram<double> * histo);
@@ -106,13 +104,8 @@ private:
   /// Bundle adjustment to refine Structure; Motion and Intrinsics
   bool BundleAdjustment();
 
-  bool BundleAdjustmentWindows(SfM_Data& sfm_data);
-
   /// Discard track with too large residual error
   bool badTrackRejector(double dPrecision, size_t count = 0);
-
-
-  bool badTrackRejector( SfM_Data& sfm_data, double dPrecision, size_t count = 0);
 
   //----
   //-- Data

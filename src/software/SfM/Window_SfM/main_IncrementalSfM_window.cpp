@@ -17,6 +17,7 @@
 #include "openMVG/sfm/sfm_view.hpp"
 #include "openMVG/system/timer.hpp"
 #include "openMVG/types.hpp"
+#include "window_sequential_SfM.hpp"
 
 #include "third_party/cmdLine/cmdLine.h"
 #include "third_party/stlplus3/filesystemSimplified/file_system.hpp"
@@ -221,36 +222,7 @@ int main(int argc, char **argv)
   //---------------------------------------
 
   openMVG::system::Timer timer;
-  SequentialSfMReconstructionEngine sfmEngine(
-    sfm_data,
-    sOutDir,
-    stlplus::create_filespec(sOutDir, "Reconstruction_Report.html"));
-
-  // Configure the features_provider & the matches_provider
-  sfmEngine.SetFeaturesProvider(feats_provider.get());
-  sfmEngine.SetMatchesProvider(matches_provider.get());
-
-  // Configure reconstruction parameters
-  sfmEngine.Set_Intrinsics_Refinement_Type(intrinsic_refinement_options);
-  sfmEngine.SetUnknownCameraType(EINTRINSIC(i_User_camera_model));
-  b_use_motion_priors = cmd.used('P');
-  sfmEngine.Set_Use_Motion_Prior(b_use_motion_priors);
-  sfmEngine.SetTriangulationMethod(static_cast<ETriangulationMethod>(triangulation_method));
-
   window_mode = cmd.used('w');
-
-  // Handle Initial pair parameter
-  if (!initialPairString.first.empty() && !initialPairString.second.empty())
-  {
-    Pair initialPairIndex;
-    if (!computeIndexFromImageNames(sfm_data, initialPairString, initialPairIndex))
-    {
-        std::cerr << "Could not find the initial pairs <" << initialPairString.first
-          <<  ", " << initialPairString.second << ">!\n";
-      return EXIT_FAILURE;
-    }
-    sfmEngine.setInitialPair(initialPairIndex);
-  }
 
   XinTime time;
 
@@ -259,12 +231,41 @@ int main(int argc, char **argv)
 
   if(window_mode)
   {
-      if (sfmEngine.Process_Window())
+      WindowSequentialSfMReconstructionEngine windowsfmEngine(
+              sfm_data,
+              sOutDir,
+              stlplus::create_filespec(sOutDir, "Reconstruction_Report.html"));
+
+
+      windowsfmEngine.SetFeaturesProvider(feats_provider.get());
+      windowsfmEngine.SetMatchesProvider(matches_provider.get());
+
+      // Configure reconstruction parameters
+      windowsfmEngine.Set_Intrinsics_Refinement_Type(intrinsic_refinement_options);
+      windowsfmEngine.SetUnknownCameraType(EINTRINSIC(i_User_camera_model));
+      b_use_motion_priors = cmd.used('P');
+      windowsfmEngine.Set_Use_Motion_Prior(b_use_motion_priors);
+      windowsfmEngine.SetTriangulationMethod(static_cast<ETriangulationMethod>(triangulation_method));
+
+
+
+      // Handle Initial pair parameter
+      if (!initialPairString.first.empty() && !initialPairString.second.empty())
       {
+          Pair initialPairIndex;
+          if (!computeIndexFromImageNames(sfm_data, initialPairString, initialPairIndex))
+          {
+              std::cerr << "Could not find the initial pairs <" << initialPairString.first
+                        <<  ", " << initialPairString.second << ">!\n";
+              return EXIT_FAILURE;
+          }
+          windowsfmEngine.setInitialPair(initialPairIndex);
+      }
 
-
+      if (windowsfmEngine.Process())
+      {
           std::ofstream file(sResultTime_Filename, std::ofstream::app);
-          std::string intrisic_str = sfmEngine.writeIntrinsic();
+          std::string intrisic_str = windowsfmEngine.writeIntrinsic();
           file << "---------------------------------------------\n";
           file << intrisic_str;
           time.write_time(file);
@@ -273,16 +274,16 @@ int main(int argc, char **argv)
           std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
           std::cout << "...Generating SfM_Report.html" << std::endl;
-          Generate_SfM_Report(sfmEngine.Get_SfM_Data(),
+          Generate_SfM_Report(windowsfmEngine.Get_SfM_Data(),
                               stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
 
           //-- Export to disk computed scene (data & visualizable results)
           std::cout << "...Export SfM_Data to disk." << std::endl;
-          Save(sfmEngine.Get_SfM_Data(),
+          Save(windowsfmEngine.Get_SfM_Data(),
                stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
                ESfM_Data(ALL));
 
-          Save(sfmEngine.Get_SfM_Data(),
+          Save(windowsfmEngine.Get_SfM_Data(),
                stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
                ESfM_Data(ALL));
 
@@ -291,6 +292,37 @@ int main(int argc, char **argv)
       else
           return EXIT_FAILURE;
   }
+
+    SequentialSfMReconstructionEngine sfmEngine(
+            sfm_data,
+            sOutDir,
+            stlplus::create_filespec(sOutDir, "Reconstruction_Report.html"));
+
+    // Configure the features_provider & the matches_provider
+    sfmEngine.SetFeaturesProvider(feats_provider.get());
+    sfmEngine.SetMatchesProvider(matches_provider.get());
+
+    // Configure reconstruction parameters
+    sfmEngine.Set_Intrinsics_Refinement_Type(intrinsic_refinement_options);
+    sfmEngine.SetUnknownCameraType(EINTRINSIC(i_User_camera_model));
+    b_use_motion_priors = cmd.used('P');
+    sfmEngine.Set_Use_Motion_Prior(b_use_motion_priors);
+    sfmEngine.SetTriangulationMethod(static_cast<ETriangulationMethod>(triangulation_method));
+
+
+
+    // Handle Initial pair parameter
+    if (!initialPairString.first.empty() && !initialPairString.second.empty())
+    {
+        Pair initialPairIndex;
+        if (!computeIndexFromImageNames(sfm_data, initialPairString, initialPairIndex))
+        {
+            std::cerr << "Could not find the initial pairs <" << initialPairString.first
+                      <<  ", " << initialPairString.second << ">!\n";
+            return EXIT_FAILURE;
+        }
+        sfmEngine.setInitialPair(initialPairIndex);
+    }
 
   if (sfmEngine.Process())
   {

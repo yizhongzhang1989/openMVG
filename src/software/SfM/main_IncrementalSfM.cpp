@@ -246,8 +246,6 @@ int main(int argc, char **argv)
   if (sfmEngine.Process())
   {
 
-      sfmEngine.coutIntrinsic();
-
     std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
     std::cout << "...Generating SfM_Report.html" << std::endl;

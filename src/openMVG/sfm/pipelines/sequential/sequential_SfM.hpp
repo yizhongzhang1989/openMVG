@@ -42,15 +42,11 @@ public:
   void SetFeaturesProvider(Features_Provider * provider);
   void SetMatchesProvider(Matches_Provider * provider);
 
+  // debug xinli
   void coutIntrinsic();
-
-    std::string writeIntrinsic();
+  std::string writeIntrinsic();
 
   virtual bool Process() override;
-
-  bool Process_Window();
-
-  bool VI_Init( const IndexT start, const IndexT end );
 
   void setInitialPair(const Pair & initialPair)
   {
@@ -89,7 +85,7 @@ public:
 protected:
 
 
-private:
+//private:
 
   /// Return MSE (Mean Square Error) and a histogram of residual values.
   double ComputeResidualsHistogram(Histogram<double> * histo);
@@ -97,22 +93,14 @@ private:
   /// List the images that the greatest number of matches to the current 3D reconstruction.
   bool FindImagesWithPossibleResection(std::vector<uint32_t> & vec_possible_indexes);
 
-
-  bool FindImagesWithPossibleResection(std::vector<uint32_t> & vec_possible_indexes, const IndexT start, const IndexT end  );
-
   /// Add a single Image to the scene and triangulate new possible tracks.
   bool Resection(const uint32_t imageIndex);
 
   /// Bundle adjustment to refine Structure; Motion and Intrinsics
   bool BundleAdjustment();
 
-  bool BundleAdjustmentWindows(SfM_Data& sfm_data);
-
   /// Discard track with too large residual error
   bool badTrackRejector(double dPrecision, size_t count = 0);
-
-
-  bool badTrackRejector( SfM_Data& sfm_data, double dPrecision, size_t count = 0);
 
   //----
   //-- Data
@@ -139,8 +127,6 @@ private:
   Hash_Map<IndexT, double> map_ACThreshold_; // Per camera confidence (A contrario estimated threshold error)
 
   std::set<uint32_t> set_remaining_view_id_;     // Remaining camera index that can be used for resection
-
-  std::set<uint32_t> set_remaining_view_id_vi_init_;     // Remaining camera index that can be used for resection
 
   ETriangulationMethod triangulation_method_ = ETriangulationMethod::DEFAULT;
 };

@@ -90,57 +90,6 @@ void SequentialSfMReconstructionEngine::SetMatchesProvider(Matches_Provider * pr
   matches_provider_ = provider;
 }
 
-void SequentialSfMReconstructionEngine::coutIntrinsic()
-{
-    for (const auto & intrinsic_it : sfm_data_.intrinsics)
-    {
-        const IndexT indexCam = intrinsic_it.first;
-
-        if (isValid(intrinsic_it.second->getType()))
-        {
-            std::vector<double> Params = intrinsic_it.second->getParams();
-
-            std::cout << "---------------------------" << std::endl;
-            for( auto &param : Params )
-            {
-                std::cout << param << " ";
-            }
-            std::cout << std::endl;
-        }
-        else
-        {
-            std::cerr << "Unsupported camera type." << std::endl;
-        }
-    }
-
-}
-
-std::string SequentialSfMReconstructionEngine::writeIntrinsic()
-{
-    std::stringstream out;
-    for (const auto & intrinsic_it : sfm_data_.intrinsics)
-    {
-        const IndexT indexCam = intrinsic_it.first;
-
-        if (isValid(intrinsic_it.second->getType()))
-        {
-            std::vector<double> Params = intrinsic_it.second->getParams();
-
-            for( auto &param : Params )
-            {
-                out << param << " ";
-            }
-            out << std::endl;
-        }
-        else
-        {
-            std::cerr << "Unsupported camera type." << std::endl;
-        }
-    }
-
-    return out.str();
-}
-
 bool SequentialSfMReconstructionEngine::Process() {
 
   //-------------------
@@ -164,12 +113,7 @@ bool SequentialSfMReconstructionEngine::Process() {
   }
   // Else a starting pair was already initialized before
 
-  std::cout << "---------------------------------------\n"
-  << "initial_pair_.first = " << initial_pair_.first << "\n"
-  <<  "initial_pair_.second = " << initial_pair_.second << "\n"
-  << "---------------------------------------" << std::endl;
-
-    // Initial pair Essential Matrix and [R|t] estimation.
+  // Initial pair Essential Matrix and [R|t] estimation.
   if (!MakeInitialPair3D(initial_pair_))
     return false;
 
@@ -918,101 +862,6 @@ bool SequentialSfMReconstructionEngine::FindImagesWithPossibleResection(
 }
 
 /**
- * @brief Estimate images on which we can compute the resectioning safely.
- *
- * @param[out] vec_possible_indexes: list of indexes we can use for resectioning.
- * @param[in] start: start index that we can use for resectioning.
- * @param[in] end: end index that we can use for resectioning.
- * @return False if there is no possible resection.
- *
- * Sort the images by the number of features id shared with the reconstruction.
- * Select the image I that share the most of correspondences.
- * Then keep all the images that have at least:
- *  0.75 * #correspondences(I) common correspondences to the reconstruction.
- */
-bool SequentialSfMReconstructionEngine::FindImagesWithPossibleResection(
-        std::vector<uint32_t> & vec_possible_indexes, const IndexT start, const IndexT end)
-{
-    // Threshold used to select the best images
-    static const float dThresholdGroup = 0.75f;
-
-    vec_possible_indexes.clear();
-
-    if (set_remaining_view_id_vi_init_.empty() || sfm_data_.GetLandmarks().empty())
-        return false;
-
-    // Collect tracksIds
-    std::set<uint32_t> reconstructed_trackId;
-    std::transform(sfm_data_.GetLandmarks().cbegin(), sfm_data_.GetLandmarks().cend(),
-                   std::inserter(reconstructed_trackId, reconstructed_trackId.begin()),
-                   stl::RetrieveKey());
-
-    Pair_Vec vec_putative; // ImageId, NbPutativeCommonPoint
-#ifdef OPENMVG_USE_OPENMP
-#pragma omp parallel
-#endif
-    for (std::set<uint32_t>::const_iterator iter = set_remaining_view_id_vi_init_.begin();
-         iter != set_remaining_view_id_vi_init_.end(); ++iter)
-    {
-#ifdef OPENMVG_USE_OPENMP
-#pragma omp single nowait
-#endif
-        {
-            const uint32_t viewId = *iter;
-
-            // Compute 2D - 3D possible content
-            openMVG::tracks::STLMAPTracks map_tracksCommon;
-            shared_track_visibility_helper_->GetTracksInImages({viewId}, map_tracksCommon);
-
-            if (!map_tracksCommon.empty())
-            {
-                std::set<uint32_t> set_tracksIds;
-                tracks::TracksUtilsMap::GetTracksIdVector(map_tracksCommon, &set_tracksIds);
-
-                // Count the common possible putative point
-                //  with the already 3D reconstructed trackId
-                std::vector<uint32_t> vec_trackIdForResection;
-                std::set_intersection(set_tracksIds.cbegin(), set_tracksIds.cend(),
-                                      reconstructed_trackId.cbegin(), reconstructed_trackId.cend(),
-                                      std::back_inserter(vec_trackIdForResection));
-
-#ifdef OPENMVG_USE_OPENMP
-#pragma omp critical
-#endif
-                {
-                    vec_putative.emplace_back(viewId, vec_trackIdForResection.size());
-                }
-            }
-        }
-    }
-
-    // Sort by the number of matches to the 3D scene.
-    std::sort(vec_putative.begin(), vec_putative.end(), sort_pair_second<uint32_t, uint32_t, std::greater<uint32_t>>());
-
-    // If the list is empty or if the list contains images with no correspdences
-    // -> (no resection will be possible)
-    if (vec_putative.empty() || vec_putative[0].second == 0)
-    {
-        // All remaining images cannot be used for pose estimation
-        set_remaining_view_id_vi_init_.clear();
-        return false;
-    }
-
-    // Add the image view index that share the most of 2D-3D correspondences
-    vec_possible_indexes.push_back(vec_putative[0].first);
-
-    // Then, add all the image view indexes that have at least N% of the number of the matches of the best image.
-    const IndexT M = vec_putative[0].second; // Number of 2D-3D correspondences
-    const size_t threshold = static_cast<uint32_t>(dThresholdGroup * M);
-    for (size_t i = 1; i < vec_putative.size() &&
-                       vec_putative[i].second > threshold; ++i)
-    {
-        vec_possible_indexes.push_back(vec_putative[i].first);
-    }
-    return true;
-}
-
-/**
  * @brief Add one image to the 3D reconstruction. To the resectioning of
  * the camera and triangulate all the new possible tracks.
  * @param[in] viewIndex: image index to add to the reconstruction.
@@ -1384,35 +1233,6 @@ bool SequentialSfMReconstructionEngine::BundleAdjustment()
   return bundle_adjustment_obj.Adjust(sfm_data_, ba_refine_options);
 }
 
-
-//bool SequentialSfMReconstructionEngine::BundleAdjustmentWindows(SfM_Data &sfm_data)
-//{
-//    Bundle_Adjustment_Ceres::BA_Ceres_options options;
-//    if ( sfm_data_.GetPoses().size() > 100 &&
-//         (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
-//          ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::CX_SPARSE) ||
-//          ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::EIGEN_SPARSE))
-//            )
-//        // Enable sparse BA only if a sparse lib is available and if there more than 100 poses
-//    {
-//        options.preconditioner_type_ = ceres::JACOBI;
-//        options.linear_solver_type_ = ceres::SPARSE_SCHUR;
-//    }
-//    else
-//    {
-//        options.linear_solver_type_ = ceres::DENSE_SCHUR;
-//    }
-//    Bundle_Adjustment_Ceres bundle_adjustment_obj(options);
-//    const Optimize_Options ba_refine_options
-//            ( ReconstructionEngine::intrinsic_refinement_options_,
-//              Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
-//              Structure_Parameter_Type::ADJUST_ALL, // Adjust scene structure
-//              Control_Point_Parameter(),
-//              this->b_use_motion_prior_
-//            );
-//    return bundle_adjustment_obj.Adjust(sfm_data, ba_refine_options);
-//}
-
 /**
  * @brief Discard tracks with too large residual error
  *
@@ -1434,19 +1254,6 @@ bool SequentialSfMReconstructionEngine::badTrackRejector(double dPrecision, size
 
   return (nbOutliers_residualErr + nbOutliers_angleErr) > count;
 }
-
-//bool SequentialSfMReconstructionEngine::badTrackRejector(SfM_Data &sfm_data, double dPrecision, size_t count)
-//{
-//    const size_t nbOutliers_residualErr = RemoveOutliers_PixelResidualError(sfm_data, dPrecision, 2);
-//    const size_t nbOutliers_angleErr = 0;//RemoveOutliers_AngleError(sfm_data, 2.0);
-//
-//
-//    std::cout << "nbOutliers_residualErr = " << nbOutliers_residualErr << "\n"
-//              << "dPrecision = " << dPrecision << "\n"
-//              << "nbOutliers_angleErr = " << nbOutliers_angleErr << "\n"
-//              << "count = " << count << std::endl;
-//    return (nbOutliers_residualErr + nbOutliers_angleErr) > count;
-//}
 
 } // namespace sfm
 } // namespace openMVG

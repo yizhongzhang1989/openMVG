@@ -90,6 +90,57 @@ void SequentialSfMReconstructionEngine::SetMatchesProvider(Matches_Provider * pr
   matches_provider_ = provider;
 }
 
+void SequentialSfMReconstructionEngine::coutIntrinsic()
+{
+    for (const auto & intrinsic_it : sfm_data_.intrinsics)
+    {
+        const IndexT indexCam = intrinsic_it.first;
+
+        if (isValid(intrinsic_it.second->getType()))
+        {
+            std::vector<double> Params = intrinsic_it.second->getParams();
+
+            std::cout << "---------------------------" << std::endl;
+            for( auto &param : Params )
+            {
+                std::cout << param << " ";
+            }
+            std::cout << std::endl;
+        }
+        else
+        {
+            std::cerr << "Unsupported camera type." << std::endl;
+        }
+    }
+
+}
+
+std::string SequentialSfMReconstructionEngine::writeIntrinsic()
+{
+    std::stringstream out;
+    for (const auto & intrinsic_it : sfm_data_.intrinsics)
+    {
+        const IndexT indexCam = intrinsic_it.first;
+
+        if (isValid(intrinsic_it.second->getType()))
+        {
+            std::vector<double> Params = intrinsic_it.second->getParams();
+
+            for( auto &param : Params )
+            {
+                out << param << " ";
+            }
+            out << std::endl;
+        }
+        else
+        {
+            std::cerr << "Unsupported camera type." << std::endl;
+        }
+    }
+
+    return out.str();
+}
+
 bool SequentialSfMReconstructionEngine::Process() {
 
   //-------------------

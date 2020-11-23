@@ -42,6 +42,10 @@ public:
   void SetFeaturesProvider(Features_Provider * provider);
   void SetMatchesProvider(Matches_Provider * provider);
 
+  // debug xinli
+  void coutIntrinsic();
+  std::string writeIntrinsic();
+
   virtual bool Process() override;
 
   void setInitialPair(const Pair & initialPair)

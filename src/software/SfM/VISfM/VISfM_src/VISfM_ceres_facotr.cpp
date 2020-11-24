@@ -12,6 +12,7 @@ namespace openMVG
         Eigen::Matrix<double, 15, 15> IMUFactorBAISE::sqrt_info_weight = Eigen::Matrix<double, 15, 15>::Identity();
         Eigen::Matrix<double, 15, 15> IMUFactor::sqrt_info_weight = Eigen::Matrix<double, 15, 15>::Identity();
         Eigen::Matrix<double, 12, 12> IMUFactorWOBAISE::sqrt_info_weight = Eigen::Matrix<double, 12, 12>::Identity();
+        Eigen::Matrix<double, 12, 12> IMUFactorWOBAISE7POSE::sqrt_info_weight = Eigen::Matrix<double, 12, 12>::Identity();
         Eigen::Matrix2d VISfM_Projection::sqrt_info = Eigen::Matrix2d::Identity();
 
         VISfM_Projection::VISfM_Projection(Eigen::Vector2d &obs) : point_obs_(obs)
@@ -103,6 +104,9 @@ namespace openMVG
                     jacobian_ptsc_ex.block<3,3>(0,3) =  Utility::skewSymmetric(pts_camera);
 
                     jacobian_ex_pose.block<2, 6>(0,0) = sqrt_info * jacobian_e_ptscn * jacobian_ptscn_ptsc * jacobian_ptsc_ex;
+
+//                    jacobian_ex_pose.block<2, 1>(0, 1).setZero();
+//                    jacobian_ex_pose.block<2, 1>(0, 2).setZero();
 
                 }
                 if(jacobians[2])

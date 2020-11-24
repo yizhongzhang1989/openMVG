@@ -130,6 +130,8 @@ private:
 
     bool BundleAdjustmentWithIMU(bool _global_ba = true);
 
+    bool BundleAdjustmentWithSIMUIMU(bool _global_ba = true);
+
 
     bool BundleAdjustmentWithIMU_local( SfM_Data &local_scene );
 

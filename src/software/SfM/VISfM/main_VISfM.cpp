@@ -31,6 +31,13 @@ using namespace openMVG;
 using namespace openMVG::cameras;
 using namespace openMVG::sfm;
 
+
+void PrintExtric(const SfM_Data & sfm_data)
+{
+    std::cout << "sfm_data.IG_Ric = \n" << sfm_data.IG_Ric << std::endl;
+    std::cout << "sfm_data.IG_tic = \n" << sfm_data.IG_tic << std::endl;
+}
+
 /// From 2 given image file-names, find the two corresponding index in the View list
 bool computeIndexFromImageNames(
         const SfM_Data & sfm_data,
@@ -216,7 +223,8 @@ int main(int argc, char **argv)
     else if( sSfM_IMU_FileType == std::string("Simu") )
     {
         Ric.setIdentity();
-        tic.setZero();
+        tic << 0., 0., 0.;
+//        tic.setZero();
     }
     else
     {
@@ -251,10 +259,10 @@ int main(int argc, char **argv)
     }
     else
     {
-        VIstaticParm::acc_n = 0.08;
-        VIstaticParm::acc_w = 0.00004;
-        VIstaticParm::gyr_n = 0.004;
-        VIstaticParm::gyr_w = 2.0e-6;
+        VIstaticParm::acc_n = 0;
+        VIstaticParm::acc_w = 0;
+        VIstaticParm::gyr_n = 0;
+        VIstaticParm::gyr_w = 0;
     }
 
 
@@ -446,6 +454,11 @@ int main(int argc, char **argv)
 //                     ESfM_Data(ALL));
 
                 std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
+
+                std::cout << "init ex\n";
+                PrintExtric(sfMData);
+                std::cout << "after oti" << std::endl;
+                PrintExtric(visfmEngine.Get_SfM_Data());
 
                 std::cout << "...Generating SfM_Report.html" << std::endl;
                 Generate_SfM_Report(visfmEngine.Get_SfM_Data(),

@@ -95,7 +95,33 @@ namespace openMVG {
                                    const Hash_Map<IndexT, std::vector<double>>& map_poses,
                                    const Hash_Map<IndexT, std::vector<double>>& map_speed );
 
+            Eigen::Vector2d GetProjectionError(
+                    const double* pose_param,
+                    const double* ex_param,
+                    const double* intrix_param,
+                    const double* point_param,
+                    Eigen::Vector2d& point_obs_);
+
+            double PrintProjectionError(
+                    const sfm::SfM_Data &sfm_data,
+                    const Hash_Map<IndexT, std::vector<double>>& map_poses,
+                    const Hash_Map<IndexT, std::vector<double>>& map_intrinsics,
+                    const double* ex_paparm
+                    );
+
+
+            double PrintImuError(const sfm::SfM_Data &sfm_data,
+                               const Hash_Map<IndexT, std::vector<double>>& map_poses,
+                               const Hash_Map<IndexT, std::vector<double>>& map_speed );
+
             bool Adjust_onlyIMU(
+                    // the SfM scene to refine
+                    sfm::SfM_Data & sfm_data,
+                    // tell which parameter needs to be adjusted
+                    const Optimize_Options & options
+            );
+
+            bool Adjust_SimuIMU(
                     // the SfM scene to refine
                     sfm::SfM_Data & sfm_data,
                     // tell which parameter needs to be adjusted

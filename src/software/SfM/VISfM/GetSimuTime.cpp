@@ -31,8 +31,8 @@ int main(int argc, char **argv)
     std::string output_file(argv[1]);
     std::ofstream fout( output_file, std::ofstream::out );
     fout.precision(3);
-    double step = 1. / 20.;
-    for( int i=0;i<200;++i )
+    double step = 1. / 30.;
+    for( int i=0;i<300;++i )
     {
         fout << static_cast<double>( i ) * step << std::endl;
     }

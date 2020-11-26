@@ -87,10 +87,11 @@ using namespace openMVG::matching;
         if (!MakeInitialPair3D(initial_pair_))
             return false;
 
+        //Save(sfm_data_, stlplus::create_filespec(sOut_directory_, "initialPair", ".bin"), ESfM_Data(ALL));
+
         // Compute robust Resection of remaining images
         // - group of images will be selected and resection + scene completion will be tried
         size_t resectionGroupIndex = 0;
-        size_t local_intersection = 0;
         std::vector<uint32_t> vec_possible_resection_indexes;
         while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
         {
@@ -111,14 +112,7 @@ using namespace openMVG::matching;
                 os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
                 Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
 
-                // Perform BA until all point are under the given precision
-//            do
-//            {
-//                BundleAdjustment();
-//            }
-//            while (badTrackRejector(4.0, 50));
-//            eraseUnstablePosesAndObservations(sfm_data_);
-
+                //Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".bin"), ESfM_Data(ALL));
 
 
                 if( resectionGroupIndex % 10 == 0 )
@@ -133,80 +127,10 @@ using namespace openMVG::matching;
                 else
                 {
                     std::cout << "start local BA " << std::endl;
+
                     SfM_Data local_scene;
-                    Landmarks original_local_landmarks;
-
                     std::set< IndexT > local_scene_viewId;
-                    {
-                        for( auto&viewId:sfm_data_.add_viewId_cur )
-                        {
-                            {
-                                auto pose_it = sfm_data_.poses.find(viewId);
-                                int i=0;
-                                while( pose_it != sfm_data_.poses.begin() )
-                                {
-                                    local_scene_viewId.insert(pose_it->first);
-                                    pose_it--;
-                                    if( i ++ == 15 ) break;
-                                }
-                                if( i == 16 ) local_scene_viewId.insert(pose_it->first);
-                            }
-                            {
-                                auto pose_it = sfm_data_.poses.find(viewId);
-                                int i=0;
-                                while( pose_it != sfm_data_.poses.end() )
-                                {
-                                    local_scene_viewId.insert(pose_it->first);
-                                    pose_it++;
-                                    if( i ++ == 15 ) break;
-                                }
-                            }
-                        }
-
-                        for( auto viewId:local_scene_viewId )
-                        {
-                            const View *view_I = sfm_data_.GetViews().at(viewId).get();
-                            local_scene.views.insert(*sfm_data_.GetViews().find(view_I->id_view));
-                            local_scene.intrinsics.insert(*sfm_data_.GetIntrinsics().find(view_I->id_intrinsic));
-                            local_scene.poses.insert(*sfm_data_.GetPoses().find(view_I->id_pose));
-                            assert( view_I->id_view == view_I->id_pose );
-                        }
-                    }
-
-                    std::cout <<"local_scene_viewId.size() = " << local_scene_viewId.size() << std::endl;
-
-                    for (auto &structure_landmark_it : sfm_data_.structure) {
-                        const Observations &obs = structure_landmark_it.second.obs;
-                        Observations local_obs;
-                        bool f_use_landmark = false;
-                        for (const auto &obs_it : obs) {
-                            const View *view = sfm_data_.views.at(obs_it.first).get();
-                            if( local_scene_viewId.count( view->id_view ) == 1)
-//                    if (view->id_pose >= start_camera && view->id_pose < end_camera)
-                            {
-                                local_obs[obs_it.first] = obs_it.second;
-                                f_use_landmark = true;
-                            }
-                        }
-                        if (f_use_landmark) {
-                            original_local_landmarks[structure_landmark_it.first].obs =
-                            local_scene.structure[structure_landmark_it.first].obs = std::move(local_obs);
-
-                            original_local_landmarks[structure_landmark_it.first].X =
-                            local_scene.structure[structure_landmark_it.first].X =
-                                    sfm_data_.structure[structure_landmark_it.first].X;
-                        }
-                    }
-
-                    {
-//                    std::ostringstream os1;
-//                    os1 << std::setw(8) << std::setfill('0') << local_intersection << "_Resection";
-//                    Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os1.str(), ".ply"), ESfM_Data(ALL));
-//
-//                    std::ostringstream os2;
-//                    os2 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalScene";
-//                    Save(local_scene, stlplus::create_filespec(sOut_directory_, os2.str(), ".ply"), ESfM_Data(ALL));
-                    }
+                    CreateLocalScene(local_scene, local_scene_viewId, sfm_data_.add_viewId_cur);
 
                     // Perform BA until all point are under the given precision
                     do
@@ -215,27 +139,17 @@ using namespace openMVG::matching;
                     }
                     while (badTrackRejectorWindow(local_scene,4.0, 50));
 
-                    {
-//                    std::ostringstream os3;
-//                    os3 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalSceneOptimized";
-//                    Save(local_scene, stlplus::create_filespec(sOut_directory_, os3.str(), ".ply"), ESfM_Data(ALL));
-                    }
-                    local_intersection++;
-
-                    {
-//                for (unsigned int i = start_camera; i < end_camera; i++)
-                        for( auto&view_index:local_scene_viewId )
-                        {
-                            const View *view_I = sfm_data_.GetViews().at(view_index).get();
-                            sfm_data_.intrinsics[view_I->id_intrinsic] = local_scene.intrinsics[view_I->id_intrinsic];
-                            sfm_data_.poses[view_I->id_pose] = local_scene.poses[view_I->id_pose];
-                        }
-                        // update camera 3d points and 2d points
-                        for (auto &structure_landmark_it : local_scene.structure) {
-                            sfm_data_.structure[structure_landmark_it.first].X =
-                                    local_scene.structure[structure_landmark_it.first].X;
-                        }
-                    }
+					for (auto& view_index : local_scene_viewId)
+					{
+						const View* view_I = sfm_data_.GetViews().at(view_index).get();
+						sfm_data_.intrinsics[view_I->id_intrinsic] = local_scene.intrinsics[view_I->id_intrinsic];
+						sfm_data_.poses[view_I->id_pose] = local_scene.poses[view_I->id_pose];
+					}
+					// update camera 3d points and 2d points
+					for (auto& structure_landmark_it : local_scene.structure) {
+						sfm_data_.structure[structure_landmark_it.first].X =
+							local_scene.structure[structure_landmark_it.first].X;
+					}
                 }
                 eraseUnstablePosesAndObservations(sfm_data_);
 
@@ -299,6 +213,68 @@ using namespace openMVG::matching;
         }
         return true;
     }
+
+	bool WindowSequentialSfMReconstructionEngine::CreateLocalScene(
+        SfM_Data&               local_scene, 
+        std::set<IndexT>&       local_scene_viewId, 
+        const std::set<IndexT>& add_viewId_cur
+    ) {
+        //  collect all views that is close to current views		
+		for (auto& viewId : add_viewId_cur){
+			{
+				auto pose_it = sfm_data_.poses.find(viewId);
+				int i = 0;
+				while (pose_it != sfm_data_.poses.begin())
+				{
+					local_scene_viewId.insert(pose_it->first);
+					pose_it--;
+					if (i++ == 15) break;
+				}
+				if (i == 16) local_scene_viewId.insert(pose_it->first);
+			}
+			{
+				auto pose_it = sfm_data_.poses.find(viewId);
+				int i = 0;
+				while (pose_it != sfm_data_.poses.end())
+				{
+					local_scene_viewId.insert(pose_it->first);
+					pose_it++;
+					if (i++ == 15) break;
+				}
+			}
+		}
+
+        //  add views to local_scene
+		for (auto viewId : local_scene_viewId) {
+			const View* view_I = sfm_data_.GetViews().at(viewId).get();
+			local_scene.views.insert(*sfm_data_.GetViews().find(view_I->id_view));
+			local_scene.intrinsics.insert(*sfm_data_.GetIntrinsics().find(view_I->id_intrinsic));
+			local_scene.poses.insert(*sfm_data_.GetPoses().find(view_I->id_pose));
+			assert(view_I->id_view == view_I->id_pose);
+		}
+
+		//std::cout << "local_scene_viewId.size() = " << local_scene_viewId.size() << std::endl;
+
+		for (auto& structure_landmark_it : sfm_data_.structure) {
+			const Observations& obs = structure_landmark_it.second.obs;
+			Observations local_obs;
+			bool f_use_landmark = false;
+			for (const auto& obs_it : obs) {
+				const View* view = sfm_data_.views.at(obs_it.first).get();
+				if (local_scene_viewId.count(view->id_view) == 1)
+				{
+					local_obs[obs_it.first] = obs_it.second;
+					f_use_landmark = true;
+				}
+			}
+			if (f_use_landmark) {
+				local_scene.structure[structure_landmark_it.first].obs = std::move(local_obs);
+				local_scene.structure[structure_landmark_it.first].X = sfm_data_.structure[structure_landmark_it.first].X;
+			}
+		}
+
+        return true;
+	}
 
     bool WindowSequentialSfMReconstructionEngine::BundleAdjustmentWindows(SfM_Data &sfm_data)
     {

@@ -32,6 +32,12 @@ public:
 
     virtual bool Process() override;
 
+	bool CreateLocalScene(
+        SfM_Data&               local_scene, 
+        std::set<IndexT>&       local_scene_viewId, 
+        const std::set<IndexT>& add_viewId_cur
+    );
+
     bool BundleAdjustmentWindows(SfM_Data& sfm_data);
 
     bool badTrackRejectorWindow( SfM_Data& sfm_data, double dPrecision, size_t count = 0);

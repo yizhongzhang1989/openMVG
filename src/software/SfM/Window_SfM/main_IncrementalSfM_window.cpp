@@ -99,7 +99,7 @@ int main(int argc, char **argv)
   cmd.add( make_option('f', sIntrinsic_refinement_options, "refineIntrinsics") );
   cmd.add( make_switch('P', "prior_usage") );
   cmd.add( make_option('t', triangulation_method, "triangulation_method"));
-    cmd.add( make_option('r', sResultTime_Filename, "sResultTime_Filename"));
+  cmd.add( make_option('r', sResultTime_Filename, "sResultTime_Filename"));
 
   cmd.add( make_switch('w', "window_mode"));
 

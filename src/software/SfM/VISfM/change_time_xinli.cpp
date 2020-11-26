@@ -23,7 +23,7 @@ int main(int argc, char **argv)
 //        if( i++%2 == 0 )
         {
             double new_time;
-            new_time = 1403715273262142976 + time*1e9;
+            new_time = 1403715273262140000 + time*1e9;
             fout << new_time << std::endl;
         }
     }

@@ -38,6 +38,23 @@ void SaveTumPose(
 
 int main(int argc , char** argv)
 {
+//    Eigen::Matrix3d rotation_matrix;
+//    rotation_matrix <<
+//             0.999686,   0.0243763, -0.0057566,
+//             -0.0243752,     0.999703,  0.000255811,
+//             0.00576112, -0.000115413,     0.999983;
+//
+////    Eigen::AngleAxisd rotation_vector(rotation_matrix);
+//
+//    Eigen::Vector3d eulerAngle=rotation_matrix.eulerAngles(2,1,0);
+//
+//    eulerAngle = eulerAngle  / M_PI_2 * 180;
+//
+//    std::cout << eulerAngle.transpose() << std::endl;
+//
+//    return 0;
+
+
     CmdLine cmd;
 
     std::string sSfM_Data_Filename_In, sInputTimes;

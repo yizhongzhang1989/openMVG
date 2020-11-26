@@ -169,6 +169,33 @@ namespace sfm{
             eraseUnstablePosesAndObservations(sfm_data_);
         }
 
+        //xinli debug ex
+        /*{
+            Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
+            if ( sfm_data_.GetPoses().size() > 100 &&
+                 (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
+                  ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::CX_SPARSE) ||
+                  ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::EIGEN_SPARSE))
+                    )
+            {
+                options.preconditioner_type_ = ceres::JACOBI;
+                options.linear_solver_type_ = ceres::SPARSE_SCHUR;
+            }
+            else
+            {
+                options.linear_solver_type_ = ceres::DENSE_SCHUR;
+            }
+            Bundle_Adjustment_IMU_Ceres bundle_adjustment_obj(options);
+            const Optimize_Options ba_refine_options
+                    ( ReconstructionEngine::intrinsic_refinement_options_,
+                      Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
+                      Structure_Parameter_Type::ADJUST_ALL, // Adjust scene structure
+                      Control_Point_Parameter(),
+                      this->b_use_motion_prior_
+                    );
+            bundle_adjustment_obj.CheckEx(sfm_data_, ba_refine_options);
+        }*/
+
         //-- Reconstruction done.
         //-- Display some statistics
         std::cout << "\n\n-------------------------------" << "\n"
@@ -491,7 +518,87 @@ namespace sfm{
 
     bool SequentialVISfMReconstructionEngine::Process_onlyvisual()
     {
-        return false;
+        // Compute robust Resection of remaining images
+        // - group of images will be selected and resection + scene completion will be tried
+        size_t resectionGroupIndex = 0;
+        std::vector<uint32_t> vec_possible_resection_indexes;
+        while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
+        {
+            bool bImageAdded = false;
+            // Add images to the 3D reconstruction
+            for (const auto & iter : vec_possible_resection_indexes)
+            {
+                bImageAdded |= Resection(iter);
+                set_remaining_view_id_.erase(iter);
+            }
+
+            if (bImageAdded)
+            {
+                // Scene logging as ply for visual debug
+                std::ostringstream os;
+                os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
+                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+
+                // Perform BA until all point are under the given precision
+                do
+                {
+                    BundleAdjustment();
+                }
+                while (badTrackRejector(4.0, 50));
+                eraseUnstablePosesAndObservations(sfm_data_);
+            }
+            ++resectionGroupIndex;
+        }
+        // Ensure there is no remaining outliers
+        if (badTrackRejector(4.0, 0))
+        {
+            eraseUnstablePosesAndObservations(sfm_data_);
+        }
+
+        //-- Reconstruction done.
+        //-- Display some statistics
+        std::cout << "\n\n-------------------------------" << "\n"
+                  << "-- Structure from Motion (statistics):\n"
+                  << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+                  << " from " << sfm_data_.GetViews().size() << " input images.\n"
+                  << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "\n"
+                  << "-------------------------------" << "\n";
+
+        Histogram<double> h;
+        ComputeResidualsHistogram(&h);
+        std::cout << "\nHistogram of residuals:\n" << h.ToString() << std::endl;
+
+        if (!sLogging_file_.empty())
+        {
+            using namespace htmlDocument;
+            std::ostringstream os;
+            os << "Structure from Motion process finished.";
+            html_doc_stream_->pushInfo("<hr>");
+            html_doc_stream_->pushInfo(htmlMarkup("h1",os.str()));
+
+            os.str("");
+            os << "-------------------------------" << "<br>"
+               << "-- Structure from Motion (statistics):<br>"
+               << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+               << " from " <<sfm_data_.GetViews().size() << " input images.<br>"
+               << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "<br>"
+               << "-------------------------------" << "<br>";
+            html_doc_stream_->pushInfo(os.str());
+
+            html_doc_stream_->pushInfo(htmlMarkup("h2","Histogram of reprojection-residuals"));
+
+            const std::vector<double> xBin = h.GetXbinsValue();
+            const auto range = autoJSXGraphViewport<double>(xBin, h.GetHist());
+
+            htmlDocument::JSXGraphWrapper jsxGraph;
+            jsxGraph.init("3DtoImageResiduals",600,300);
+            jsxGraph.addXYChart(xBin, h.GetHist(), "line,point");
+            jsxGraph.UnsuspendUpdate();
+            jsxGraph.setViewport(range);
+            jsxGraph.close();
+            html_doc_stream_->pushInfo(jsxGraph.toStr());
+        }
+        return true;
     }
 
     bool SequentialVISfMReconstructionEngine::TestImuFactor()
@@ -1222,9 +1329,9 @@ namespace sfm{
 //        BundleAdjustment();
 //        BundleAdjustment();
 //        std::cout << "start BundleAdjustmentWithIMU" << std::endl;
-        BundleAdjustmentWithIMU();
+//        BundleAdjustmentWithIMU();
 //        std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
-        BundleAdjustment_optimizi_only_IMU();
+//        BundleAdjustment_optimizi_only_IMU();
 //        BundleAdjustmentWithIMU();
 //        BundleAdjustment();
 //        BundleAdjustment();
@@ -1240,6 +1347,11 @@ namespace sfm{
 //            std::cout << "it1 = " << it1 << std::endl;
 //            std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
 //        }
+
+
+
+//        sfm_data_.IG_tic = Eigen::Vector3d( 0., 0., 1. );
+
 
         return true;
     }

@@ -219,6 +219,12 @@ int main(int argc, char **argv)
         Ric = Rci.transpose();
         tic = -Ric * tci;
 
+//        Ric <<
+//            -0.01328179, -0.99853927,  0.05237284,
+//                -0.99971395,  0.01221905, -0.02056013,
+//                0.01989015, -0.05263093, -0.99841593;
+//        tic << 0.03755697, 0.03135829, -0.04861944;
+
     }
     else if( sSfM_IMU_FileType == std::string("Simu") )
     {
@@ -252,16 +258,6 @@ int main(int argc, char **argv)
     }
     else if( sSfM_IMU_FileType == std::string("Mate20Pro") )
     {
-//        VIstaticParm::acc_n = 0;
-//        VIstaticParm::acc_w = 0;
-//        VIstaticParm::gyr_n = 0;
-//        VIstaticParm::gyr_w = 0;
-
-//        VIstaticParm::acc_n = 0.08;
-//        VIstaticParm::acc_w = 0.00004;
-//        VIstaticParm::gyr_n = 0.004;
-//        VIstaticParm::gyr_w = 2.0e-6;
-
         VIstaticParm::acc_n = 1.3061437477214574e-02;
         VIstaticParm::acc_w = 9.7230832140122278e-04;
         VIstaticParm::gyr_n = 9.7933408260869451e-04;
@@ -455,7 +451,13 @@ int main(int argc, char **argv)
 //                 "/home/xinli/work/data/VI_visualIMU_init.bin",
 //                 ESfM_Data(ALL));
 //            return EXIT_SUCCESS;
+
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "visual_init_cloud_and_poses", ".ply"),
+                 ESfM_Data(ALL));
+
             if(visfmEngine.Process())
+//            if(visfmEngine.Process_onlyvisual())
             {
 
                 time.print_time();

@@ -148,46 +148,59 @@ public:
 
         // interpolate grid
         STLVector<Eigen::Vector3d> up_vertices_interpolated, down_vertices_interpolated;
-        InterpolateGrid(up_vertices,down_vertices,total_duration,T_sample,up_vertices_interpolated,down_vertices_interpolated);
+        STLVector<double> timestamp;
+		InterpolateGrid(
+            up_vertices, down_vertices, 
+            total_duration, T_sample, 
+            up_vertices_interpolated, down_vertices_interpolated, 
+            timestamp);
         std::cout << "total duration = " << total_duration << " , T_sample = " << T_sample << std::endl;
         std::cout << up_vertices_interpolated.size() << " " << down_vertices_interpolated.size() << std::endl;
 
         // generate poses
         STLVector<InversePose> inv_poses;
-        GeneratePosesFromGrid(up_vertices_interpolated,down_vertices_interpolated,inv_poses);
+		GeneratePosesFromGrid(
+            up_vertices_interpolated, 
+            down_vertices_interpolated, 
+            timestamp, 
+            inv_poses);
         CorrectQuaternion(inv_poses);
 
         std::cout << "num_poses = " << inv_poses.size() << std::endl;
         return inv_poses;
     }
-    static STLVector<InversePose> SampleTrajectory(const std::string& objFile, STLVector<Eigen::Vector3d>* pVerticesOut = nullptr)
-    {
-        // read squares
-        STLVector<Eigen::Vector3d> vertices;
-        ObjFileReader::ReadVerticesOnlyFromObj(objFile.c_str(),vertices);
+  //  static STLVector<InversePose> SampleTrajectory(const std::string& objFile, STLVector<Eigen::Vector3d>* pVerticesOut = nullptr)
+  //  {
+  //      // read squares
+  //      STLVector<Eigen::Vector3d> vertices;
+  //      ObjFileReader::ReadVerticesOnlyFromObj(objFile.c_str(),vertices);
 
-        std::cout<<"num vertices: "<<vertices.size()<<std::endl;
+  //      std::cout<<"num vertices: "<<vertices.size()<<std::endl;
 
-        if(pVerticesOut)
-            *pVerticesOut = vertices;
+  //      if(pVerticesOut)
+  //          *pVerticesOut = vertices;
 
-        int N = vertices.size() / 2;
-        STLVector<Eigen::Vector3d> up_vertices, down_vertices;
+  //      int N = vertices.size() / 2;
+  //      STLVector<Eigen::Vector3d> up_vertices, down_vertices;
 
-        for(int i = 0; i < N; i++)
-        {
-            down_vertices.push_back(vertices[2 * i]);
-            up_vertices.push_back(vertices[2 * i + 1]);
-        }
+  //      for(int i = 0; i < N; i++)
+  //      {
+  //          down_vertices.push_back(vertices[2 * i]);
+  //          up_vertices.push_back(vertices[2 * i + 1]);
+  //      }
 
-        // generate poses
-        STLVector<InversePose> inv_poses;
-        GeneratePosesFromGrid(up_vertices,down_vertices,inv_poses);
+  //      // generate poses
+  //      STLVector<InversePose> inv_poses;
+		//GeneratePosesFromGrid(up_vertices, down_vertices, inv_poses);
 
-        return inv_poses;
-    }
+  //      return inv_poses;
+  //  }
 private:
-    static void GeneratePosesFromGrid(const STLVector<Eigen::Vector3d>& up_vertices, const STLVector<Eigen::Vector3d>& down_vertices, STLVector<InversePose>& inv_poses)
+    static void GeneratePosesFromGrid(
+        const STLVector<Eigen::Vector3d>& up_vertices, 
+        const STLVector<Eigen::Vector3d>& down_vertices, 
+        const STLVector<double>& timestamp,
+        STLVector<InversePose>& inv_poses)
     {
         assert(up_vertices.size() == down_vertices.size());
 
@@ -216,14 +229,21 @@ private:
 
             inv_pose.q = Eigen::Quaterniond(R);
 
+			inv_pose.time_stamp = timestamp[i];
+
             inv_poses.push_back(inv_pose);
         }
     }
 
-    static void InterpolateGrid(const STLVector<Eigen::Vector3d>& up_vertices_in, const STLVector<Eigen::Vector3d>& down_vertices_in,
-        const double total_duration, const double T_sample,
-        STLVector<Eigen::Vector3d>& up_vertices_out, STLVector<Eigen::Vector3d>& down_vertices_out)
-    {
+	static void InterpolateGrid(
+		const STLVector<Eigen::Vector3d>& up_vertices_in,
+		const STLVector<Eigen::Vector3d>& down_vertices_in,
+		const double total_duration,
+		const double T_sample,
+		STLVector<Eigen::Vector3d>& up_vertices_out,
+		STLVector<Eigen::Vector3d>& down_vertices_out,
+		STLVector<double>& timestamp_out
+	) {
         assert(up_vertices_in.size() == down_vertices_in.size());
         assert(total_duration > 0 && T_sample > 0);
 
@@ -233,6 +253,7 @@ private:
 
         up_vertices_out.clear();
         down_vertices_out.clear();
+        timestamp_out.clear();
 
         std::vector<double> coef;
         for (int i = 0; i < N_vertex; i++)
@@ -252,6 +273,7 @@ private:
             //  =======================================
             up_vertices_out.push_back(up_vertex);
             down_vertices_out.push_back(down_vertex);
+			timestamp_out.push_back(current_time);
 
             current_time += T_sample;
         }

@@ -313,7 +313,7 @@ void SaveSfMData(std::string sDataDir, std::string sImageDir, generator::Simulat
 
     // Build intrinsic parameter related to the view
     std::shared_ptr<IntrinsicBase> intrinsic;
-    intrinsic = std::make_shared<Pinhole_Intrinsic>
+    intrinsic = std::make_shared<Pinhole_Intrinsic_Radial_K3>
             (width, height, focal, ppx, ppy);
 
     for(int i=0;i<simulationData.key_frames.size();i++)
@@ -519,6 +519,12 @@ void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPa
         WriteImage(img_name.c_str(),img);
         kf_count++;
     }
+
+    std::ofstream file_timestamp(outPath + "/timestamp.txt");
+    for (auto& key_frame : key_frames) {
+        file_timestamp << key_frame.second.time_stamp << std::endl;
+    }
+    file_timestamp.close();
 }
 
 bool ParseExtrinsics(const std::string& str, std::vector<double>& params)

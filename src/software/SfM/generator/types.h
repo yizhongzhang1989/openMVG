@@ -32,10 +32,12 @@ struct Pose
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     // global -> local
+    double time_stamp;
     Eigen::Quaterniond q;  // rotation
     Eigen::Vector3d t;  // translation
     Pose()
     {
+        time_stamp = 0.0;
         t.setZero();
         q.setIdentity();
     }
@@ -56,10 +58,12 @@ struct InversePose
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     // local -> global
+    double time_stamp;
     Eigen::Quaterniond q;  // orientation
     Eigen::Vector3d p;  // position
     InversePose()
     {
+        time_stamp = 0.0;
         p.setZero();
         q.setIdentity();
     }
@@ -172,17 +176,23 @@ typedef STLMap<unsigned int, MapPoint> MapPoints;
 struct KeyFrame
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    double time_stamp;  //  unit in seconds
     unsigned int Id;
     Pose pose;
 //    std::set<unsigned int> obs;
     std::vector<unsigned int> obs;
     KeyFrame()
-    :Id(-1)
+    :time_stamp(0.0), Id(-1)
     {
         obs.clear();
     }
     KeyFrame(unsigned int id, const Pose& p)
-    : Id(id), pose(p)
+    : time_stamp(0.0), Id(id), pose(p)
+    {
+        obs.clear();
+    }
+    KeyFrame(double timestamp_s, unsigned int id, const Pose& p)
+        : time_stamp(timestamp_s), Id(id), pose(p)
     {
         obs.clear();
     }

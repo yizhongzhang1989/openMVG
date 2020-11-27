@@ -27,6 +27,7 @@ public:
             Pose pose;
             pose.q = inv_pose.q.inverse();
             pose.t = -(pose.q * inv_pose.p);
+            pose.time_stamp = inv_pose.time_stamp;
             mPoses.push_back(pose);
         }
         std::cout << "Number pose Camera = " << mPoses.size() << std::endl;

@@ -30,7 +30,7 @@ bool SimulationGenerator::Generate(Simulation_Data& sfm_data, const SimulationCo
     unsigned int kf_id = 0;
     for(auto & sample_pose : generated_poses)
     {
-        key_frames[kf_id] = KeyFrame(kf_id,sample_pose);
+		key_frames[kf_id] = KeyFrame(sample_pose.time_stamp, kf_id, sample_pose);
         kf_id++;
     }
     std::cout<<"generation finished."<<std::endl;

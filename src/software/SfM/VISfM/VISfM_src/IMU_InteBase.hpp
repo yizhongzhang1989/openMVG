@@ -50,8 +50,12 @@ namespace openMVG
 
             bool readline()
             {
-                if( !csvInput_ ) throw std::runtime_error(" Not Set File to Read ");
-                if( csvInput_.eof() ) return false;
+                if( !csvInput_ ) return false;// throw std::runtime_error(" Not Set File to Read ");
+                if( csvInput_.eof() )
+                {
+                    std::cout << data_[0] << " - " <<last_data_[0] << std::endl;
+                    return false;
+                }
 
                 std::string line;
                 getline(csvInput_, line);
@@ -72,15 +76,15 @@ namespace openMVG
                     data_[0] = static_cast<long long int>(data_[0]);
                 }
 
-                if( last_data_[0] != 0 )
-                {
-                    if( (data_[0] - last_data_[0]) != 5 )
-                    {
-                        std::cout << line << std::endl;
-                        std::cout << data_[0] << " - " <<last_data_[0] << " != 5" << std::endl;
-                        return false;
-                    }
-                }
+//                if( last_data_[0] != 0 )
+//                {
+//                    if( (data_[0] - last_data_[0]) != 5 )
+//                    {
+//                        std::cout << line << std::endl;
+//                        std::cout << data_[0] << " - " <<last_data_[0] << " != 5" << std::endl;
+//                        return false;
+//                    }
+//                }
 
 //                if( last_data_[0] == 46274 )
 //                {
@@ -335,7 +339,8 @@ namespace openMVG
                 delta_q_.setIdentity();
                 jacobian.setIdentity();
                 covariance.setZero();
-//                covariance.setIdentity();
+                if( VIstaticParm::acc_n == 0 && VIstaticParm::gyr_n == 0 && VIstaticParm::acc_w == 0  && VIstaticParm::gyr_w == 0  )
+                    covariance.setIdentity();
                 double last_t = static_cast<double>(t0_);
                 last_t /= 1000.;
                 if(!good_falg) return;
@@ -367,7 +372,8 @@ namespace openMVG
                 linearized_bg_ = _linearized_bg;
                 jacobian.setIdentity();
                 covariance.setZero();
-//                covariance.setIdentity();
+                if( VIstaticParm::acc_n == 0 && VIstaticParm::gyr_n == 0 && VIstaticParm::acc_w == 0  && VIstaticParm::gyr_w == 0  )
+                    covariance.setIdentity();
                 for (int i = 0; i < static_cast<int>(dt_buf_.size()); i++)
                     propagate(dt_buf_[i], acc_buf_[i], gyr_buf_[i]);
             }
@@ -525,7 +531,8 @@ namespace openMVG
                 delta_q_.setIdentity();
                 jacobian.setIdentity();
                 covariance.setZero();
-//                covariance.setIdentity();
+                if( VIstaticParm::acc_n == 0 && VIstaticParm::gyr_n == 0 && VIstaticParm::acc_w == 0  && VIstaticParm::gyr_w == 0  )
+                    covariance.setIdentity();
             }
 
             double sum_dt_; // scond

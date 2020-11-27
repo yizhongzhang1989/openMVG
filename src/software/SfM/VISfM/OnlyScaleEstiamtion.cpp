@@ -219,6 +219,12 @@ int main(int argc, char **argv)
         Ric = Rci.transpose();
         tic = -Ric * tci;
 
+//        Ric <<
+//            -0.01328179, -0.99853927,  0.05237284,
+//                -0.99971395,  0.01221905, -0.02056013,
+//                0.01989015, -0.05263093, -0.99841593;
+//        tic << 0.03755697, 0.03135829, -0.04861944;
+
     }
     else if( sSfM_IMU_FileType == std::string("Simu") )
     {
@@ -252,20 +258,15 @@ int main(int argc, char **argv)
     }
     else if( sSfM_IMU_FileType == std::string("Mate20Pro") )
     {
-//        VIstaticParm::acc_n = 0;
-//        VIstaticParm::acc_w = 0;
-//        VIstaticParm::gyr_n = 0;
-//        VIstaticParm::gyr_w = 0;
+        VIstaticParm::acc_n = 0;
+        VIstaticParm::acc_w = 0;
+        VIstaticParm::gyr_n = 0;
+        VIstaticParm::gyr_w = 0;
 
-//        VIstaticParm::acc_n = 0.08;
-//        VIstaticParm::acc_w = 0.00004;
-//        VIstaticParm::gyr_n = 0.004;
-//        VIstaticParm::gyr_w = 2.0e-6;
-
-        VIstaticParm::acc_n = 1.3061437477214574e-02;
-        VIstaticParm::acc_w = 9.7230832140122278e-04;
-        VIstaticParm::gyr_n = 9.7933408260869451e-04;
-        VIstaticParm::gyr_w = 1.7270393511376410e-05;
+//        VIstaticParm::acc_n = 1.3061437477214574e-02;
+//        VIstaticParm::acc_w = 9.7230832140122278e-04;
+//        VIstaticParm::gyr_n = 9.7933408260869451e-04;
+//        VIstaticParm::gyr_w = 1.7270393511376410e-05;
     }
     else
     {
@@ -432,64 +433,58 @@ int main(int argc, char **argv)
     }
 
     XinTime time;
-    if(visfmEngine.VI_Init(  ))
+    if(visfmEngine.Process_visual_all(  ))
     {
 
         Save(visfmEngine.Get_SfM_Data(),
-             stlplus::create_filespec(sOutDir, "sfm_visual_init_data", ".bin"),
+             stlplus::create_filespec(sOutDir, "sfm_visual_all_data", ".bin"),
              ESfM_Data(ALL));
 
         Save(visfmEngine.Get_SfM_Data(),
-             stlplus::create_filespec(sOutDir, "sfm_visual_init_cloud_and_poses", ".ply"),
+             stlplus::create_filespec(sOutDir, "sfm_visual_all_cloud_and_poses", ".ply"),
              ESfM_Data(ALL));
 //        Save(visfmEngine.Get_SfM_Data(),
 //             "/home/xinli/work/data/VI_visual_init.bin",
 //             ESfM_Data(ALL));
-        if(!visfmEngine.VI_align())
+        if(!visfmEngine.VI_align(true))
         {
             std::cerr << "VI sfm align fail" << std::endl;
             return EXIT_FAILURE;
         }
         else{
-//            Save(visfmEngine.Get_SfM_Data(),
-//                 "/home/xinli/work/data/VI_visualIMU_init.bin",
-//                 ESfM_Data(ALL));
-//            return EXIT_SUCCESS;
-            if(visfmEngine.Process())
-            {
 
-                time.print_time();
+
+            time.print_time();
 //                Save(visfmEngine.Get_SfM_Data(),
 //                     "/home/xinli/work/data/Allresutl.bin",
 //                     ESfM_Data(ALL));
 
-                std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
+            std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
-                std::cout << "init ex\n";
-                PrintExtric(sfMData);
-                std::cout << "after oti" << std::endl;
-                PrintExtric(visfmEngine.Get_SfM_Data());
+            std::cout << "init ex\n";
+            PrintExtric(sfMData);
+            std::cout << "after oti" << std::endl;
+            PrintExtric(visfmEngine.Get_SfM_Data());
 
-                std::cout << "...Generating SfM_Report.html" << std::endl;
-                Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
-                                    stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
+            std::cout << "...Generating SfM_Report.html" << std::endl;
+            Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
+                                stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
 
-                //-- Export to disk computed scene (data & visualizable results)
-                std::cout << "...Export SfM_Data to disk." << std::endl;
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
-                     ESfM_Data(ALL));
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "sfm_data", ".json"),
-                     ESfM_Data(ALL));
+            //-- Export to disk computed scene (data & visualizable results)
+            std::cout << "...Export SfM_Data to disk." << std::endl;
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
+                 ESfM_Data(ALL));
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "sfm_data", ".json"),
+                 ESfM_Data(ALL));
 
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
-                     ESfM_Data(ALL));
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
+                 ESfM_Data(ALL));
 
-                return EXIT_SUCCESS;
-            }
-//            return EXIT_SUCCESS;
+            return EXIT_SUCCESS;
+
         }
     }
     else

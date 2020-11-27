@@ -144,143 +144,20 @@ namespace sfm{
 //                      std::cout << "start update_imu_inte" << std::endl;
                     update_imu_inte();
                     BundleAdjustment_optimizi_init_IMU( );
+//                    BundleAdjustment();
                     do
                     {
 
 //                      std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
-                        BundleAdjustment_optimizi_only_IMU();
+//                        BundleAdjustment_optimizi_only_IMU();
 //                      std::cout << "start BundleAdjustmentWithIMU" << std::endl;
 //                      std::cout << "end BundleAdjustment_optimizi_only_IMU" << std::endl;
                         BundleAdjustmentWithIMU( );
+//                        BundleAdjustmentWithSIMUIMU();
 //                      std::cout << "end BundleAdjustmentWithIMU" << std::endl;
                     }
                     while (badTrackRejector(4.0, 50));
                 }
-                /*else
-                {
-                    std::cout << "start local BA " << std::endl;
-                    SfM_Data local_scene;
-                    Landmarks original_local_landmarks;
-
-                    std::set< IndexT > local_scene_viewId;
-                    {
-                        for( auto&viewId:sfm_data_.add_viewId_cur )
-                        {
-                            {
-                                auto pose_it = sfm_data_.poses.find(viewId);
-                                int i=0;
-                                while( pose_it != sfm_data_.poses.begin() )
-                                {
-                                    local_scene_viewId.insert(pose_it->first);
-                                    pose_it--;
-                                    if( i ++ == 10 ) break;
-                                }
-                                if( i == 11 ) local_scene_viewId.insert(pose_it->first);
-                            }
-                            {
-                                auto pose_it = sfm_data_.poses.find(viewId);
-                                int i=0;
-                                while( pose_it != sfm_data_.poses.end() )
-                                {
-                                    local_scene_viewId.insert(pose_it->first);
-                                    pose_it++;
-                                    if( i ++ == 10 ) break;
-                                }
-                            }
-                        }
-
-                        for( auto viewId:local_scene_viewId )
-                        {
-                            const View *view_I = sfm_data_.GetViews().at(viewId).get();
-                            local_scene.views.insert(*sfm_data_.GetViews().find(view_I->id_view));
-                            local_scene.intrinsics.insert(*sfm_data_.GetIntrinsics().find(view_I->id_intrinsic));
-                            local_scene.poses.insert(*sfm_data_.GetPoses().find(view_I->id_pose));
-                            assert( view_I->id_view == view_I->id_pose );
-                        }
-                    }
-
-                    {
-                        local_scene.imus = sfm_data_.imus;
-                        local_scene.Speeds = sfm_data_.Speeds;
-                        local_scene.IG_tic = sfm_data_.IG_tic;
-                        local_scene.IG_Ric = sfm_data_.IG_Ric;
-
-                        update_imu_time(local_scene);
-                        update_imu_inte(local_scene);
-                    }
-
-                    std::cout <<"local_scene_viewId.size() = " << local_scene_viewId.size() << std::endl;
-
-                    for (auto &structure_landmark_it : sfm_data_.structure) {
-                        const Observations &obs = structure_landmark_it.second.obs;
-                        Observations local_obs;
-                        bool f_use_landmark = false;
-                        for (const auto &obs_it : obs) {
-                            const View *view = sfm_data_.views.at(obs_it.first).get();
-                            if( local_scene_viewId.count( view->id_view ) == 1)
-//                    if (view->id_pose >= start_camera && view->id_pose < end_camera)
-                            {
-                                local_obs[obs_it.first] = obs_it.second;
-                                f_use_landmark = true;
-                            }
-                        }
-                        if (f_use_landmark) {
-                            original_local_landmarks[structure_landmark_it.first].obs =
-                            local_scene.structure[structure_landmark_it.first].obs = std::move(local_obs);
-
-                            original_local_landmarks[structure_landmark_it.first].X =
-                            local_scene.structure[structure_landmark_it.first].X =
-                                    sfm_data_.structure[structure_landmark_it.first].X;
-                        }
-                    }
-
-                    {
-                        std::ostringstream os1;
-                        os1 << std::setw(8) << std::setfill('0') << local_intersection << "_Resection";
-                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os1.str(), ".ply"), ESfM_Data(ALL));
-
-                        std::ostringstream os2;
-                        os2 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalScene";
-                        Save(local_scene, stlplus::create_filespec(sOut_directory_, os2.str(), ".ply"), ESfM_Data(ALL));
-                    }
-
-                    update_state_speed();
-                    // Perform BA until all point are under the given precision
-                    do
-                    {
-//                        update_imu_time(local_scene);
-//                        update_imu_inte(local_scene);
-                        std::cout <<"BundleAdjustment_optimizi_only_IMU()" << std::endl;
-                        BundleAdjustment_optimizi_only_IMU();
-                        std::cout <<"BundleAdjustmentWithIMU_local()"  << std::endl;
-                        BundleAdjustmentWithIMU_local( local_scene );
-                        std::cout <<"BundleAdjustment over"  << std::endl;
-//                    std::cout << "end BundleAdjustmentWithIMU" << std::endl;
-                    }
-                    while (badTrackRejector(local_scene,4.0, 50));
-
-                    {
-                        std::ostringstream os3;
-                        os3 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalSceneOptimized";
-                        Save(local_scene, stlplus::create_filespec(sOut_directory_, os3.str(), ".ply"), ESfM_Data(ALL));
-                    }
-                    local_intersection++;
-
-                    {
-//                for (unsigned int i = start_camera; i < end_camera; i++)
-                        for( auto&view_index:local_scene_viewId )
-                        {
-                            const View *view_I = sfm_data_.GetViews().at(view_index).get();
-                            sfm_data_.intrinsics[view_I->id_intrinsic] = local_scene.intrinsics[view_I->id_intrinsic];
-                            sfm_data_.poses[view_I->id_pose] = local_scene.poses[view_I->id_pose];
-                        }
-                        // update camera 3d points and 2d points
-                        for (auto &structure_landmark_it : local_scene.structure) {
-                            sfm_data_.structure[structure_landmark_it.first].X =
-                                    local_scene.structure[structure_landmark_it.first].X;
-                        }
-                    }
-                }*/
 
                 eraseUnstablePosesAndObservations(sfm_data_);
             }
@@ -290,6 +167,47 @@ namespace sfm{
         if (badTrackRejector(4.0, 0))
         {
             eraseUnstablePosesAndObservations(sfm_data_);
+        }
+
+        //xinli debug ex
+        sfm_data_.imu_dataset->corect_dt( -0.1 * 1000 );
+
+        std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\test_data_circle_sine\\result.txt", std::ofstream::app);
+        file << "=====================================================\n";
+        for( int step = 0;step < 200;++step )
+        {
+            double td = -0.1 + step*0.001;
+
+            std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\test_data_circle_sine\\result.txt", std::ofstream::app);
+            file << td << " ";
+            update_imu_time();
+            update_imu_inte();
+
+            Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
+            if ( sfm_data_.GetPoses().size() > 100 &&
+                 (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
+                  ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::CX_SPARSE) ||
+                  ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::EIGEN_SPARSE))
+                    )
+            {
+                options.preconditioner_type_ = ceres::JACOBI;
+                options.linear_solver_type_ = ceres::SPARSE_SCHUR;
+            }
+            else
+            {
+                options.linear_solver_type_ = ceres::DENSE_SCHUR;
+            }
+            Bundle_Adjustment_IMU_Ceres bundle_adjustment_obj(options);
+            const Optimize_Options ba_refine_options
+                    ( ReconstructionEngine::intrinsic_refinement_options_,
+                      Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
+                      Structure_Parameter_Type::ADJUST_ALL, // Adjust scene structure
+                      Control_Point_Parameter(),
+                      this->b_use_motion_prior_
+                    );
+            bundle_adjustment_obj.CheckTd(sfm_data_, ba_refine_options);
+
+            sfm_data_.imu_dataset->corect_dt( 0.001 * 1000 );
         }
 
         //-- Reconstruction done.
@@ -614,7 +532,87 @@ namespace sfm{
 
     bool SequentialVISfMReconstructionEngine::Process_onlyvisual()
     {
-        return false;
+        // Compute robust Resection of remaining images
+        // - group of images will be selected and resection + scene completion will be tried
+        size_t resectionGroupIndex = 0;
+        std::vector<uint32_t> vec_possible_resection_indexes;
+        while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
+        {
+            bool bImageAdded = false;
+            // Add images to the 3D reconstruction
+            for (const auto & iter : vec_possible_resection_indexes)
+            {
+                bImageAdded |= Resection(iter);
+                set_remaining_view_id_.erase(iter);
+            }
+
+            if (bImageAdded)
+            {
+                // Scene logging as ply for visual debug
+                std::ostringstream os;
+                os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
+                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+
+                // Perform BA until all point are under the given precision
+                do
+                {
+                    BundleAdjustment();
+                }
+                while (badTrackRejector(4.0, 50));
+                eraseUnstablePosesAndObservations(sfm_data_);
+            }
+            ++resectionGroupIndex;
+        }
+        // Ensure there is no remaining outliers
+        if (badTrackRejector(4.0, 0))
+        {
+            eraseUnstablePosesAndObservations(sfm_data_);
+        }
+
+        //-- Reconstruction done.
+        //-- Display some statistics
+        std::cout << "\n\n-------------------------------" << "\n"
+                  << "-- Structure from Motion (statistics):\n"
+                  << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+                  << " from " << sfm_data_.GetViews().size() << " input images.\n"
+                  << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "\n"
+                  << "-------------------------------" << "\n";
+
+        Histogram<double> h;
+        ComputeResidualsHistogram(&h);
+        std::cout << "\nHistogram of residuals:\n" << h.ToString() << std::endl;
+
+        if (!sLogging_file_.empty())
+        {
+            using namespace htmlDocument;
+            std::ostringstream os;
+            os << "Structure from Motion process finished.";
+            html_doc_stream_->pushInfo("<hr>");
+            html_doc_stream_->pushInfo(htmlMarkup("h1",os.str()));
+
+            os.str("");
+            os << "-------------------------------" << "<br>"
+               << "-- Structure from Motion (statistics):<br>"
+               << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+               << " from " <<sfm_data_.GetViews().size() << " input images.<br>"
+               << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "<br>"
+               << "-------------------------------" << "<br>";
+            html_doc_stream_->pushInfo(os.str());
+
+            html_doc_stream_->pushInfo(htmlMarkup("h2","Histogram of reprojection-residuals"));
+
+            const std::vector<double> xBin = h.GetXbinsValue();
+            const auto range = autoJSXGraphViewport<double>(xBin, h.GetHist());
+
+            htmlDocument::JSXGraphWrapper jsxGraph;
+            jsxGraph.init("3DtoImageResiduals",600,300);
+            jsxGraph.addXYChart(xBin, h.GetHist(), "line,point");
+            jsxGraph.UnsuspendUpdate();
+            jsxGraph.setViewport(range);
+            jsxGraph.close();
+            html_doc_stream_->pushInfo(jsxGraph.toStr());
+        }
+        return true;
     }
 
     bool SequentialVISfMReconstructionEngine::TestImuFactor()
@@ -680,7 +678,7 @@ namespace sfm{
         {
             for( auto&view:sfm_data_.views )
             {
-                Pose3 pose ;//= sfm_data_.poses_gt.at(view.second->id_pose);
+                Pose3 pose = sfm_data_.poses_gt.at(view.second->id_pose);
                 sfm_data_.poses.insert( {view.first, pose} );
             }
         }
@@ -747,13 +745,12 @@ namespace sfm{
                 }
 
                 // Init remaining image list
-                for (Views::const_iterator itV = sfm_data_.GetViews().begin();
-                     itV != sfm_data_.GetViews().end(); ++itV)
+                for (const auto & itV : sfm_data_.GetViews())
                 {
-                    if( itV->second->id_view >= left && itV->second->id_view <= right )
+                    if( itV.second->id_view >= left && itV.second->id_view <= right )
                     {
-                        set_remaining_view_id_vi_init_.insert(itV->second->id_view);
-                        set_remaining_view_id_.erase(itV->second->id_view);
+                        set_remaining_view_id_vi_init_.insert(itV.second->id_view);
+                        set_remaining_view_id_.erase(itV.second->id_view);
 //                        set_remaining_view_id_.erase(v_id);
                     }
                 }
@@ -854,6 +851,127 @@ namespace sfm{
         {
             set_remaining_view_id_.insert(v_id);
         }
+        return true;
+    }
+
+    bool SequentialVISfMReconstructionEngine::Process_visual_all()
+    {
+        //-------------------
+        //-- Incremental reconstruction
+        //-------------------
+
+        if (!InitLandmarkTracks())
+            return false;
+
+        // Initial pair choice
+        if (initial_pair_ == Pair(0,0)) {
+            // Initial pair must be choice already
+
+            // TODO xinli select check
+            if (!AutomaticInitialPairChoice(initial_pair_)) {
+                std::cerr << "Cannot find a valid initial pair" << std::endl;
+                // Cannot find a valid initial pair, try to set it by hand?
+                if (!ChooseInitialPair(initial_pair_)) {
+                    return false;
+                }
+            }
+        }
+        std::cout << "---------------------------------------\n"
+                  << "initial_pair_.first = " << initial_pair_.first << "\n"
+                  <<  "initial_pair_.second = " << initial_pair_.second << "\n"
+                  << "---------------------------------------" << std::endl;
+
+        // Else a starting pair was already initialized before
+
+        // Initial pair Essential Matrix and [R|t] estimation.
+        if (!MakeInitialPair3D(initial_pair_))
+        {
+            std::cerr << "initial pair solve error" << std::endl;
+            return false;
+        }
+
+        // Compute robust Resection of remaining images
+        // - group of images will be selected and resection + scene completion will be tried
+        size_t resectionGroupIndex = 0;
+        std::vector<uint32_t> vec_possible_resection_indexes;
+        while (FindImagesWithPossibleResectionVisualAll(vec_possible_resection_indexes))
+        {
+            bool bImageAdded = false;
+            // Add images to the 3D reconstruction
+            for (const auto & iter : vec_possible_resection_indexes)
+            {
+                bImageAdded |= Resection(iter);
+                set_remaining_view_id_.erase(iter);
+            }
+
+            if (bImageAdded)
+            {
+                // Scene logging as ply for visual debug
+                std::ostringstream os;
+                os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
+                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+
+                // Perform BA until all point are under the given precision
+                do
+                {
+                    BundleAdjustmentVisualInit();
+//                    BundleAdjustment();
+                }
+                while (badTrackRejector(4.0, 50));
+                eraseUnstablePosesAndObservations(sfm_data_);
+            }
+            ++resectionGroupIndex;
+        }
+        // Ensure there is no remaining outliers
+        if (badTrackRejector(4.0, 0))
+        {
+            eraseUnstablePosesAndObservations(sfm_data_);
+        }
+
+        //-- Reconstruction done.
+        //-- Display some statistics
+        std::cout << "\n\n-------------------------------" << "\n"
+                  << "-- Structure from Motion (statistics):\n"
+                  << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+                  << " from " << sfm_data_.GetViews().size() << " input images.\n"
+                  << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "\n"
+                  << "-------------------------------" << "\n";
+
+        Histogram<double> h;
+        ComputeResidualsHistogram(&h);
+        std::cout << "\nHistogram of residuals:\n" << h.ToString() << std::endl;
+
+        if (!sLogging_file_.empty())
+        {
+            using namespace htmlDocument;
+            std::ostringstream os;
+            os << "Structure from Motion process finished.";
+            html_doc_stream_->pushInfo("<hr>");
+            html_doc_stream_->pushInfo(htmlMarkup("h1",os.str()));
+
+            os.str("");
+            os << "-------------------------------" << "<br>"
+               << "-- Structure from Motion (statistics):<br>"
+               << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+               << " from " <<sfm_data_.GetViews().size() << " input images.<br>"
+               << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "<br>"
+               << "-------------------------------" << "<br>";
+            html_doc_stream_->pushInfo(os.str());
+
+            html_doc_stream_->pushInfo(htmlMarkup("h2","Histogram of reprojection-residuals"));
+
+            const std::vector<double> xBin = h.GetXbinsValue();
+            const auto range = autoJSXGraphViewport<double>(xBin, h.GetHist());
+
+            htmlDocument::JSXGraphWrapper jsxGraph;
+            jsxGraph.init("3DtoImageResiduals",600,300);
+            jsxGraph.addXYChart(xBin, h.GetHist(), "line,point");
+            jsxGraph.UnsuspendUpdate();
+            jsxGraph.setViewport(range);
+            jsxGraph.close();
+            html_doc_stream_->pushInfo(jsxGraph.toStr());
+        }
+
         return true;
     }
 
@@ -1279,7 +1397,7 @@ namespace sfm{
         }
     }
 
-    bool SequentialVISfMReconstructionEngine::VI_align()
+    bool SequentialVISfMReconstructionEngine::VI_align(bool only_align)
     {
         std::cout << "start VI align" << std::endl;
         std::cout << "start update_imu_time" << std::endl;
@@ -1337,6 +1455,8 @@ namespace sfm{
             std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
         }
 
+        if(only_align) return true;
+
 //
 //        BundleAdjustmentWithIMU();
 //        BundleAdjustmentWithIMU();
@@ -1345,9 +1465,9 @@ namespace sfm{
 //        BundleAdjustment();
 //        BundleAdjustment();
 //        std::cout << "start BundleAdjustmentWithIMU" << std::endl;
-        BundleAdjustmentWithIMU();
+//        BundleAdjustmentWithIMU();
 //        std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
-        BundleAdjustment_optimizi_only_IMU();
+//        BundleAdjustment_optimizi_only_IMU();
 //        BundleAdjustmentWithIMU();
 //        BundleAdjustment();
 //        BundleAdjustment();
@@ -1363,6 +1483,11 @@ namespace sfm{
 //            std::cout << "it1 = " << it1 << std::endl;
 //            std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
 //        }
+
+
+
+//        sfm_data_.IG_tic = Eigen::Vector3d( 0., 0., 1. );
+
 
         return true;
     }
@@ -1668,6 +1793,36 @@ namespace sfm{
         return bundle_adjustment_obj.Adjust(sfm_data_, ba_refine_options);
     }
 
+    bool SequentialVISfMReconstructionEngine::BundleAdjustmentWithSIMUIMU( bool _global_ba )
+    {
+        Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
+        if ( sfm_data_.GetPoses().size() > 100 &&
+             (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::CX_SPARSE) ||
+              ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::EIGEN_SPARSE))
+                )
+            // Enable sparse BA only if a sparse lib is available and if there more than 100 poses
+        {
+            options.preconditioner_type_ = ceres::JACOBI;
+            options.linear_solver_type_ = ceres::SPARSE_SCHUR;
+        }
+        else
+        {
+            options.linear_solver_type_ = ceres::DENSE_SCHUR;
+        }
+        options.global_BA = _global_ba;
+        Bundle_Adjustment_IMU_Ceres bundle_adjustment_obj(options);
+//        Bundle_Adjustment_Ceres bundle_adjustment_obj(options);
+        const Optimize_Options ba_refine_options
+                ( ReconstructionEngine::intrinsic_refinement_options_,
+                  Extrinsic_Parameter_Type::ADJUST_ALL, // Adjust camera motion
+                  Structure_Parameter_Type::ADJUST_ALL, // Adjust scene structure
+                  Control_Point_Parameter(),
+                  this->b_use_motion_prior_
+                );
+        return bundle_adjustment_obj.Adjust_SimuIMU(sfm_data_, ba_refine_options);
+    }
+
     bool SequentialVISfMReconstructionEngine::BundleAdjustmentWithIMU_local(SfM_Data &local_scene)
     {
         Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
@@ -1870,11 +2025,13 @@ namespace sfm{
                 double * parameter_roation_block = &map_poses_rotation.at(indexPose)[0];
                 ceres::LocalParameterization *local_parameterization = new PoseQuaternLocalParameterization();
                 problem.AddParameterBlock(parameter_roation_block, 4, local_parameterization);
+                problem.SetParameterBlockConstant(parameter_roation_block);
             }
 
             {
                 double * parameter_translation_block = &map_poses_translation.at(indexPose)[0];
                 problem.AddParameterBlock(parameter_translation_block, 3);
+                problem.SetParameterBlockConstant(parameter_translation_block);
             }
         }
 
@@ -1882,32 +2039,32 @@ namespace sfm{
         {
             const IndexT indexSpd = imu.first;
             Vec3 speedV3d = sfm_data_.Speeds.at(indexSpd).speed_;
-//            map_speed[indexSpd] = {
-//                    speedV3d(0),
-//                    speedV3d(1),
-//                    speedV3d(2)
-//            };
-//            double * parameter_block = &map_speed.at(indexSpd)[0];
-//            problem.AddParameterBlock(parameter_block, 3);
-
-            Vec3 Ba = imu.second.linearized_ba_;
-            Vec3 Bg = imu.second.linearized_bg_;
-            map_speed_baise[indexSpd] = {
+            map_speed[indexSpd] = {
                     speedV3d(0),
                     speedV3d(1),
-                    speedV3d(2),
-
-                    Ba(0),
-                    Ba(1),
-                    Ba(2),
-
-                    Bg(0),
-                    Bg(1),
-                    Bg(2)
-
+                    speedV3d(2)
             };
-            double * parameter_block = &map_speed_baise.at(indexSpd)[0];
-            problem.AddParameterBlock(parameter_block, 9);
+            double * parameter_block = &map_speed.at(indexSpd)[0];
+            problem.AddParameterBlock(parameter_block, 3);
+
+//            Vec3 Ba = imu.second.linearized_ba_;
+//            Vec3 Bg = imu.second.linearized_bg_;
+//            map_speed_baise[indexSpd] = {
+//                    speedV3d(0),
+//                    speedV3d(1),
+//                    speedV3d(2),
+//
+//                    Ba(0),
+//                    Ba(1),
+//                    Ba(2),
+//
+//                    Bg(0),
+//                    Bg(1),
+//                    Bg(2)
+//
+//            };
+//            double * parameter_block = &map_speed_baise.at(indexSpd)[0];
+//            problem.AddParameterBlock(parameter_block, 9);
 
         }
 
@@ -1923,23 +2080,23 @@ namespace sfm{
 //                break;
                 const IndexT indexPose = pose_j->first;
                 auto imu_inte = sfm_data_.imus.at(indexPose);
-                auto imu_factor = new IMUFactorBAISE(imu_inte);
-                problem.AddResidualBlock(imu_factor, LossFunction,
-                                         &map_poses_translation.at(pose_i->first)[0],
-                                         &map_poses_rotation.at(pose_i->first)[0],
-                                         &map_speed_baise.at(pose_i->first)[0],
-                                         &map_poses_translation.at(pose_j->first)[0],
-                                         &map_poses_rotation.at(pose_j->first)[0],
-                                         &map_speed_baise.at(pose_j->first)[0]);
-
-//                auto imu_factor = new IMUFactorWOBAISE(imu_inte);
+//                auto imu_factor = new IMUFactorBAISE(imu_inte);
 //                problem.AddResidualBlock(imu_factor, LossFunction,
 //                                         &map_poses_translation.at(pose_i->first)[0],
 //                                         &map_poses_rotation.at(pose_i->first)[0],
-//                                         &map_speed.at(pose_i->first)[0],
+//                                         &map_speed_baise.at(pose_i->first)[0],
 //                                         &map_poses_translation.at(pose_j->first)[0],
 //                                         &map_poses_rotation.at(pose_j->first)[0],
-//                                         &map_speed.at(pose_j->first)[0]);
+//                                         &map_speed_baise.at(pose_j->first)[0]);
+
+                auto imu_factor = new IMUFactorWOBAISE(imu_inte);
+                problem.AddResidualBlock(imu_factor, LossFunction,
+                                         &map_poses_translation.at(pose_i->first)[0],
+                                         &map_poses_rotation.at(pose_i->first)[0],
+                                         &map_speed.at(pose_i->first)[0],
+                                         &map_poses_translation.at(pose_j->first)[0],
+                                         &map_poses_rotation.at(pose_j->first)[0],
+                                         &map_speed.at(pose_j->first)[0]);
             }
         }
         // 2. soft constraints
@@ -1948,9 +2105,9 @@ namespace sfm{
             for( auto &it_pose:sfm_data_.poses_gt )
             {
 //                break;
-                double soft;
-                if( i++ < 10 ) soft = 1;
-                else soft = 0;
+                double soft = 1;
+//                if( i++ < 10 ) soft = 1;
+//                else soft = 0;
 
                 const Pose3 & pose = it_pose.second;
                 const Mat3 Rwc = pose.rotation().transpose();
@@ -1974,7 +2131,7 @@ namespace sfm{
         }
 
         ceres::Solver::Options ceres_config_options;
-        ceres_config_options.max_num_iterations = 500;
+        ceres_config_options.max_num_iterations = 100;
         ceres_config_options.linear_solver_type = ceres::DENSE_SCHUR;
         ceres_config_options.trust_region_strategy_type = ceres::DOGLEG;
         ceres_config_options.minimizer_progress_to_stdout = true;
@@ -2856,6 +3013,88 @@ namespace sfm{
         {
             // All remaining images cannot be used for pose estimation
             set_remaining_view_id_vi_init_.clear();
+            return false;
+        }
+
+        // Add the image view index that share the most of 2D-3D correspondences
+        vec_possible_indexes.push_back(vec_putative[0].first);
+
+        // Then, add all the image view indexes that have at least N% of the number of the matches of the best image.
+        const IndexT M = vec_putative[0].second; // Number of 2D-3D correspondences
+        const size_t threshold = static_cast<uint32_t>(dThresholdGroup * M);
+        for (size_t i = 1; i < vec_putative.size() &&
+                           vec_putative[i].second > threshold; ++i)
+        {
+            vec_possible_indexes.push_back(vec_putative[i].first);
+        }
+        return true;
+    }
+
+    bool SequentialVISfMReconstructionEngine::FindImagesWithPossibleResectionVisualAll(
+            std::vector<uint32_t> & vec_possible_indexes)
+    {
+        // Threshold used to select the best images
+        static const float dThresholdGroup = 0.75f;
+
+        vec_possible_indexes.clear();
+
+        if (set_remaining_view_id_.empty() || sfm_data_.GetLandmarks().empty())
+            return false;
+
+        // Collect tracksIds
+        std::set<uint32_t> reconstructed_trackId;
+        std::transform(sfm_data_.GetLandmarks().cbegin(), sfm_data_.GetLandmarks().cend(),
+                       std::inserter(reconstructed_trackId, reconstructed_trackId.begin()),
+                       stl::RetrieveKey());
+
+        Pair_Vec vec_putative; // ImageId, NbPutativeCommonPoint
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp parallel
+#endif
+        for (std::set<uint32_t>::const_iterator iter = set_remaining_view_id_.begin();
+             iter != set_remaining_view_id_.end(); ++iter)
+        {
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp single nowait
+#endif
+            {
+                const uint32_t viewId = *iter;
+
+                // Compute 2D - 3D possible content
+                openMVG::tracks::STLMAPTracks map_tracksCommon;
+                shared_track_visibility_helper_->GetTracksInImages({viewId}, map_tracksCommon);
+
+                if (!map_tracksCommon.empty())
+                {
+                    std::set<uint32_t> set_tracksIds;
+                    tracks::TracksUtilsMap::GetTracksIdVector(map_tracksCommon, &set_tracksIds);
+
+                    // Count the common possible putative point
+                    //  with the already 3D reconstructed trackId
+                    std::vector<uint32_t> vec_trackIdForResection;
+                    std::set_intersection(set_tracksIds.cbegin(), set_tracksIds.cend(),
+                                          reconstructed_trackId.cbegin(), reconstructed_trackId.cend(),
+                                          std::back_inserter(vec_trackIdForResection));
+
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp critical
+#endif
+                    {
+                        vec_putative.emplace_back(viewId, vec_trackIdForResection.size());
+                    }
+                }
+            }
+        }
+
+        // Sort by the number of matches to the 3D scene.
+        std::sort(vec_putative.begin(), vec_putative.end(), sort_pair_second<uint32_t, uint32_t, std::greater<uint32_t>>());
+
+        // If the list is empty or if the list contains images with no correspdences
+        // -> (no resection will be possible)
+        if (vec_putative.empty() || vec_putative[0].second == 0)
+        {
+            // All remaining images cannot be used for pose estimation
+            set_remaining_view_id_.clear();
             return false;
         }
 

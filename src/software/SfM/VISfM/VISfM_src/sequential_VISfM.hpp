@@ -49,6 +49,9 @@ public:
     bool Process_window();
     bool Process_onlyvisual();
 
+
+    bool Process_visual_all();
+
     bool VI_Init( );
 
     bool TestImuFactor();
@@ -58,7 +61,7 @@ public:
     static Eigen::MatrixXd TangentBasis( Eigen::Vector3d& g0 );
     void RefineGravity( Eigen::VectorXd& speeds_scale, Eigen::Vector3d& correct_g );
 
-    bool VI_align();
+    bool VI_align( bool only_align = false );
     void update_imu_inte();
     void update_imu_time();
 
@@ -117,6 +120,9 @@ private:
     bool FindImagesWithPossibleResection(std::vector<uint32_t> & vec_possible_indexes);
 
 
+    bool FindImagesWithPossibleResectionVisualAll(std::vector<uint32_t> & vec_possible_indexes);
+
+
     bool FindImagesWithPossibleResection_VIinit(std::vector<uint32_t> & vec_possible_indexes );
 
     /// Add a single Image to the scene and triangulate new possible tracks.
@@ -129,6 +135,8 @@ private:
     bool BundleAdjustment();
 
     bool BundleAdjustmentWithIMU(bool _global_ba = true);
+
+    bool BundleAdjustmentWithSIMUIMU(bool _global_ba = true);
 
 
     bool BundleAdjustmentWithIMU_local( SfM_Data &local_scene );

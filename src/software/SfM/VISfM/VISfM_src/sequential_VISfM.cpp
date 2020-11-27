@@ -170,7 +170,19 @@ namespace sfm{
         }
 
         //xinli debug ex
-        /*{
+        sfm_data_.imu_dataset->corect_dt( -0.1 * 1000 );
+
+        std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\test_data_circle_sine\\result.txt", std::ofstream::app);
+        file << "=====================================================\n";
+        for( int step = 0;step < 200;++step )
+        {
+            double td = -0.1 + step*0.001;
+
+            std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\test_data_circle_sine\\result.txt", std::ofstream::app);
+            file << td << " ";
+            update_imu_time();
+            update_imu_inte();
+
             Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
             if ( sfm_data_.GetPoses().size() > 100 &&
                  (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(ceres::SUITE_SPARSE) ||
@@ -193,8 +205,10 @@ namespace sfm{
                       Control_Point_Parameter(),
                       this->b_use_motion_prior_
                     );
-            bundle_adjustment_obj.CheckEx(sfm_data_, ba_refine_options);
-        }*/
+            bundle_adjustment_obj.CheckTd(sfm_data_, ba_refine_options);
+
+            sfm_data_.imu_dataset->corect_dt( 0.001 * 1000 );
+        }
 
         //-- Reconstruction done.
         //-- Display some statistics
@@ -731,13 +745,12 @@ namespace sfm{
                 }
 
                 // Init remaining image list
-                for (Views::const_iterator itV = sfm_data_.GetViews().begin();
-                     itV != sfm_data_.GetViews().end(); ++itV)
+                for (const auto & itV : sfm_data_.GetViews())
                 {
-                    if( itV->second->id_view >= left && itV->second->id_view <= right )
+                    if( itV.second->id_view >= left && itV.second->id_view <= right )
                     {
-                        set_remaining_view_id_vi_init_.insert(itV->second->id_view);
-                        set_remaining_view_id_.erase(itV->second->id_view);
+                        set_remaining_view_id_vi_init_.insert(itV.second->id_view);
+                        set_remaining_view_id_.erase(itV.second->id_view);
 //                        set_remaining_view_id_.erase(v_id);
                     }
                 }
@@ -838,6 +851,127 @@ namespace sfm{
         {
             set_remaining_view_id_.insert(v_id);
         }
+        return true;
+    }
+
+    bool SequentialVISfMReconstructionEngine::Process_visual_all()
+    {
+        //-------------------
+        //-- Incremental reconstruction
+        //-------------------
+
+        if (!InitLandmarkTracks())
+            return false;
+
+        // Initial pair choice
+        if (initial_pair_ == Pair(0,0)) {
+            // Initial pair must be choice already
+
+            // TODO xinli select check
+            if (!AutomaticInitialPairChoice(initial_pair_)) {
+                std::cerr << "Cannot find a valid initial pair" << std::endl;
+                // Cannot find a valid initial pair, try to set it by hand?
+                if (!ChooseInitialPair(initial_pair_)) {
+                    return false;
+                }
+            }
+        }
+        std::cout << "---------------------------------------\n"
+                  << "initial_pair_.first = " << initial_pair_.first << "\n"
+                  <<  "initial_pair_.second = " << initial_pair_.second << "\n"
+                  << "---------------------------------------" << std::endl;
+
+        // Else a starting pair was already initialized before
+
+        // Initial pair Essential Matrix and [R|t] estimation.
+        if (!MakeInitialPair3D(initial_pair_))
+        {
+            std::cerr << "initial pair solve error" << std::endl;
+            return false;
+        }
+
+        // Compute robust Resection of remaining images
+        // - group of images will be selected and resection + scene completion will be tried
+        size_t resectionGroupIndex = 0;
+        std::vector<uint32_t> vec_possible_resection_indexes;
+        while (FindImagesWithPossibleResectionVisualAll(vec_possible_resection_indexes))
+        {
+            bool bImageAdded = false;
+            // Add images to the 3D reconstruction
+            for (const auto & iter : vec_possible_resection_indexes)
+            {
+                bImageAdded |= Resection(iter);
+                set_remaining_view_id_.erase(iter);
+            }
+
+            if (bImageAdded)
+            {
+                // Scene logging as ply for visual debug
+                std::ostringstream os;
+                os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
+                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+
+                // Perform BA until all point are under the given precision
+                do
+                {
+                    BundleAdjustmentVisualInit();
+//                    BundleAdjustment();
+                }
+                while (badTrackRejector(4.0, 50));
+                eraseUnstablePosesAndObservations(sfm_data_);
+            }
+            ++resectionGroupIndex;
+        }
+        // Ensure there is no remaining outliers
+        if (badTrackRejector(4.0, 0))
+        {
+            eraseUnstablePosesAndObservations(sfm_data_);
+        }
+
+        //-- Reconstruction done.
+        //-- Display some statistics
+        std::cout << "\n\n-------------------------------" << "\n"
+                  << "-- Structure from Motion (statistics):\n"
+                  << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+                  << " from " << sfm_data_.GetViews().size() << " input images.\n"
+                  << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "\n"
+                  << "-------------------------------" << "\n";
+
+        Histogram<double> h;
+        ComputeResidualsHistogram(&h);
+        std::cout << "\nHistogram of residuals:\n" << h.ToString() << std::endl;
+
+        if (!sLogging_file_.empty())
+        {
+            using namespace htmlDocument;
+            std::ostringstream os;
+            os << "Structure from Motion process finished.";
+            html_doc_stream_->pushInfo("<hr>");
+            html_doc_stream_->pushInfo(htmlMarkup("h1",os.str()));
+
+            os.str("");
+            os << "-------------------------------" << "<br>"
+               << "-- Structure from Motion (statistics):<br>"
+               << "-- #Camera calibrated: " << sfm_data_.GetPoses().size()
+               << " from " <<sfm_data_.GetViews().size() << " input images.<br>"
+               << "-- #Tracks, #3D points: " << sfm_data_.GetLandmarks().size() << "<br>"
+               << "-------------------------------" << "<br>";
+            html_doc_stream_->pushInfo(os.str());
+
+            html_doc_stream_->pushInfo(htmlMarkup("h2","Histogram of reprojection-residuals"));
+
+            const std::vector<double> xBin = h.GetXbinsValue();
+            const auto range = autoJSXGraphViewport<double>(xBin, h.GetHist());
+
+            htmlDocument::JSXGraphWrapper jsxGraph;
+            jsxGraph.init("3DtoImageResiduals",600,300);
+            jsxGraph.addXYChart(xBin, h.GetHist(), "line,point");
+            jsxGraph.UnsuspendUpdate();
+            jsxGraph.setViewport(range);
+            jsxGraph.close();
+            html_doc_stream_->pushInfo(jsxGraph.toStr());
+        }
+
         return true;
     }
 
@@ -1263,7 +1397,7 @@ namespace sfm{
         }
     }
 
-    bool SequentialVISfMReconstructionEngine::VI_align()
+    bool SequentialVISfMReconstructionEngine::VI_align(bool only_align)
     {
         std::cout << "start VI align" << std::endl;
         std::cout << "start update_imu_time" << std::endl;
@@ -1320,6 +1454,8 @@ namespace sfm{
             std::cout << "it1 = " << it1 << std::endl;
             std::cout << "t01 = " << (tw1 - tw0).norm() << std::endl;
         }
+
+        if(only_align) return true;
 
 //
 //        BundleAdjustmentWithIMU();
@@ -2877,6 +3013,88 @@ namespace sfm{
         {
             // All remaining images cannot be used for pose estimation
             set_remaining_view_id_vi_init_.clear();
+            return false;
+        }
+
+        // Add the image view index that share the most of 2D-3D correspondences
+        vec_possible_indexes.push_back(vec_putative[0].first);
+
+        // Then, add all the image view indexes that have at least N% of the number of the matches of the best image.
+        const IndexT M = vec_putative[0].second; // Number of 2D-3D correspondences
+        const size_t threshold = static_cast<uint32_t>(dThresholdGroup * M);
+        for (size_t i = 1; i < vec_putative.size() &&
+                           vec_putative[i].second > threshold; ++i)
+        {
+            vec_possible_indexes.push_back(vec_putative[i].first);
+        }
+        return true;
+    }
+
+    bool SequentialVISfMReconstructionEngine::FindImagesWithPossibleResectionVisualAll(
+            std::vector<uint32_t> & vec_possible_indexes)
+    {
+        // Threshold used to select the best images
+        static const float dThresholdGroup = 0.75f;
+
+        vec_possible_indexes.clear();
+
+        if (set_remaining_view_id_.empty() || sfm_data_.GetLandmarks().empty())
+            return false;
+
+        // Collect tracksIds
+        std::set<uint32_t> reconstructed_trackId;
+        std::transform(sfm_data_.GetLandmarks().cbegin(), sfm_data_.GetLandmarks().cend(),
+                       std::inserter(reconstructed_trackId, reconstructed_trackId.begin()),
+                       stl::RetrieveKey());
+
+        Pair_Vec vec_putative; // ImageId, NbPutativeCommonPoint
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp parallel
+#endif
+        for (std::set<uint32_t>::const_iterator iter = set_remaining_view_id_.begin();
+             iter != set_remaining_view_id_.end(); ++iter)
+        {
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp single nowait
+#endif
+            {
+                const uint32_t viewId = *iter;
+
+                // Compute 2D - 3D possible content
+                openMVG::tracks::STLMAPTracks map_tracksCommon;
+                shared_track_visibility_helper_->GetTracksInImages({viewId}, map_tracksCommon);
+
+                if (!map_tracksCommon.empty())
+                {
+                    std::set<uint32_t> set_tracksIds;
+                    tracks::TracksUtilsMap::GetTracksIdVector(map_tracksCommon, &set_tracksIds);
+
+                    // Count the common possible putative point
+                    //  with the already 3D reconstructed trackId
+                    std::vector<uint32_t> vec_trackIdForResection;
+                    std::set_intersection(set_tracksIds.cbegin(), set_tracksIds.cend(),
+                                          reconstructed_trackId.cbegin(), reconstructed_trackId.cend(),
+                                          std::back_inserter(vec_trackIdForResection));
+
+#ifdef OPENMVG_USE_OPENMP
+#pragma omp critical
+#endif
+                    {
+                        vec_putative.emplace_back(viewId, vec_trackIdForResection.size());
+                    }
+                }
+            }
+        }
+
+        // Sort by the number of matches to the 3D scene.
+        std::sort(vec_putative.begin(), vec_putative.end(), sort_pair_second<uint32_t, uint32_t, std::greater<uint32_t>>());
+
+        // If the list is empty or if the list contains images with no correspdences
+        // -> (no resection will be possible)
+        if (vec_putative.empty() || vec_putative[0].second == 0)
+        {
+            // All remaining images cannot be used for pose estimation
+            set_remaining_view_id_.clear();
             return false;
         }
 

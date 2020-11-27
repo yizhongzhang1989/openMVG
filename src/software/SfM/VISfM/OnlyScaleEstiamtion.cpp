@@ -433,70 +433,58 @@ int main(int argc, char **argv)
     }
 
     XinTime time;
-    if(visfmEngine.VI_Init(  ))
+    if(visfmEngine.Process_visual_all(  ))
     {
 
         Save(visfmEngine.Get_SfM_Data(),
-             stlplus::create_filespec(sOutDir, "sfm_visual_init_data", ".bin"),
+             stlplus::create_filespec(sOutDir, "sfm_visual_all_data", ".bin"),
              ESfM_Data(ALL));
 
         Save(visfmEngine.Get_SfM_Data(),
-             stlplus::create_filespec(sOutDir, "sfm_visual_init_cloud_and_poses", ".ply"),
+             stlplus::create_filespec(sOutDir, "sfm_visual_all_cloud_and_poses", ".ply"),
              ESfM_Data(ALL));
 //        Save(visfmEngine.Get_SfM_Data(),
 //             "/home/xinli/work/data/VI_visual_init.bin",
 //             ESfM_Data(ALL));
-        if(!visfmEngine.VI_align())
+        if(!visfmEngine.VI_align(true))
         {
             std::cerr << "VI sfm align fail" << std::endl;
             return EXIT_FAILURE;
         }
         else{
-//            Save(visfmEngine.Get_SfM_Data(),
-//                 "/home/xinli/work/data/VI_visualIMU_init.bin",
-//                 ESfM_Data(ALL));
-//            return EXIT_SUCCESS;
 
-            Save(visfmEngine.Get_SfM_Data(),
-                 stlplus::create_filespec(sOutDir, "visual_init_cloud_and_poses", ".ply"),
-                 ESfM_Data(ALL));
 
-            if(visfmEngine.Process())
-//            if(visfmEngine.Process_onlyvisual())
-            {
-
-                time.print_time();
+            time.print_time();
 //                Save(visfmEngine.Get_SfM_Data(),
 //                     "/home/xinli/work/data/Allresutl.bin",
 //                     ESfM_Data(ALL));
 
-                std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
+            std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
-                std::cout << "init ex\n";
-                PrintExtric(sfMData);
-                std::cout << "after oti" << std::endl;
-                PrintExtric(visfmEngine.Get_SfM_Data());
+            std::cout << "init ex\n";
+            PrintExtric(sfMData);
+            std::cout << "after oti" << std::endl;
+            PrintExtric(visfmEngine.Get_SfM_Data());
 
-                std::cout << "...Generating SfM_Report.html" << std::endl;
-                Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
-                                    stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
+            std::cout << "...Generating SfM_Report.html" << std::endl;
+            Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
+                                stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
 
-                //-- Export to disk computed scene (data & visualizable results)
-                std::cout << "...Export SfM_Data to disk." << std::endl;
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
-                     ESfM_Data(ALL));
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "sfm_data", ".json"),
-                     ESfM_Data(ALL));
+            //-- Export to disk computed scene (data & visualizable results)
+            std::cout << "...Export SfM_Data to disk." << std::endl;
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
+                 ESfM_Data(ALL));
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "sfm_data", ".json"),
+                 ESfM_Data(ALL));
 
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
-                     ESfM_Data(ALL));
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
+                 ESfM_Data(ALL));
 
-                return EXIT_SUCCESS;
-            }
-//            return EXIT_SUCCESS;
+            return EXIT_SUCCESS;
+
         }
     }
     else

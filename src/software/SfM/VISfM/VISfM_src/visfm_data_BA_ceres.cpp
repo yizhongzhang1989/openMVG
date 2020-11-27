@@ -647,11 +647,12 @@ namespace openMVG
             norm_eror = std::sqrt(norm_eror);
             norm_eror = std::sqrt(norm_eror);
 
-            std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\circle_wave\\test.txt", std::ofstream::app);
-            file << "---------------IMU ERROR SUM----------------------" << std::endl;
-            file << "sum_imu_error = " << sum_imu_error << " num = " << imu_error_num << " avg_residual = " << avg_residual << std::endl;
-            file << "norm_eror = " << norm_eror << std::endl;
-            file << "--------------------------------------------------" << std::endl;
+            std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\test_data_circle_sine\\result.txt", std::ofstream::app);
+//            file << "---------------IMU ERROR SUM----------------------" << std::endl;
+            file << sum_imu_error << " " << imu_error_num << " " << avg_residual << " ";
+//            file << "sum_imu_error = " << sum_imu_error << " num = " << imu_error_num << " avg_residual = " << avg_residual << std::endl;
+//            file << "norm_eror = " << norm_eror << std::endl;
+//            file << "--------------------------------------------------" << std::endl;
             file.close();
 
 
@@ -763,11 +764,19 @@ namespace openMVG
             norm_eror = std::sqrt(norm_eror);
 
 
-            std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\circle_wave\\test.txt", std::ofstream::app);
-            file << "------------------ PROJECTION SUM-----------------" << std::endl;
-            file << "sum_residual = " << sum_residual << " num = " << projection_num << " avg_residual = " << avg_residual << std::endl;
-            file << "norm_eror = " << norm_eror << std::endl;
-            file << "--------------------------------------------------" << std::endl;
+//            std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\circle_wave\\test.txt", std::ofstream::app);
+//            file << "------------------ PROJECTION SUM-----------------" << std::endl;
+//            file << "sum_residual = " << sum_residual << " num = " << projection_num << " avg_residual = " << avg_residual << std::endl;
+//            file << "norm_eror = " << norm_eror << std::endl;
+//            file << "--------------------------------------------------" << std::endl;
+//            file.close();
+
+            std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\test_data_circle_sine\\result.txt", std::ofstream::app);
+//            file << "---------------IMU ERROR SUM----------------------" << std::endl;
+            file << sum_residual << " " << projection_num << " " << avg_residual << std::endl;
+//            file << "sum_imu_error = " << sum_imu_error << " num = " << imu_error_num << " avg_residual = " << avg_residual << std::endl;
+//            file << "norm_eror = " << norm_eror << std::endl;
+//            file << "--------------------------------------------------" << std::endl;
             file.close();
 
             std::cout << "------------------ PROJECTION SUM-----------------" << std::endl;
@@ -1075,10 +1084,10 @@ namespace openMVG
                 else
                 {
                     // xinli debug ex
-//                    std::vector<int> vec_constant_baise = {3, 4, 5, 6, 7, 8};
-//                    ceres::SubsetParameterization *subset_parameterization =
-//                            new ceres::SubsetParameterization(9, vec_constant_baise);
-//                    problem.SetParameterization(parameter_block, subset_parameterization);
+                    std::vector<int> vec_constant_baise = {3, 4, 5, 6, 7, 8};
+                    ceres::SubsetParameterization *subset_parameterization =
+                            new ceres::SubsetParameterization(9, vec_constant_baise);
+                    problem.SetParameterization(parameter_block, subset_parameterization);
                 }
             }
 
@@ -1671,11 +1680,7 @@ namespace openMVG
 
 
 //                // xinli debug ex
-//                std::vector<int> ex_constant_baise = {1};
-//                ceres::SubsetParameterization *subset_parameterization =
-//                        new ceres::SubsetParameterization(7, ex_constant_baise);
-//                problem.SetParameterization(ex_paparm, subset_parameterization);
-                problem.SetParameterBlockConstant(ex_paparm);
+//                problem.SetParameterBlockConstant(ex_paparm);
             }
 
             // Data wrapper for refinement:
@@ -1779,10 +1784,10 @@ namespace openMVG
 
 
 //                // xinli debug ex
-//                std::vector<int> vec_constant_baise = {3, 4, 5, 6, 7, 8};
-//                ceres::SubsetParameterization *subset_parameterization =
-//                        new ceres::SubsetParameterization(9, vec_constant_baise);
-//                problem.SetParameterization(parameter_block, subset_parameterization);
+                std::vector<int> vec_constant_baise = {3, 4, 5, 6, 7, 8};
+                ceres::SubsetParameterization *subset_parameterization =
+                        new ceres::SubsetParameterization(9, vec_constant_baise);
+                problem.SetParameterization(parameter_block, subset_parameterization);
             }
 
             std::cout << "start AddParameterBlock intrinsics" << std::endl;
@@ -1895,8 +1900,8 @@ namespace openMVG
 //            IMUFactor::sqrt_info_weight.block<3,3>(0,0) *= 10;
 //            IMUFactor::sqrt_info_weight.block<3,3>(3,3) *= 10;
 //            IMUFactor::sqrt_info_weight.block<3,3>(6,6) *= 10;
-            ceres::LossFunction * imu_LossFunction = //nullptr;
-                    new ceres::CauchyLoss(Square(2.0));
+            ceres::LossFunction * imu_LossFunction = nullptr;
+//                    new ceres::CauchyLoss(Square(2.0));
             {
 
                 std::cout << "start Add Factor IMU" << std::endl;
@@ -2003,6 +2008,441 @@ namespace openMVG
             PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
 
             PrintAvgImuError( sfm_data, map_poses, map_speed );
+
+            // If no error, get back refined parameters
+            if (!summary.IsSolutionUsable())
+            {
+                if (ceres_options_.bVerbose_)
+                    std::cout << "Bundle Adjustment failed." << std::endl;
+                return false;
+            }
+            else // Solution is usable
+            {
+                if (ceres_options_.bVerbose_) {
+                    // Display statistics about the minimization
+                    std::cout << std::endl
+                              << "Bundle Adjustment With IMU statistics (approximated RMSE):\n"
+                              << " #views: " << sfm_data.views.size() << "\n"
+                              << " #poses: " << sfm_data.poses.size() << "\n"
+                              << " #imus: " << size_imu_factor << "\n"
+                              << " #points: " << sfm_data.structure.size() << "\n"
+                              << " #intrinsics: " << sfm_data.intrinsics.size() << "\n"
+                              << " #residuals: " << summary.num_residuals << "\n"
+                              << " Initial RMSE: " << std::sqrt(summary.initial_cost / summary.num_residuals) << "\n"
+                              << " Final RMSE: " << std::sqrt(summary.final_cost / summary.num_residuals) << "\n"
+                              << " Time (s): " << summary.total_time_in_seconds << "\n"
+                              << " num_successful_steps : " << summary.num_successful_steps << "\n"
+                              << " num_unsuccessful_steps : " << summary.num_unsuccessful_steps << "\n"
+                              << std::endl;
+//                    if (options.use_motion_priors_opt)
+//                        std::cout << "Usable motion priors: " << (int) b_usable_prior << std::endl;
+                }
+
+                {
+                    Eigen::Quaterniond Qic( ex_paparm[6], ex_paparm[3], ex_paparm[4], ex_paparm[5] );
+
+                    Vec3 tic(ex_paparm[0],
+                             ex_paparm[1],
+                             ex_paparm[2]);
+                    sfm_data.IG_Ric = Qic.toRotationMatrix();
+                    sfm_data.IG_tic = tic;
+                }
+
+                // Update camera poses with refined data
+                if (options.extrinsics_opt != Extrinsic_Parameter_Type::NONE) {
+                    for (auto &pose_it : sfm_data.poses) {
+                        const IndexT indexPose = pose_it.first;
+
+                        Eigen::Quaterniond Qwi( map_poses.at(indexPose)[6], map_poses.at(indexPose)[3], map_poses.at(indexPose)[4], map_poses.at(indexPose)[5] );
+                        Vec3 twi(map_poses.at(indexPose)[0],
+                                 map_poses.at(indexPose)[1],
+                                 map_poses.at(indexPose)[2]);
+                        Mat3 Rwi = Qwi.toRotationMatrix();
+
+                        Vec3 tci = - sfm_data.IG_Ric.transpose() * sfm_data.IG_tic;
+                        Mat3 Rcw = ( Rwi * sfm_data.IG_Ric ).transpose();
+                        Vec3 twc = twi + Rwi * sfm_data.IG_tic;
+//                        Vec3 tiw = - Rwi.transpose() * twi;
+//                        Vec3 tcw =  sfm_data.IG_Ric * tci + tiw;
+                        // Update the pose
+                        pose_it.second.SetRoation(Rcw);
+                        pose_it.second.SetCenter(twc);
+//                        Pose3 &pose = pose_it.second;
+//                        pose = Pose3(Rcw, twc);
+                    }
+                }
+
+                // Update camera intrinsics with refined data
+                if (options.intrinsics_opt != Intrinsic_Parameter_Type::NONE) {
+                    for (auto &intrinsic_it : sfm_data.intrinsics) {
+                        const IndexT indexCam = intrinsic_it.first;
+
+                        const std::vector<double> &vec_params = map_intrinsics.at(indexCam);
+                        intrinsic_it.second->updateFromParams(vec_params);
+                    }
+                }
+
+                for( auto& imu:sfm_data.imus )
+                {
+                    const IndexT indexIMU = imu.first;
+                    if( sfm_data.Speeds.count(indexIMU) == 0 )
+                    {
+                        std::cout << "Speeds nullptr" << std::endl;
+                        continue;
+                    }
+                    Vec3 speed(map_speed.at(indexIMU)[0], map_speed.at(indexIMU)[1], map_speed.at(indexIMU)[2]);
+                    Vec3 ba(map_speed.at(indexIMU)[3], map_speed.at(indexIMU)[4], map_speed.at(indexIMU)[5]);
+                    Vec3 bg(map_speed.at(indexIMU)[6], map_speed.at(indexIMU)[7], map_speed.at(indexIMU)[8]);
+
+                    sfm_data.Speeds.at(indexIMU).speed_ = speed;
+                    imu.second.linearized_ba_ = ba;
+                    imu.second.linearized_bg_ = bg;
+
+//                    imu.second.repropagate( ba, bg );
+                }
+
+                // Structure is already updated directly if needed (no data wrapping)
+
+                return true;
+            }
+        }
+
+        bool Bundle_Adjustment_IMU_Ceres::CheckTd(sfm::SfM_Data &sfm_data, const Optimize_Options &options)
+        {
+            if( options.use_motion_priors_opt )
+            {
+                std::cerr << "not define yet" << std::endl;
+                assert(0);
+            }
+
+            ceres::Problem problem;
+
+//            std::cout << "start AddParameterBlock ex" << std::endl;
+            double ex_paparm[7];
+            {
+                Mat3 Ric = sfm_data.IG_Ric;
+                Eigen::Quaterniond Qic(Ric);
+                Vec3 tic = sfm_data.IG_tic;
+                ex_paparm[0] = 0;
+                ex_paparm[1] = 0.01;
+                ex_paparm[2] = 0;
+                ex_paparm[3] = Qic.x();
+                ex_paparm[4] = Qic.y();
+                ex_paparm[5] = Qic.z();
+                ex_paparm[6] = Qic.w();
+
+                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+                problem.AddParameterBlock(ex_paparm, 7, local_parameterization);  // p,q
+
+                problem.SetParameterBlockConstant(ex_paparm);
+
+//                // xinli debug ex
+//                std::vector<int> ex_constant_baise = {1};
+//                ceres::SubsetParameterization *subset_parameterization =
+//                        new ceres::SubsetParameterization(7, ex_constant_baise);
+//                problem.SetParameterization(ex_paparm, subset_parameterization);
+            }
+
+            // Data wrapper for refinement:
+            Hash_Map<IndexT, std::vector<double>> map_intrinsics;
+            Hash_Map<IndexT, std::vector<double>> map_poses;
+            Hash_Map<IndexT, std::vector<double>> map_speed;
+
+//            std::cout << "start AddParameterBlock poses" << std::endl;
+            // Setup Poses data & subparametrization
+            for (const auto & pose_it : sfm_data.poses)
+            {
+                const IndexT indexPose = pose_it.first;
+
+                const Pose3 & pose = pose_it.second;
+                const Mat3 Rwc = pose.rotation().transpose();
+                const Vec3 twc = pose.center();
+
+                Vec3 tci = - sfm_data.IG_Ric.transpose() * sfm_data.IG_tic;
+                Mat3 Rwi = Rwc * sfm_data.IG_Ric.transpose();
+                Eigen::Quaterniond Qwi(Rwi);
+                Vec3 twi = twc + Rwc * tci;
+
+                // angleAxis + translation
+                map_poses[indexPose] = {
+                        twi(0),
+                        twi(1),
+                        twi(2),
+                        Qwi.x(),
+                        Qwi.y(),
+                        Qwi.z(),
+                        Qwi.w()
+                };
+
+                double * parameter_block = &map_poses.at(indexPose)[0];
+                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+                problem.AddParameterBlock(parameter_block, 7, local_parameterization);  // p,q
+                problem.SetParameterBlockConstant(parameter_block);
+//                problem.AddParameterBlock(parameter_block, 6);
+            }
+//            problem.SetParameterBlockConstant( &map_poses.begin()->second[0] );
+
+            std::cout << "start AddParameterBlock imus" << std::endl;
+            for( const auto& imu:sfm_data.imus )
+            {
+                const IndexT indexSpd = imu.first;
+
+                if( sfm_data.Speeds.count(indexSpd) == 0 )
+                {
+                    std::cout << "Speeds nullptr" << std::endl;
+                    continue;
+                }
+                Vec3 speedV3d = sfm_data.Speeds.at(indexSpd).speed_;
+                Vec3 Ba = imu.second.linearized_ba_;
+                Vec3 Bg = imu.second.linearized_bg_;
+                map_speed[indexSpd] = {
+                        speedV3d(0),
+                        speedV3d(1),
+                        speedV3d(2),
+
+                        Ba(0),
+                        Ba(1),
+                        Ba(2),
+
+                        Bg(0),
+                        Bg(1),
+                        Bg(2)
+
+                };
+
+                double * parameter_block = &map_speed.at(indexSpd)[0];
+                problem.AddParameterBlock(parameter_block, map_speed.at(indexSpd).size());
+
+
+                problem.SetParameterBlockConstant(parameter_block);
+            }
+
+            std::cout << "start AddParameterBlock intrinsics" << std::endl;
+            // Setup Intrinsics data & subparametrization
+            for (const auto & intrinsic_it : sfm_data.intrinsics)
+            {
+                const IndexT indexCam = intrinsic_it.first;
+
+                if (isValid(intrinsic_it.second->getType()))
+                {
+                    map_intrinsics[indexCam] = intrinsic_it.second->getParams();
+                    if (!map_intrinsics.at(indexCam).empty())
+                    {
+                        double * parameter_block = &map_intrinsics.at(indexCam)[0];
+                        problem.AddParameterBlock(parameter_block, map_intrinsics.at(indexCam).size());
+                        problem.SetParameterBlockConstant(parameter_block);
+                    }
+                }
+                else
+                {
+                    std::cerr << "Unsupported camera type." << std::endl;
+                }
+            }
+
+            // Set a LossFunction to be less penalized by false measurements
+            //  - set it to nullptr if you don't want use a lossFunction.
+            ceres::LossFunction * p_LossFunction =
+                    ceres_options_.bUse_loss_function_ ?
+                    new ceres::HuberLoss(Square(4.0))
+                                                       : nullptr;
+
+            std::cout << "start Add Factor ReProjection" << std::endl;
+            // For all visibility add reprojections errors:
+            for (auto & structure_landmark_it : sfm_data.structure)
+            {
+                const Observations & obs = structure_landmark_it.second.obs;
+
+                for (const auto & obs_it : obs)
+                {
+                    // Build the residual block corresponding to the track observation:
+                    const View * view = sfm_data.views.at(obs_it.first).get();
+
+                    // Each Residual block takes a point and a camera as input and outputs a 2
+                    // dimensional residual. Internally, the cost function stores the observed
+                    // image location and compares the reprojection against the observation.
+//                    ceres::CostFunction* cost_function =
+//                            (new ceres::AutoDiffCostFunction
+//                                    <ResidualVISUALWithIMUErrorFunctor_Pinhole_Intrinsic_Radial_K3, 2, 6, 6, 6, 3>(
+//                                    new ResidualVISUALWithIMUErrorFunctor_Pinhole_Intrinsic_Radial_K3(obs_it.second.x.data())));
+//                            assert( sfm_data.intrinsics.at(view->id_intrinsic).get()->getType() == PINHOLE_CAMERA_RADIAL3 );
+//                            IntrinsicsToCostFunction(sfm_data.intrinsics.at(view->id_intrinsic).get(),
+//                                                     obs_it.second.x);
+                    Eigen::Vector2d ob_i = obs_it.second.x;
+                    VISfM_Projection* cost_function = new VISfM_Projection( ob_i );
+
+                    if (cost_function)
+                    {
+                        if (!map_intrinsics.at(view->id_intrinsic).empty())
+                        {
+                            problem.AddResidualBlock(cost_function,
+                                                     p_LossFunction,
+                                                     &map_poses.at(view->id_pose)[0],
+                                                     ex_paparm,
+                                                     &map_intrinsics.at(view->id_intrinsic)[0],
+                                                     structure_landmark_it.second.X.data());
+
+//                            problem.AddResidualBlock(cost_function,
+//                                                     p_LossFunction,
+//                                                     &map_intrinsics.at(view->id_intrinsic)[0],
+//                                                     &map_poses.at(view->id_pose)[0],
+//                                                     ex_paparm,
+//                                                     structure_landmark_it.second.X.data());
+                        }
+                        else
+                        {
+                            assert(0);
+//                            problem.AddResidualBlock(cost_function,
+//                                                     p_LossFunction,
+//                                                     &map_poses.at(view->id_pose)[0],
+//                                                     structure_landmark_it.second.X.data());
+                        }
+                    }
+                    else
+                    {
+                        std::cerr << "Cannot create a CostFunction for this camera model." << std::endl;
+                        return false;
+                    }
+                }
+                if (options.structure_opt == Structure_Parameter_Type::NONE)
+                    problem.SetParameterBlockConstant(structure_landmark_it.second.X.data());
+            }
+
+            int size_imu_factor = 0;
+//            IMUFactor::sqrt_info_weight.block<3,3>(0,0) *= 10;
+//            IMUFactor::sqrt_info_weight.block<3,3>(3,3) *= 10;
+//            IMUFactor::sqrt_info_weight.block<3,3>(6,6) *= 10;
+            ceres::LossFunction * imu_LossFunction = nullptr;
+//                    new ceres::CauchyLoss(Square(2.0));
+            {
+
+                std::cout << "start Add Factor IMU" << std::endl;
+                // TODO xinli first pose speed
+                auto pose_i = sfm_data.poses.begin(); pose_i++;
+                auto pose_j = std::next(pose_i);
+                for(; pose_j != sfm_data.poses.end(); pose_j++, pose_i++)
+                {
+//                    break;
+                    const IndexT indexPose = pose_j->first;
+
+                    if( sfm_data.imus.count(indexPose) == 0 )
+                    {
+                        std::cout << "imu nullptr" << std::endl;
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_i->first) == 0 )
+                    {
+                        std::cout << "Speeds pose_i nullptr" << std::endl;
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_j->first) == 0 )
+                    {
+                        std::cout << "Speeds pose_j nullptr" << std::endl;
+                        continue;
+                    }
+                    if( map_speed.count(pose_i->first) == 0 )
+                    {
+                        std::cout << "map Speeds pose_i nullptr" << std::endl;
+                        continue;
+                    }
+                    if( map_speed.count(pose_j->first) == 0 )
+                    {
+                        std::cout << "map Speeds pose_j nullptr" << std::endl;
+                        continue;
+                    }
+
+
+                    auto imu_ptr = sfm_data.imus.at(indexPose);
+//                    std::cout << "imu_ptr.sum_dt_ = " << imu_ptr.sum_dt_ << std::endl;
+                    if( imu_ptr.sum_dt_ > 0.3 ) continue;
+                    if( imu_ptr.good_to_opti_ == false ) continue;
+
+                    auto imu_factor = new IMUFactor(imu_ptr);
+                    problem.AddResidualBlock(imu_factor, imu_LossFunction,
+                                             &map_poses.at(pose_i->first)[0],
+                                             &map_speed.at(pose_i->first)[0],
+                                             &map_poses.at(pose_j->first)[0],
+                                             &map_speed.at(pose_j->first)[0]);
+                    size_imu_factor++;
+                }
+            }
+
+            if (options.control_point_opt.bUse_control_points)
+            {
+                std::runtime_error("not define");
+            }
+
+            // Configure a BA engine and run it
+            //  Make Ceres automatically detect the bundle structure.
+            ceres::Solver::Options ceres_config_options;
+            ceres_config_options.max_num_iterations = 500;
+            ceres_config_options.preconditioner_type =
+                    static_cast<ceres::PreconditionerType>(ceres_options_.preconditioner_type_);
+            ceres_config_options.linear_solver_type =
+                    static_cast<ceres::LinearSolverType>(ceres_options_.linear_solver_type_);
+            ceres_config_options.sparse_linear_algebra_library_type =
+                    static_cast<ceres::SparseLinearAlgebraLibraryType>(ceres_options_.sparse_linear_algebra_library_type_);
+            ceres_config_options.trust_region_strategy_type = ceres::DOGLEG;
+            ceres_config_options.minimizer_progress_to_stdout = true;
+            ceres_config_options.logging_type = ceres::PER_MINIMIZER_ITERATION;//PER_MINIMIZER_ITERATION;//SILENT;
+            ceres_config_options.num_threads = ceres_options_.nb_threads_;
+#if CERES_VERSION_MAJOR < 2
+            ceres_config_options.num_linear_solver_threads = ceres_options_.nb_threads_;
+#endif
+            ceres_config_options.parameter_tolerance = ceres_options_.parameter_tolerance_;
+
+
+
+            PrintImuError( sfm_data, map_poses, map_speed );
+            PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
+
+            return true;
+
+            IMUFactor::sqrt_info_weight =  Eigen::Matrix<double, 15, 15>::Identity();
+            VISfM_Projection::sqrt_info = Eigen::Matrix2d::Identity();
+            std::cout << "zero" << std::endl;
+            double ex_paparm_zero[7];
+            {
+                Mat3 Ric = sfm_data.IG_Ric;
+                Eigen::Quaterniond Qic(Ric);
+                Vec3 tic = sfm_data.IG_tic;
+                ex_paparm_zero[0] = tic(0);
+                ex_paparm_zero[1] = tic(1);
+                ex_paparm_zero[2] = tic(2);
+                ex_paparm_zero[3] = Qic.x();
+                ex_paparm_zero[4] = Qic.y();
+                ex_paparm_zero[5] = Qic.z();
+                ex_paparm_zero[6] = Qic.w();
+            }
+            PrintImuError( sfm_data, map_poses, map_speed );
+            PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm_zero );
+
+
+            std::cout << "noise" << std::endl;
+            PrintImuError( sfm_data, map_poses, map_speed );
+            PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
+
+            // Solve BA
+            ceres::Solver::Summary summary;
+            ceres::Solve(ceres_config_options, &problem, &summary);
+            std::cout << summary.FullReport() << std::endl;
+
+
+
+            std::cout << "solve over" << std::endl;
+            PrintImuError( sfm_data, map_poses, map_speed );
+            PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
+
+
+            {
+                Eigen::Quaterniond Qic( ex_paparm[6], ex_paparm[3], ex_paparm[4], ex_paparm[5] );
+
+                Vec3 tic(ex_paparm[0],
+                         ex_paparm[1],
+                         ex_paparm[2]);
+                std::cout << "Ric = " << std::endl;
+                std::cout << Qic.toRotationMatrix() << std::endl;
+                std::cout << "tic = " << tic.transpose() << std::endl;
+            }
 
             // If no error, get back refined parameters
             if (!summary.IsSolutionUsable())

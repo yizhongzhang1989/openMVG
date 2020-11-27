@@ -109,6 +109,20 @@ C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\ope
 -I
 Simu
 
+
+-i
+C:\Users\v-xinli1\Documents\Data\EuRoc\V1_01_easy\video_recon\sfm_data.json
+-m
+C:\Users\v-xinli1\Documents\Data\EuRoc\V1_01_easy\video_recon\matches
+-o
+C:\Users\v-xinli1\Documents\Data\EuRoc\V1_01_easy\video_recon\ex_debug
+-T
+C:\Users\v-xinli1\Documents\Data\EuRoc\V1_01_easy\video_recon\right_times.txt
+-u
+C:\Users\v-xinli1\Documents\Data\EuRoc\V1_01_easy\video_recon\data.csv
+-I
+EuRoc
+
 -i
 C:\Users\v-xinli1\Documents\Data\test_data_simu\circle_wave\openMVGFormat\sfm_data.json
 -m

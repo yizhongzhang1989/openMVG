@@ -38,33 +38,18 @@ void SaveTumPose(
 
 int main(int argc , char** argv)
 {
-//    Eigen::Matrix3d rotation_matrix;
-//    rotation_matrix <<
-//             0.999686,   0.0243763, -0.0057566,
-//             -0.0243752,     0.999703,  0.000255811,
-//             0.00576112, -0.000115413,     0.999983;
-//
-////    Eigen::AngleAxisd rotation_vector(rotation_matrix);
-//
-//    Eigen::Vector3d eulerAngle=rotation_matrix.eulerAngles(2,1,0);
-//
-//    eulerAngle = eulerAngle  / M_PI_2 * 180;
-//
-//    std::cout << eulerAngle.transpose() << std::endl;
-//
-//    return 0;
-
-
     CmdLine cmd;
 
     std::string sSfM_Data_Filename_In, sInputTimes;
     std::string sOutputPose_Oout;
+    std::string sSfM_IMU_FileType;
     bool simu_mode = false;
 
     cmd.add(make_option('i', sSfM_Data_Filename_In, "input_file"));
     cmd.add(make_option('o', sOutputPose_Oout, "output_pose_file"));
     cmd.add(make_option('t', sInputTimes, "input_time_file"));
     cmd.add( make_switch('s', "simu_mode"));
+    cmd.add( make_option('I', sSfM_IMU_FileType,"imu_filetype"));
 //    cmd.add(make_option('t', sOutputPoint_Oout, "output_point_file"));
 
     try
@@ -78,6 +63,40 @@ int main(int argc , char** argv)
         return EXIT_FAILURE;
     }
 
+    Mat3 Ric;
+    Vec3 tic;
+    if( sSfM_IMU_FileType == std::string("EuRoc") )
+    {
+        Ric << 0.0148655429818, -0.999880929698, 0.00414029679422,
+                0.999557249008, 0.0149672133247, 0.025715529948,
+                -0.0257744366974, 0.00375618835797, 0.999660727178;
+        tic << -0.0216401454975, -0.064676986768, 0.00981073058949;
+    }
+    else if ( sSfM_IMU_FileType == std::string("Mate20Pro") )
+    {
+        //Mate20Pro
+        Mat3 Rci;
+        Vec3 tci;
+
+        Rci << -0.00080983, -0.99991118,  0.01330307,
+                -0.99981724,  0.0010637,   0.01908794,
+                -0.01910039, -0.01328518, -0.9997293;
+        tci << 0.02532891, 0.03078696, 0.080411;
+
+        Ric = Rci.transpose();
+        tic = -Ric * tci;
+
+    }
+    else if( sSfM_IMU_FileType == std::string("Simu") )
+    {
+        Ric.setIdentity();
+        tic <<.0, .0, .0;
+    }
+    else
+    {
+        std::cerr <<"sSfM_IMU_FileType error  " << sSfM_IMU_FileType << std::endl;
+        return 1;
+    }
 
     simu_mode = cmd.used('s');
 
@@ -138,10 +157,14 @@ int main(int argc , char** argv)
         Eigen::Vector3d tcw = pose.second.translation();
         Eigen::Vector3d twc = -Rwc*tcw;
 
-        Eigen::Quaterniond Qwc( Rwc );
+        Eigen::Vector3d tci = -Ric.transpose() * tic;
+        Eigen::Matrix3d Rwi = Rwc * Ric.transpose();
+        Eigen::Vector3d twi = twc + Rwc * tci;
+
+        Eigen::Quaterniond Qwi( Rwi );
         times.push_back(time);
-        trans.push_back(twc);
-        rotats.push_back(Qwc);
+        trans.push_back(twi);
+        rotats.push_back(Qwi);
     }
 
     SaveTumPose( sOutputPose_Oout, times, trans, rotats );

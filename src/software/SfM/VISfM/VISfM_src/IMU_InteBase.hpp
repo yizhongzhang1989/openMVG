@@ -50,8 +50,12 @@ namespace openMVG
 
             bool readline()
             {
-                if( !csvInput_ ) throw std::runtime_error(" Not Set File to Read ");
-                if( csvInput_.eof() ) return false;
+                if( !csvInput_ ) return false;// throw std::runtime_error(" Not Set File to Read ");
+                if( csvInput_.eof() )
+                {
+                    std::cout << data_[0] << " - " <<last_data_[0] << std::endl;
+                    return false;
+                }
 
                 std::string line;
                 getline(csvInput_, line);
@@ -72,15 +76,15 @@ namespace openMVG
                     data_[0] = static_cast<long long int>(data_[0]);
                 }
 
-                if( last_data_[0] != 0 )
-                {
-                    if( (data_[0] - last_data_[0]) != 5 )
-                    {
-                        std::cout << line << std::endl;
-                        std::cout << data_[0] << " - " <<last_data_[0] << " != 5" << std::endl;
-                        return false;
-                    }
-                }
+//                if( last_data_[0] != 0 )
+//                {
+//                    if( (data_[0] - last_data_[0]) != 5 )
+//                    {
+//                        std::cout << line << std::endl;
+//                        std::cout << data_[0] << " - " <<last_data_[0] << " != 5" << std::endl;
+//                        return false;
+//                    }
+//                }
 
 //                if( last_data_[0] == 46274 )
 //                {

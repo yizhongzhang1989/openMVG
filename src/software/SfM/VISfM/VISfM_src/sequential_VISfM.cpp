@@ -152,7 +152,7 @@ namespace sfm{
 //                        BundleAdjustment_optimizi_only_IMU();
 //                      std::cout << "start BundleAdjustmentWithIMU" << std::endl;
 //                      std::cout << "end BundleAdjustment_optimizi_only_IMU" << std::endl;
-                        BundleAdjustmentWithIMU( );
+                        BundleAdjustmentWithIMU( true );
 //                        BundleAdjustmentWithSIMUIMU();
 //                      std::cout << "end BundleAdjustmentWithIMU" << std::endl;
                     }
@@ -170,9 +170,9 @@ namespace sfm{
         }
 
         //xinli debug ex
-        sfm_data_.imu_dataset->corect_dt( -0.1 * 1000 );
+//        sfm_data_.imu_dataset->corect_dt( -0.1 * 1000 );
 
-        std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\test_data_circle_sine\\result.txt", std::ofstream::app);
+        /*std::ofstream file("C:\\Users\\v-xinli1\\Documents\\Data\\test_data_simu\\test_data_circle_sine\\result.txt", std::ofstream::app);
         file << "=====================================================\n";
         for( int step = 0;step < 200;++step )
         {
@@ -208,7 +208,7 @@ namespace sfm{
             bundle_adjustment_obj.CheckTd(sfm_data_, ba_refine_options);
 
             sfm_data_.imu_dataset->corect_dt( 0.001 * 1000 );
-        }
+        }*/
 
         //-- Reconstruction done.
         //-- Display some statistics
@@ -660,14 +660,14 @@ namespace sfm{
                 auto id_pose = it_view->first;
                 if( id_pose == 0 )
                 {
-                    IMU_Speed speed(Eigen::Vector3d(0.,0.,0.));
+                    IMU_Speed speed(Eigen::Vector3d(0.,0.,0.), 0);
                     sfm_data_.Speeds.insert({ id_pose,  speed });
                 }
                 else
                 {
                     Eigen::Vector3d speed3d = sfm_data_.Speeds.at(id_pose-1).speed_
                             + sfm_data_.poses_gt.at(id_pose).rotation().transpose() * sfm_data_.imus.at(id_pose).delta_v_;
-                    IMU_Speed speed(speed3d);
+                    IMU_Speed speed(speed3d, 0);
                     sfm_data_.Speeds.insert({ id_pose,  speed });
                 }
                 it_view++;
@@ -782,7 +782,7 @@ namespace sfm{
             {
                 // Scene logging as ply for visual debug
                 std::ostringstream os;
-                os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
+                os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection_visual_init";
                 Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
 
                 // Perform BA until all point are under the given precision
@@ -1069,7 +1069,7 @@ namespace sfm{
             auto poseId = pose_i->first;
             auto Rwi = pose_i->second.rotation().transpose();
             Vec3 speedV3d = Rwi * speeds_scale.segment<3>(kv * 3);
-            IMU_Speed speed(speedV3d);
+            IMU_Speed speed(speedV3d, 0);
             sfm_data_.Speeds.insert( std::make_pair(poseId, speed) );
         }
 
@@ -1290,7 +1290,7 @@ namespace sfm{
             if( sfm_data_.Speeds.count( id_pose ) == 0 )
             {
 //                std::cout << "start construction IMU_Speed" << std::endl;
-                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.)); // TODO xinli
+                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.), 0); // TODO xinli
 //                std::cout << "end construction IMU_Speed" << std::endl;
                 sfm_data_.Speeds.insert( std::make_pair(id_pose, speed) );
                 {
@@ -1325,7 +1325,7 @@ namespace sfm{
             if( local_scene.Speeds.count( id_pose ) == 0 )
             {
 //                std::cout << "start construction IMU_Speed" << std::endl;
-                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.)); // TODO xinli
+                IMU_Speed speed(Eigen::Vector3d(0.,0.,0.), 0); // TODO xinli
 //                std::cout << "end construction IMU_Speed" << std::endl;
                 local_scene.Speeds.insert( std::make_pair(id_pose, speed) );
                 {
@@ -1763,7 +1763,7 @@ namespace sfm{
     }
 
     /// Bundle adjustment to refine Structure; Motion and Intrinsics
-    bool SequentialVISfMReconstructionEngine::BundleAdjustmentWithIMU( bool _global_ba )
+    bool SequentialVISfMReconstructionEngine::BundleAdjustmentWithIMU( bool td )
     {
         Bundle_Adjustment_IMU_Ceres::BA_Ceres_options options;
         if ( sfm_data_.GetPoses().size() > 100 &&
@@ -1780,7 +1780,6 @@ namespace sfm{
         {
             options.linear_solver_type_ = ceres::DENSE_SCHUR;
         }
-        options.global_BA = _global_ba;
         Bundle_Adjustment_IMU_Ceres bundle_adjustment_obj(options);
 //        Bundle_Adjustment_Ceres bundle_adjustment_obj(options);
         const Optimize_Options ba_refine_options
@@ -1790,7 +1789,10 @@ namespace sfm{
                   Control_Point_Parameter(),
                   this->b_use_motion_prior_
                 );
-        return bundle_adjustment_obj.Adjust(sfm_data_, ba_refine_options);
+        if(td)
+            return bundle_adjustment_obj.AdjustTd(sfm_data_, ba_refine_options);
+        else
+            return bundle_adjustment_obj.Adjust(sfm_data_, ba_refine_options);
     }
 
     bool SequentialVISfMReconstructionEngine::BundleAdjustmentWithSIMUIMU( bool _global_ba )

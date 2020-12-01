@@ -388,7 +388,7 @@ int main(int argc, char **argv)
 
 //    IndexT dt = ;
     if(sSfM_IMU_FileType == std::string( "Mate20Pro" ))
-        imu_dataset->corect_dt( 0.2 * 1000 );
+        imu_dataset->corect_dt( 0.23 * 1000 );
 
 //    timeshift cam0 to imu0: [s] (t_imu = t_cam + shift)n
 

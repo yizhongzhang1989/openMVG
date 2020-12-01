@@ -44,11 +44,14 @@ int main(int argc , char** argv)
     std::string sOutputPose_Oout;
     std::string sSfM_IMU_FileType;
     bool simu_mode = false;
+    bool save_visual = false;
 
     cmd.add(make_option('i', sSfM_Data_Filename_In, "input_file"));
     cmd.add(make_option('o', sOutputPose_Oout, "output_pose_file"));
     cmd.add(make_option('t', sInputTimes, "input_time_file"));
     cmd.add( make_option('I', sSfM_IMU_FileType,"imu_filetype"));
+
+    cmd.add( make_switch('v', "visual_save"));
 //    cmd.add(make_option('t', sOutputPoint_Oout, "output_point_file"));
 
     try
@@ -90,12 +93,21 @@ int main(int argc , char** argv)
     {
         Ric.setIdentity();
         tic <<.0, .0, .0;
+
         simu_mode = true;
     }
     else
     {
         std::cerr <<"sSfM_IMU_FileType error  " << sSfM_IMU_FileType << std::endl;
         return 1;
+    }
+
+    save_visual = cmd.used('v');
+
+    if(save_visual)
+    {
+        Ric.setIdentity();
+        tic.setZero();
     }
 
     SfM_Data sfm_data;

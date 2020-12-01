@@ -1057,7 +1057,7 @@ namespace sfm{
         }*/
 
         std::cout <<"-=------=-=-=-=-=-=-=-=" << std::endl;
-        double correct_scale = (speeds_scale.tail<1>())(0) / 100. * 1.5;
+        double correct_scale = (speeds_scale.tail<1>())(0) / 100.;
 //        correct_scale = 3.57;//(speeds_scale.tail<1>())(0) / 100.;
 
 

@@ -97,6 +97,8 @@ int main(int argc, char **argv)
     std::string sSfM_IMU_FileType = "Mate20Pro";
     std::string sSfM_Stamp_Filename;
 
+    bool b_simu_g = false;
+
 
     cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
     cmd.add( make_option('m', sMatchesDir, "matchdir") );
@@ -113,6 +115,8 @@ int main(int argc, char **argv)
     cmd.add( make_option('u', sSfM_IMU_Filename,"imu_file"));
     cmd.add( make_option('I', sSfM_IMU_FileType,"imu_filetype"));
     cmd.add( make_option('T',sSfM_Stamp_Filename,"timestamp_file"));
+
+    cmd.add( make_switch('g', "simu_gravity") );
 
     try {
         if (argc == 1) throw std::string("Invalid parameter.");
@@ -189,6 +193,9 @@ int main(int argc, char **argv)
 //        -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
 //         0.0, 0.0, 0.0, 1.0
 
+
+    b_simu_g = cmd.used('g');
+
     Mat3 Ric;
     Vec3 tic;
     if( sSfM_IMU_FileType == std::string("EuRoc") )
@@ -243,7 +250,13 @@ int main(int argc, char **argv)
     Vec3 G;
 
 
-    if( sSfM_IMU_FileType == std::string("Simu") ) G = Vec3(0.,0.,0);
+    if( sSfM_IMU_FileType == std::string("Simu") )
+    {
+        if(b_simu_g)
+            G = Vec3(0.,0.,9.8);
+        else
+            G = Vec3(0., 0., 0.);
+    }
     else G = Vec3(0.,0.,9.8107);
     VIstaticParm::G_ = G;
     sfMData.IG_Ric = Ric;

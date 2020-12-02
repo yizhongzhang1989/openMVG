@@ -27,11 +27,13 @@ class IMU_Speed
 {
 public:
     IMU_Speed() = delete;
-    IMU_Speed(const Vec3& _speed):speed_(_speed)
+    IMU_Speed(const Vec3& _speed, double _td):speed_(_speed), td_(_td)
     {
         al_opti = false;
     }
     Vec3 speed_;
+
+    double td_;
 
     bool al_opti;
 };
@@ -41,7 +43,7 @@ using Imus = Hash_Map<IndexT, IMU_InteBase>;
 
 using Timestamps = Hash_Map<IndexT, double>;
 
-using SpeedBiases = Hash_Map<IndexT, IMU_Speed>;
+using SpeedTd = Hash_Map<IndexT, IMU_Speed>;
 
 /// Define a collection of IntrinsicParameter (indexed by View::id_intrinsic)
 using Intrinsics = Hash_Map<IndexT, std::shared_ptr<cameras::IntrinsicBase>>;
@@ -51,6 +53,8 @@ using Poses = Hash_Map<IndexT, geometry::Pose3>;
 
 /// Define a collection of View (indexed by View::id_view)
 using Views = Hash_Map<IndexT, std::shared_ptr<View>>;
+
+using Tds = Hash_Map<IndexT, double>;
 
 /// Generic SfM data container
 /// Store structure and camera properties:
@@ -64,10 +68,14 @@ struct SfM_Data
   Poses poses_gt;
   // Considered IMU integration (indexed by view.id_pose)
   Imus imus;
+
+  double td_;
+
+  Tds tds;
   // Considered timestamp (indexed by view.id_pose)
   Timestamps timestamps;
   // Considered SpeedBiase (indexed by view.id_pose)
-  SpeedBiases Speeds;
+  SpeedTd Speeds;
   std::shared_ptr<IMU_Dataset> imu_dataset;
 //  IMU_Dataset imu_dataset;
   Mat3 IG_Ric;

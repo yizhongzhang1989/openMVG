@@ -134,7 +134,7 @@ private:
     /// Bundle adjustment to refine Structure; Motion and Intrinsics
     bool BundleAdjustment();
 
-    bool BundleAdjustmentWithIMU(bool _global_ba = true);
+    bool BundleAdjustmentWithIMU(bool td = false);
 
     bool BundleAdjustmentWithSIMUIMU(bool _global_ba = true);
 

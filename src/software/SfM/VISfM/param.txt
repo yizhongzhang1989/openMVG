@@ -138,7 +138,18 @@ C:\Users\v-xinli1\Documents\Data\test_data_simu\circle_wave\openMVGFormat\imu_da
 -I
 Simu
 
-
+-i
+C:\Users\v-xinli1\Documents\Data\LayoutBuilderTestData\20200501_GAP_1\key_openMVG_VIseq_recon\sfm_data.json
+-m
+C:\Users\v-xinli1\Documents\Data\LayoutBuilderTestData\20200501_GAP_1\key_openMVG_VIseq_recon\matches
+-o
+C:\Users\v-xinli1\Documents\Data\LayoutBuilderTestData\20200501_GAP_1\key_openMVG_VIseq_recon\ex_debug_td
+-T
+C:\Users\v-xinli1\Documents\Data\LayoutBuilderTestData\20200501_GAP_1\times.txt
+-u
+C:\Users\v-xinli1\Documents\Data\LayoutBuilderTestData\20200501_GAP_1\imu_data.csv
+-I
+Mate20Pro
 
 
 

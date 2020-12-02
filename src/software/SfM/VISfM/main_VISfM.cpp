@@ -237,7 +237,7 @@ int main(int argc, char **argv)
     Vec3 G;
 
 
-    if( sSfM_IMU_FileType == std::string("Simu") ) G = Vec3(0.,0.,0);
+    if( sSfM_IMU_FileType == std::string("Simu") ) G = Vec3(0.,0.,9.8);
     else G = Vec3(0.,0.,9.8107);
     VIstaticParm::G_ = G;
     sfMData.IG_Ric = Ric;
@@ -269,10 +269,14 @@ int main(int argc, char **argv)
     }
     else
     {
-        VIstaticParm::acc_n = 0;
-        VIstaticParm::acc_w = 0;
-        VIstaticParm::gyr_n = 0;
-        VIstaticParm::gyr_w = 0;
+        VIstaticParm::acc_n = 0.08;
+        VIstaticParm::acc_w = 0.00004;
+        VIstaticParm::gyr_n = 0.004;
+        VIstaticParm::gyr_w = 2.0e-6;
+//        VIstaticParm::acc_n = 1.0e-6;
+//        VIstaticParm::acc_w = 1.0e-6;
+//        VIstaticParm::gyr_n = 1.0e-6;
+//        VIstaticParm::gyr_w = 1.0e-6;
     }
 
 
@@ -389,6 +393,8 @@ int main(int argc, char **argv)
 //    IndexT dt = ;
     if(sSfM_IMU_FileType == std::string( "Mate20Pro" ))
         imu_dataset->corect_dt( 0.23 * 1000 );
+
+//    imu_dataset->corect_dt( 0.05 * 1000 );
 
 //    timeshift cam0 to imu0: [s] (t_imu = t_cam + shift)n
 

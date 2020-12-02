@@ -69,6 +69,8 @@ struct SfM_Data
   // Considered IMU integration (indexed by view.id_pose)
   Imus imus;
 
+  double td_;
+
   Tds tds;
   // Considered timestamp (indexed by view.id_pose)
   Timestamps timestamps;

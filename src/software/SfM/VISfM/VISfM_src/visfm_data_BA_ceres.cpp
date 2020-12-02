@@ -1084,10 +1084,10 @@ namespace openMVG
                 else
                 {
                     // xinli debug ex
-//                    std::vector<int> vec_constant_baise = {3, 4, 5, 6, 7, 8};
-//                    ceres::SubsetParameterization *subset_parameterization =
-//                            new ceres::SubsetParameterization(9, vec_constant_baise);
-//                    problem.SetParameterization(parameter_block, subset_parameterization);
+                    std::vector<int> vec_constant_baise = {3, 4, 5, 6, 7, 8};
+                    ceres::SubsetParameterization *subset_parameterization =
+                            new ceres::SubsetParameterization(9, vec_constant_baise);
+                    problem.SetParameterization(parameter_block, subset_parameterization);
                 }
             }
 
@@ -2136,7 +2136,7 @@ namespace openMVG
 
 
 //                // xinli debug ex
-//                problem.SetParameterBlockConstant(ex_paparm);
+                problem.SetParameterBlockConstant(ex_paparm);
             }
 
             // Data wrapper for refinement:
@@ -2241,22 +2241,30 @@ namespace openMVG
 
 
 //                // xinli debug ex
-//                std::vector<int> vec_constant_baise = {3, 4, 5, 6, 7, 8};
-//                ceres::SubsetParameterization *subset_parameterization =
-//                        new ceres::SubsetParameterization(9, vec_constant_baise);
-//                problem.SetParameterization(parameter_block, subset_parameterization);
+                std::vector<int> vec_constant_baise = {3, 4, 5, 6, 7, 8};
+                ceres::SubsetParameterization *subset_parameterization =
+                        new ceres::SubsetParameterization(9, vec_constant_baise);
+                problem.SetParameterization(parameter_block, subset_parameterization);
             }
 
-            std::cout << "start AddParameterBlock td" << std::endl;
-            for( const auto& speed:sfm_data.Speeds )
+//            std::cout << "start AddParameterBlock td" << std::endl;
+//            for( const auto& speed:sfm_data.Speeds )
+//            {
+//                const IndexT indexSpd = speed.first;
+//
+//                double td = speed.second.td_;
+//                map_td[indexSpd] = {td};
+//
+//                double * parameter_block = &map_td.at(indexSpd)[0];
+//                problem.AddParameterBlock(parameter_block, map_td.at(indexSpd).size());
+//            }
+
             {
-                const IndexT indexSpd = speed.first;
+                map_td[0] = {sfm_data.td_};
+                double * parameter_block = &map_td.at(0)[0];
+                problem.AddParameterBlock(parameter_block, map_td.at(0).size());
 
-                double td = speed.second.td_;
-                map_td[indexSpd] = {td};
-
-                double * parameter_block = &map_td.at(indexSpd)[0];
-                problem.AddParameterBlock(parameter_block, map_td.at(indexSpd).size());
+                problem.SetParameterBlockConstant(parameter_block);
             }
 
             std::cout << "start AddParameterBlock intrinsics" << std::endl;
@@ -2360,7 +2368,8 @@ namespace openMVG
                                                      ex_paparm,
                                                      &map_intrinsics.at(view->id_intrinsic)[0],
                                                      structure_landmark_it.second.X.data(),
-                                                     &map_td.at(view->id_pose)[0]);
+//                                                     &map_td.at(view->id_pose)[0]);
+                                                     &map_td.at(0)[0]);
 
 //                            problem.AddResidualBlock(cost_function,
 //                                                     p_LossFunction,
@@ -2390,18 +2399,17 @@ namespace openMVG
 
             {
 
-                std::cout << "start Add Factor IMU" << std::endl;
-                // TODO xinli first pose speed
-                auto pose_i = map_td.begin();
-                auto pose_j = std::next(pose_i);
-                for(; pose_j != map_td.end(); pose_j++, pose_i++)
-                {
-                    auto td_factor = new TdRegularizationTerm( );
-                    problem.AddResidualBlock(td_factor,
-                                             nullptr,
-                                             &map_td.at(pose_i->first)[0],
-                                             &map_td.at(pose_j->first)[0]);
-                }
+//                std::cout << "start Add Factor TdRegularizationTerm" << std::endl;
+//                auto pose_i = map_td.begin();
+//                auto pose_j = std::next(pose_i);
+//                for(; pose_j != map_td.end(); pose_j++, pose_i++)
+//                {
+//                    auto td_factor = new TdRegularizationTerm( );
+//                    problem.AddResidualBlock(td_factor,
+//                                             nullptr,
+//                                             &map_td.at(pose_i->first)[0],
+//                                             &map_td.at(pose_j->first)[0]);
+//                }
             }
 
             int size_imu_factor = 0;
@@ -2612,16 +2620,20 @@ namespace openMVG
                 double mean_td = 0.;
                 double num_td = 0.;
                 std::cout << std::endl;
-                for( auto& speed:sfm_data.Speeds )
+//                for( auto& speed:sfm_data.Speeds )
+//                {
+//                    const IndexT indexspeed = speed.first;
+//                    speed.second.td_ = map_td.at(indexspeed)[0];
+//                    mean_td += speed.second.td_;
+//                    num_td += 1.;
+//                    std::cout << speed.second.td_ << "   ";
+//                }
+//                mean_td /= num_td;
+//                std::cout << std::endl;
                 {
-                    const IndexT indexspeed = speed.first;
-                    speed.second.td_ = map_td.at(indexspeed)[0];
-                    mean_td += speed.second.td_;
-                    num_td += 1.;
-                    std::cout << speed.second.td_ << "   ";
+                    sfm_data.td_ = map_td[0][0];
+                    mean_td = map_td[0][0];
                 }
-                mean_td /= num_td;
-                std::cout << std::endl;
                 std::cout << "mean_td = " << mean_td << std::endl;
 
                 // Structure is already updated directly if needed (no data wrapping)

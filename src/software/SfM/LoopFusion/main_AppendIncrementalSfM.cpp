@@ -11,6 +11,7 @@
 #include "openMVG/sfm/pipelines/sequential/sequential_SfM.hpp"
 #include "openMVG/sfm/pipelines/sfm_features_provider.hpp"
 #include "openMVG/sfm/pipelines/sfm_matches_provider.hpp"
+#include "openMVG/tracks/tracks.hpp"
 #include "openMVG/sfm/sfm_data.hpp"
 #include "openMVG/sfm/sfm_data_io.hpp"
 #include "openMVG/sfm/sfm_data_filters.hpp"
@@ -18,6 +19,8 @@
 #include "openMVG/sfm/sfm_view.hpp"
 #include "openMVG/system/timer.hpp"
 #include "openMVG/types.hpp"
+#include "openMVG/features/feature.hpp"
+#include "openMVG/sfm/sfm_data_triangulation.hpp"
 
 #include "third_party/cmdLine/cmdLine.h"
 #include "third_party/stlplus3/filesystemSimplified/file_system.hpp"
@@ -47,6 +50,8 @@ public:
     }
     bool Process() override
     {
+        using namespace openMVG::tracks;
+        using namespace openMVG::features;
         //-------------------
         //-- Incremental reconstruction
         //-------------------
@@ -54,40 +59,56 @@ public:
         if (!InitLandmarkTracks())
             return false;
 
-        // remove existing views
-        sfm_data_.GetViews();
+        // reset landmarks
+        Landmarks & structure = sfm_data_.structure;
+        structure.clear();
 
-        // Compute robust Resection of remaining images
-        // - group of images will be selected and resection + scene completion will be tried
-        size_t resectionGroupIndex = 0;
-        std::vector<uint32_t> vec_possible_resection_indexes;
-        while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
+        // Fill sfm_data with the computed tracks (no 3D yet)
+        STLMAPTracks & map_selectedTracks = map_tracks_;
+        IndexT idx(0);
+        for (STLMAPTracks::const_iterator itTracks = map_selectedTracks.begin();
+             itTracks != map_selectedTracks.end();
+             ++itTracks, ++idx)
         {
-            bool bImageAdded = false;
-            // Add images to the 3D reconstruction
-            for (const auto & iter : vec_possible_resection_indexes)
+            const submapTrack & track = itTracks->second;
+            structure[idx] = Landmark();
+            Observations & obs = structure.at(idx).obs;
+            for (submapTrack::const_iterator it = track.begin(); it != track.end(); ++it)
             {
-                bImageAdded |= Resection(iter);
-                set_remaining_view_id_.erase(iter);
+                const size_t imaIndex = it->first;
+                const size_t featIndex = it->second;
+                const PointFeature & pt = features_provider_->feats_per_view.at(imaIndex)[featIndex];
+                obs[imaIndex] = Observation(pt.coords().cast<double>(), featIndex);
             }
-
-            if (bImageAdded)
-            {
-                // Scene logging as ply for visual debug
-                std::ostringstream os;
-                os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
-                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
-
-                // Perform BA until all point are under the given precision
-                do
-                {
-                    BundleAdjustment();
-                }
-                while (badTrackRejector(4.0, 50));
-                eraseUnstablePosesAndObservations(sfm_data_);
-            }
-            ++resectionGroupIndex;
         }
+
+        // Compute 3D position of the landmark of the structure by triangulation of the observations
+        {
+            openMVG::system::Timer timer;
+
+            const IndexT trackCountBefore = sfm_data_.GetLandmarks().size();
+            SfM_Data_Structure_Computation_Blind structure_estimator(true);
+            structure_estimator.triangulate(sfm_data_);
+
+            std::cout << "\n#removed tracks (invalid triangulation): " <<
+                      trackCountBefore - IndexT(sfm_data_.GetLandmarks().size()) << std::endl;
+            std::cout << std::endl << "  Triangulation took (s): " << timer.elapsed() << std::endl;
+
+            // Export initial structure
+            if (!sLogging_file_.empty())
+            {
+                Save(sfm_data_,
+                     stlplus::create_filespec(stlplus::folder_part(sLogging_file_), "initial_structure", "ply"),
+                     ESfM_Data(EXTRINSICS | STRUCTURE));
+            }
+        }
+
+        // bundle adjustment
+        do
+        {
+            BundleAdjustment();
+        }
+        while (badTrackRejector(4.0, 50));
 
         // Ensure there is no remaining outliers
         if (badTrackRejector(4.0, 0))
@@ -140,6 +161,7 @@ public:
         }
         return true;
     }
+
     double ComputeResidualsHistogram(Histogram<double> * histo)
     {
         // Collect residuals for each observation
@@ -252,12 +274,14 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    if ( !isValid(static_cast<ETriangulationMethod>(triangulation_method))) {
+    if ( !isValid(static_cast<ETriangulationMethod>(triangulation_method)))
+    {
         std::cerr << "\n Invalid triangulation method" << std::endl;
         return EXIT_FAILURE;
     }
 
-    if ( !isValid(openMVG::cameras::EINTRINSIC(i_User_camera_model)) )  {
+    if ( !isValid(openMVG::cameras::EINTRINSIC(i_User_camera_model)) )
+    {
         std::cerr << "\n Invalid camera type" << std::endl;
         return EXIT_FAILURE;
     }
@@ -272,7 +296,8 @@ int main(int argc, char **argv)
 
     // Load input SfM_Data scene
     SfM_Data sfm_data;
-    if (!Load(sfm_data, sSfM_Data_Filename, ESfM_Data(ALL))) {
+    if (!Load(sfm_data, sSfM_Data_Filename, ESfM_Data(ALL)))
+    {
         std::cerr << std::endl
                   << "The input SfM_Data file \""<< sSfM_Data_Filename << "\" cannot be read." << std::endl;
         return EXIT_FAILURE;
@@ -291,7 +316,8 @@ int main(int argc, char **argv)
 
     // Features reading
     std::shared_ptr<Features_Provider> feats_provider = std::make_shared<Features_Provider>();
-    if (!feats_provider->load(sfm_data, sMatchesDir, regions_type)) {
+    if (!feats_provider->load(sfm_data, sMatchesDir, regions_type))
+    {
         std::cerr << std::endl
                   << "Invalid features." << std::endl;
         return EXIT_FAILURE;
@@ -299,18 +325,19 @@ int main(int argc, char **argv)
     // Matches reading
     std::shared_ptr<Matches_Provider> matches_provider = std::make_shared<Matches_Provider>();
     if // Try to read the provided match filename or the default one (matches.f.txt/bin)
-            (
-            !(matches_provider->load(sfm_data, sMatchFilename) ||
-              matches_provider->load(sfm_data, stlplus::create_filespec(sMatchesDir, "matches.f.txt")) ||
-              matches_provider->load(sfm_data, stlplus::create_filespec(sMatchesDir, "matches.f.bin")))
-            )
+    (
+        !(matches_provider->load(sfm_data, sMatchFilename) ||
+          matches_provider->load(sfm_data, stlplus::create_filespec(sMatchesDir, "matches.f.txt")) ||
+          matches_provider->load(sfm_data, stlplus::create_filespec(sMatchesDir, "matches.f.bin")))
+    )
     {
         std::cerr << std::endl
                   << "Invalid matches file." << std::endl;
         return EXIT_FAILURE;
     }
 
-    if (sOutDir.empty())  {
+    if (sOutDir.empty())
+    {
         std::cerr << "\nIt is an invalid output directory" << std::endl;
         return EXIT_FAILURE;
     }

@@ -109,19 +109,30 @@ struct IMUMeasurement
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     Eigen::Vector3d acc;
     Eigen::Vector3d gyro;
+
     // timestamp in ms
     int timestamp;
+
+    //  quaternion
+	Eigen::Quaterniond q;
+
     IMUMeasurement()
     : timestamp(0)
     {
         acc.setZero();
         gyro.setZero();
+        q.setIdentity();
     }
     IMUMeasurement(const Eigen::Vector3d& acc_, const Eigen::Vector3d& gyro_, int t)
     : acc(acc_), gyro(gyro_), timestamp(t)
     {
         ;
     }
+	IMUMeasurement(const Eigen::Vector3d& acc_, const Eigen::Vector3d& gyro_, int t, const Eigen::Quaterniond& q_)
+		: acc(acc_), gyro(gyro_), timestamp(t), q(q_)
+	{
+		;
+	}
 };
 typedef STLVector<IMUMeasurement> IMUMeasurements;
 

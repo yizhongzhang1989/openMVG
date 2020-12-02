@@ -89,7 +89,7 @@ namespace generator
 				a[1] += gravity;	//	a is in global coordinate
 				Eigen::Vector3d a_local = trajectory[i].q.inverse() * a;
 
-				IMUs.emplace_back(a_local, omega, t_ms);
+				IMUs.emplace_back(a_local, omega, t_ms, trajectory[i].q);
 				t_ms += deltaT_ms;
 			}
 

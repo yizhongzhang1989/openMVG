@@ -209,9 +209,7 @@ public:
 int main(int argc, char **argv)
 {
     using namespace std;
-    std::cout << "Sequential/Incremental reconstruction" << std::endl
-              << " Perform incremental SfM (Initial Pair Essential + Resection)." << std::endl
-              << std::endl;
+    std::cout << "Appending Sequential/Incremental reconstruction" << std::endl;
 
     CmdLine cmd;
 
@@ -294,6 +292,19 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    // check sfm data
+    if (sSfM_Data_Filename.empty() || !stlplus::file_exists(sSfM_Data_Filename))
+    {
+        std::cerr << "The input SfM_Data file is not specified or does not exist." << std::endl;
+        std::cerr << "Your input : " << sSfM_Data_Filename << std::endl;
+        return EXIT_FAILURE;
+    }
+    std::string ext = stlplus::extension_part(sSfM_Data_Filename);
+    if (ext != "bin")
+    {
+        std::cerr << "sfm_data.bin must be specified, in binary format." << std::endl;
+        std::cerr << "Your input : " << sSfM_Data_Filename << std::endl;
+    }
     // Load input SfM_Data scene
     SfM_Data sfm_data;
     if (!Load(sfm_data, sSfM_Data_Filename, ESfM_Data(ALL)))

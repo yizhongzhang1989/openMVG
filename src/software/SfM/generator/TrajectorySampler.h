@@ -224,9 +224,9 @@ private:
             Eigen::Vector3d OA = down_vertices[i + 1] - down_vertices[i];
             Eigen::Vector3d OC = up_vertices[i] - down_vertices[i];
 
-            Eigen::Vector3d rz = OA;
-            Eigen::Vector3d rx = OA.cross(OC);
-            Eigen::Vector3d ry = rz.cross(rx);
+			Eigen::Vector3d ry = -OC;
+            Eigen::Vector3d rx = ry.cross(OA);
+            Eigen::Vector3d rz = rx.cross(ry);
 
             rx.normalize();
             ry.normalize();

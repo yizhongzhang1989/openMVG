@@ -22,7 +22,9 @@ namespace generator
 			int deltaT_IMU_ms,
 			double gravity = 0.0,
 			bool storeIMU = false,
-			LookDirection direction = FORWARD
+			LookDirection direction = FORWARD,
+			Eigen::Vector3d wave_T = Eigen::Vector3d(1.0, 1.0, 1.0),
+			Eigen::Vector3d wave_A = Eigen::Vector3d(0.0, 0.0, 0.0)
 		) : mFileName(std::move(sFileName)),
 			total_duration(total_duration_s),
 			direction(direction),
@@ -31,7 +33,8 @@ namespace generator
 			deltaT_IMU(deltaT_IMU_ms)
 		{
 			double T_sample_pose = deltaT;
-			mInvPoses = TrajectorySampler::SampleTrajectory(mFileName, total_duration, T_sample_pose);
+			mInvPoses = TrajectorySampler::SampleTrajectory(
+				mFileName, total_duration, T_sample_pose, nullptr, wave_T, wave_A);
 			mPoses.clear();
 			mPoses.reserve(mInvPoses.size());
 			for (const InversePose& inv_pose : mInvPoses)
@@ -47,7 +50,8 @@ namespace generator
 			if (storeIMU_)
 			{
 				double T_sample_imu = deltaT_IMU * 1e-3;
-				mInvPosesIMU = TrajectorySampler::SampleTrajectory(mFileName, total_duration, T_sample_imu);
+				mInvPosesIMU = TrajectorySampler::SampleTrajectory(
+					mFileName, total_duration, T_sample_imu, nullptr, wave_T, wave_A);
 				TotalIMUs = TrajectoryDifferentiator::DifferentiateTrajectory(mInvPosesIMU, deltaT_IMU, gravity);
 				std::cout << "Number pose IMU = " << mInvPosesIMU.size() << std::endl;
 				std::cout << "Number IMU measurements = " << TotalIMUs.size() << std::endl;

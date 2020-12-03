@@ -38,6 +38,7 @@ using namespace std;
 void SaveSfMData(std::string sDataDir, std::string sImageDir, generator::Simulation_Data& simulationData, generator::CameraPinhole* pCam);
 void SaveToImages(generator::Simulation_Data& sfm_data, const std::string& outPath, generator::CameraPinhole* pCam);
 bool ParseExtrinsics(const std::string& str, std::vector<double>& params);
+bool ParseWaveParam(const std::string& str, Eigen::Vector3d& wave_T, Eigen::Vector3d& wave_A);
 
 #ifdef USE_PANGOLIN
 void DrawGrid(STLVector<Eigen::Vector3d>& up_vertices, STLVector<Eigen::Vector3d>& down_vertices)
@@ -80,6 +81,7 @@ int main(int argc, char** argv)
 	double total_duration = 10.0;
 	double f_cam = 30.0;
 	int f_imu = 200;
+	std::string sWaveParam;
 
 	// generator config
 	SimulationGenerator::SimulationConfig cfg;
@@ -87,6 +89,7 @@ int main(int argc, char** argv)
 	cfg.n_poses = -1;
 	cfg.image_width = 640;
 	cfg.image_height = 480;
+	Eigen::Vector3d wave_T(1.0, 1.0, 1.0), wave_A(0.0, 0.0, 0.0);
 
 	// required
 	cmd.add(make_option('p', sTrajectoryObjFile, "trajectory_file"));
@@ -99,6 +102,7 @@ int main(int argc, char** argv)
 	cmd.add(make_option('n', cfg.n_points, "n_points"));
 	cmd.add(make_option('f', f_cam, "f_cam"));
 	cmd.add(make_option('F', f_imu, "f_imu"));
+	cmd.add(make_option('w', sWaveParam, "wave"));
 
 	try
 	{
@@ -114,10 +118,11 @@ int main(int argc, char** argv)
 			<< "\n[Optional]\n"
 			<< "[-g|--gravity] gravity of the system, default 9.8 \n"
 			<< "[-t|--duration] total duration of trajectory in seconds, default is 10.0s \n"
-			<< "[-e|--extrinsics] extrinsics from IMU to camera (T_cam_imu), format: (tx ty tz qx qy qz qw) \n"
+			<< "[-e|--extrinsics] extrinsics from IMU to camera (T_cam_imu), format: \"tx ty tz qx qy qz qw\" \n"
 			<< "[-n|--n_points] approximated number of points sampled on the scene \n"
 			<< "[-f|--f_cam] frequency of camera (fps), can be floating point number \n"
 			<< "[-F|--f_imu] frequency of imu (Hz), must be divisible for 1000 \n"
+			<< "[-w|--wave] period and amplitude of wave to the trajectory, format: \"Tx Ty Tz Ax Ay Az\" \n"
 			<< std::endl;
 		std::cerr << s << std::endl;
 		return EXIT_FAILURE;
@@ -134,6 +139,7 @@ int main(int argc, char** argv)
 		<< "--n_points " << cfg.n_points << std::endl
 		<< "--f_cam " << f_cam << std::endl
 		<< "--f_imu " << f_imu << std::endl
+		<< "--wave " << sWaveParam << std::endl
 		<< std::endl;
 
 	if (sOutDir.empty())
@@ -155,6 +161,14 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 
+	if (!sWaveParam.empty()) {
+		Eigen::Vector3d tmp_wave_T, tmp_wave_A;
+		if (ParseWaveParam(sWaveParam, tmp_wave_T, tmp_wave_A)) {
+			wave_T = tmp_wave_T;
+			wave_A = tmp_wave_A;
+		}
+	}
+
 	if (1000 % f_imu)
 	{
 		std::cerr << "frequency of IMU must be divisible for 1000." << std::endl;
@@ -164,7 +178,10 @@ int main(int argc, char** argv)
 	double T_cam = 1.0 / f_cam;
 	int T_IMU = 1000 / f_imu;
 
-	PoseGeneratorSampling g_pose(sTrajectoryObjFile, total_duration, T_cam, T_IMU, gravity, true);
+	PoseGeneratorSampling g_pose(
+		sTrajectoryObjFile, total_duration, T_cam, T_IMU, gravity, true, 
+		PoseGeneratorSampling::FORWARD,
+		wave_T, wave_A);
 	PointGenerator g_point(sModelObjFile);
 	CameraPinhole cam(320, 320, 320, 240, cfg.image_width, cfg.image_height);
 
@@ -543,4 +560,25 @@ bool ParseExtrinsics(const std::string& str, std::vector<double>& params)
 		params.push_back(d);
 	}
 	return params.size() == 7;
+}
+
+bool ParseWaveParam(const std::string& str, Eigen::Vector3d& wave_T, Eigen::Vector3d& wave_A)
+{
+	std::vector<double> params;
+	std::stringstream ss;
+	ss << str;
+	double d;
+	params.clear();
+	for (int i = 0; i < 6 && !ss.eof(); i++)
+	{
+		ss >> d;
+		params.push_back(d);
+	}
+	if (params.size() == 6) {
+		wave_T = Eigen::Vector3d(params[0], params[1], params[2]);
+		wave_A = Eigen::Vector3d(params[3], params[4], params[5]);
+		return true;
+	}
+	else
+		return false;
 }

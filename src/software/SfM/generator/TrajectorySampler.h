@@ -126,8 +126,14 @@ public:
 
 
 public:
-    static STLVector<InversePose> SampleTrajectory(const std::string& objFile, double total_duration, double T_sample, STLVector<Eigen::Vector3d>* pOriginalVerticesOut = nullptr)
-    {
+    static STLVector<InversePose> SampleTrajectory(
+        const std::string& objFile, 
+        double total_duration, 
+        double T_sample, 
+        STLVector<Eigen::Vector3d>* pOriginalVerticesOut = nullptr,
+        Eigen::Vector3d wave_T = Eigen::Vector3d(1.0, 1.0, 1.0),
+        Eigen::Vector3d wave_A = Eigen::Vector3d(0.0, 0.0, 0.0)
+	) {
         // read squares
         STLVector<Eigen::Vector3d> vertices;
         ObjFileReader::ReadVerticesOnlyFromObj(objFile.c_str(),vertices);
@@ -163,7 +169,9 @@ public:
             up_vertices_interpolated, 
             down_vertices_interpolated, 
             timestamp, 
-            inv_poses);
+            inv_poses,
+            wave_T,
+            wave_A);
         CorrectQuaternion(inv_poses);
 
         std::cout << "num_poses = " << inv_poses.size() << std::endl;
@@ -200,7 +208,9 @@ private:
         const STLVector<Eigen::Vector3d>& up_vertices, 
         const STLVector<Eigen::Vector3d>& down_vertices, 
         const STLVector<double>& timestamp,
-        STLVector<InversePose>& inv_poses)
+        STLVector<InversePose>& inv_poses,
+        Eigen::Vector3d wave_T = Eigen::Vector3d(1.0, 1.0, 1.0),
+        Eigen::Vector3d wave_A = Eigen::Vector3d(0.0, 0.0, 0.0))
     {
         assert(up_vertices.size() == down_vertices.size());
 
@@ -209,8 +219,8 @@ private:
         for(int i = 0; i < N - 1; i++)
         {
             InversePose inv_pose;
-            inv_pose.p = down_vertices[i];
 
+            //  calculate pose
             Eigen::Vector3d OA = down_vertices[i + 1] - down_vertices[i];
             Eigen::Vector3d OC = up_vertices[i] - down_vertices[i];
 
@@ -226,6 +236,15 @@ private:
             R.col(0) = rx;
             R.col(1) = ry;
             R.col(2) = rz;
+
+            //  calculate origin
+			Eigen::Vector3d org = down_vertices[i];
+			org += rx * wave_A[0] * sin(6.183185 * timestamp[i] / wave_T[0]);
+			org += ry * wave_A[1] * sin(6.183185 * timestamp[i] / wave_T[1]);
+			org += rz * wave_A[2] * sin(6.183185 * timestamp[i] / wave_T[2]);
+
+            //  record the pose
+			inv_pose.p = org;
 
             inv_pose.q = Eigen::Quaterniond(R);
 

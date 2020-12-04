@@ -132,7 +132,8 @@ public:
         double T_sample, 
         STLVector<Eigen::Vector3d>* pOriginalVerticesOut = nullptr,
         Eigen::Vector3d wave_T = Eigen::Vector3d(1.0, 1.0, 1.0),
-        Eigen::Vector3d wave_A = Eigen::Vector3d(0.0, 0.0, 0.0)
+        Eigen::Vector3d wave_A = Eigen::Vector3d(0.0, 0.0, 0.0),
+        double deltaT_shift = 0.001
 	) {
         // read squares
         STLVector<Eigen::Vector3d> vertices;
@@ -153,13 +154,13 @@ public:
         }
 
         // interpolate grid
-        STLVector<Eigen::Vector3d> up_vertices_interpolated, down_vertices_interpolated;
+        STLVector<Eigen::Vector3d> up_vertices_interpolated, down_vertices_interpolated, down_vertices_interpolated_shift;
         STLVector<double> timestamp;
 		InterpolateGrid(
             up_vertices, down_vertices, 
             total_duration, T_sample, 
             up_vertices_interpolated, down_vertices_interpolated, 
-            timestamp);
+            timestamp, &down_vertices_interpolated_shift, deltaT_shift);
         std::cout << "total duration = " << total_duration << " , T_sample = " << T_sample << std::endl;
         std::cout << up_vertices_interpolated.size() << " " << down_vertices_interpolated.size() << std::endl;
 
@@ -171,7 +172,8 @@ public:
             timestamp, 
             inv_poses,
             wave_T,
-            wave_A);
+            wave_A,
+            &down_vertices_interpolated_shift);
         CorrectQuaternion(inv_poses);
 
         std::cout << "num_poses = " << inv_poses.size() << std::endl;
@@ -210,9 +212,14 @@ private:
         const STLVector<double>& timestamp,
         STLVector<InversePose>& inv_poses,
         Eigen::Vector3d wave_T = Eigen::Vector3d(1.0, 1.0, 1.0),
-        Eigen::Vector3d wave_A = Eigen::Vector3d(0.0, 0.0, 0.0))
+        Eigen::Vector3d wave_A = Eigen::Vector3d(0.0, 0.0, 0.0),
+        STLVector<Eigen::Vector3d>* p_down_vertices_shift = nullptr)
     {
         assert(up_vertices.size() == down_vertices.size());
+        if(p_down_vertices_shift)
+        {
+            assert(down_vertices.size() == p_down_vertices_shift->size());
+        }
 
         inv_poses.clear();
         int N = up_vertices.size();
@@ -223,6 +230,11 @@ private:
             //  calculate pose
             Eigen::Vector3d OA = down_vertices[i + 1] - down_vertices[i];
             Eigen::Vector3d OC = up_vertices[i] - down_vertices[i];
+
+            if(p_down_vertices_shift)
+            {
+                OA = p_down_vertices_shift->at(i) - down_vertices[i];
+            }
 
 			Eigen::Vector3d ry = -OC;
             Eigen::Vector3d rx = ry.cross(OA);
@@ -261,7 +273,9 @@ private:
 		const double T_sample,
 		STLVector<Eigen::Vector3d>& up_vertices_out,
 		STLVector<Eigen::Vector3d>& down_vertices_out,
-		STLVector<double>& timestamp_out
+		STLVector<double>& timestamp_out,
+        STLVector<Eigen::Vector3d>* p_down_vertices_shift_out = nullptr,
+        const double delta_T_shift = 0.001
 	) {
         assert(up_vertices_in.size() == down_vertices_in.size());
         assert(total_duration > 0 && T_sample > 0);
@@ -273,6 +287,10 @@ private:
         up_vertices_out.clear();
         down_vertices_out.clear();
         timestamp_out.clear();
+        if(p_down_vertices_shift_out)
+        {
+            p_down_vertices_shift_out->clear();
+        }
 
         std::vector<double> coef;
         for (int i = 0; i < N_vertex; i++)
@@ -293,6 +311,13 @@ private:
             up_vertices_out.push_back(up_vertex);
             down_vertices_out.push_back(down_vertex);
 			timestamp_out.push_back(current_time);
+
+			if(p_down_vertices_shift_out)
+            {
+			    const double delta_pos = delta_T_shift / T_grid;
+                Eigen::Vector3d down_vertex_shift = cubic_spline_interp_down.Interp(pos + delta_pos);
+                p_down_vertices_shift_out->push_back(down_vertex_shift);
+            }
 
             current_time += T_sample;
         }
@@ -408,10 +433,6 @@ private:
     }
 
 };
-
-
-
-
 
 }  // namespace generator
 

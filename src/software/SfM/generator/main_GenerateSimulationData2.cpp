@@ -82,6 +82,7 @@ int main(int argc, char** argv)
 	double f_cam = 30.0;
 	int f_imu = 200;
 	std::string sWaveParam;
+	double deltaT_shift = 0.001;
 
 	// generator config
 	SimulationGenerator::SimulationConfig cfg;
@@ -103,6 +104,7 @@ int main(int argc, char** argv)
 	cmd.add(make_option('f', f_cam, "f_cam"));
 	cmd.add(make_option('F', f_imu, "f_imu"));
 	cmd.add(make_option('w', sWaveParam, "wave"));
+	cmd.add(make_option('s', deltaT_shift, "sample_shift"));
 
 	try
 	{
@@ -123,6 +125,7 @@ int main(int argc, char** argv)
 			<< "[-f|--f_cam] frequency of camera (fps), can be floating point number \n"
 			<< "[-F|--f_imu] frequency of imu (Hz), must be divisible for 1000 \n"
 			<< "[-w|--wave] period and amplitude of wave to the trajectory, format: \"Tx Ty Tz Ax Ay Az\" \n"
+			<< "[-s|--sample_shift] time shift for sampling grid, and then used for pose generation. this is used for synchronize camera and IMU frame. (default 0.001s) \n"
 			<< std::endl;
 		std::cerr << s << std::endl;
 		return EXIT_FAILURE;
@@ -140,6 +143,7 @@ int main(int argc, char** argv)
 		<< "--f_cam " << f_cam << std::endl
 		<< "--f_imu " << f_imu << std::endl
 		<< "--wave " << sWaveParam << std::endl
+		<< "--sample_shift " << deltaT_shift << std::endl
 		<< std::endl;
 
 	if (sOutDir.empty())
@@ -181,7 +185,7 @@ int main(int argc, char** argv)
 	PoseGeneratorSampling g_pose(
 		sTrajectoryObjFile, total_duration, T_cam, T_IMU, gravity, true, 
 		PoseGeneratorSampling::FORWARD,
-		wave_T, wave_A);
+		wave_T, wave_A, deltaT_shift);
 	PointGenerator g_point(sModelObjFile);
 	CameraPinhole cam(320, 320, 320, 240, cfg.image_width, cfg.image_height);
 

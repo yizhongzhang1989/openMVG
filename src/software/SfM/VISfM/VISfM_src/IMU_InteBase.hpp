@@ -146,6 +146,10 @@ namespace openMVG
 
                     }
                 }
+                vec_times.pop_back();
+                vec_gyr.pop_back();
+                vec_acc.pop_back();
+
             }
 
             void corect_time(const double _time)
@@ -159,6 +163,7 @@ namespace openMVG
 
             void corect_dt( const double _dt )
             {
+                sum_st_ += _dt;
                 std::cout << "_dt = " << _dt << std::endl;
 //                int64_t min_new = std::numeric_limits<int64_t>::max();
 
@@ -196,8 +201,7 @@ namespace openMVG
                 vec_acc = vec_acc_new;
                 vec_gyr = vec_gyr_new;
             }
-
-            std::tuple< bool, std::vector<double>, std::vector<Vec3>, std::vector<Vec3> > GetMeasure(const double _t0, const double _t1)
+            /*std::tuple< bool, std::vector<double>, std::vector<Vec3>, std::vector<Vec3> > GetMeasure(const double _t0, const double _t1)
             {
                 bool ret_flag = true;
                 std::vector<Vec3> vec_acc_part;
@@ -267,12 +271,89 @@ namespace openMVG
                 else
                     return std::make_tuple( true, vec_times_part, vec_acc_part, vec_gyr_part );
             }
+*/
+            std::tuple< bool, std::vector<double>, std::vector<Vec3>, std::vector<Vec3> > GetMeasure(const double _t0, const double _t1)
+            {
+                std::vector<Vec3> vec_acc_part;
+                std::vector<Vec3> vec_gyr_part;
+                std::vector<double> vec_times_part;
+//                std::cout << "vec_times[0] = " << vec_times[0] << std::endl;
+//                std::cout << "vec_times.back() = " << vec_times.back() << std::endl;
+//                std::cout << "_t0 = " << _t0 << std::endl;
+//                std::cout << "_t1 = " << _t1 << std::endl << std::endl << std::endl;
+                if( _t0 == _t1 )
+                    return std::make_tuple( false, vec_times_part, vec_acc_part, vec_gyr_part );
+                if( vec_times[0] > _t1 || vec_times.back() < _t0 )
+                    return std::make_tuple( false, vec_times_part, vec_acc_part, vec_gyr_part );
+
+                {
+                    auto index_t0 = std::lower_bound(vec_times.begin(), vec_times.end(), _t0);
+                    auto index_t1 = std::lower_bound(vec_times.begin(), vec_times.end(), _t1);
+
+                    auto index = index_t0 - vec_times.begin();
+                    auto index_end = index_t1 - vec_times.begin();
+//                    std::cout << "index = " << index << std::endl;
+//                    std::cout << "index_end = " << index_end << std::endl;
+                    {
+                        if( vec_times[index] > _t0 && index > 0 )
+                        {
+                            double k1, k2;
+                            k1 = static_cast<double>( _t0 - vec_times[index-1] )/static_cast<double>( vec_times[index] - vec_times[index-1] );
+                            k2 = static_cast<double>( vec_times[index] - _t0 )/static_cast<double>( vec_times[index] - vec_times[index-1] );
+                            Vec3 acc0 = vec_acc[index-1];
+                            Vec3 acc1 = vec_acc[index];
+                            Vec3 gyr0 = vec_gyr[index-1];
+                            Vec3 gyr1 = vec_gyr[index];
+
+                            Vec3 acc_cur = k1 * acc0 + k2 * acc1;
+                            Vec3 gyr_cur = k1 * gyr0 + k2 * gyr1;
+
+                            vec_acc_part.push_back( acc_cur );
+                            vec_gyr_part.push_back( gyr_cur );
+                            vec_times_part.push_back( _t0 );
+                        }
+
+                        for(  ;index < index_end; ++index )
+                        {
+                            vec_acc_part.push_back( vec_acc[index] );
+                            vec_gyr_part.push_back( vec_gyr[index] );
+                            vec_times_part.push_back( vec_times[index] );
+                        }
+
+                        if( vec_times[index_end] > _t1 )
+                        {
+                            double k1, k2;
+                            k1 = static_cast<double>( _t1 - vec_times[index-1] )/static_cast<double>( vec_times[index] - vec_times[index-1] );
+                            k2 = static_cast<double>( vec_times[index] - _t1 )/static_cast<double>( vec_times[index] - vec_times[index-1] );
+                            Vec3 acc0 = vec_acc[index-1];
+                            Vec3 acc1 = vec_acc[index];
+                            Vec3 gyr0 = vec_gyr[index-1];
+                            Vec3 gyr1 = vec_gyr[index];
+
+                            Vec3 acc_cur = k1 * acc0 + k2 * acc1;
+                            Vec3 gyr_cur = k1 * gyr0 + k2 * gyr1;
+
+                            vec_acc_part.push_back( acc_cur );
+                            vec_gyr_part.push_back( gyr_cur );
+                            vec_times_part.push_back( _t1 );
+                        }
+                    }
+
+                }
+
+//                if( index == vec_times.size() && vec_times[index-1] < _t1 )
+//                    return std::make_tuple( false, vec_times_part, vec_acc_part, vec_gyr_part );
+//                else
+                return std::make_tuple( true, vec_times_part, vec_acc_part, vec_gyr_part );
+            }
 
             // TODO xinli change to map
 //        private:
             std::vector<Vec3> vec_acc;
             std::vector<Vec3> vec_gyr;
             std::vector<double> vec_times;
+
+            static double sum_st_;
         };
 
 //#define GYR_N 9.7933408260869451e-04

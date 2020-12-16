@@ -32,7 +32,7 @@ int main(int argc, char **argv)
     std::ofstream fout( output_file, std::ofstream::out );
     fout.precision(3);
     double step = 1. / 30.;
-    for( int i=0;i<60;++i )
+    for( int i=0;i<363;++i )
     {
         fout << static_cast<double>( i ) * step << std::endl;
     }

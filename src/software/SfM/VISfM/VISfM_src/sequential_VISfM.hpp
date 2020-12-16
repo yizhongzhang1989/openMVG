@@ -58,6 +58,7 @@ public:
 
     void solveGyroscopeBias();
     bool solve_vgs( Eigen::VectorXd& speeds_scale, Eigen::Vector3d& correct_g );
+    bool solve_vs( const Eigen::Vector3d &correct_g, Eigen::VectorXd& speeds_scale );
     static Eigen::MatrixXd TangentBasis( Eigen::Vector3d& g0 );
     void RefineGravity( Eigen::VectorXd& speeds_scale, Eigen::Vector3d& correct_g );
 

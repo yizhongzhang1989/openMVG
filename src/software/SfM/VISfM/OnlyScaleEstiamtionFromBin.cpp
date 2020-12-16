@@ -96,6 +96,7 @@ int main(int argc, char **argv)
     std::string sSfM_IMU_Filename;
     std::string sSfM_IMU_FileType = "Mate20Pro";
     std::string sSfM_Stamp_Filename;
+
     bool b_simu_g = false;
 
 
@@ -192,6 +193,7 @@ int main(int argc, char **argv)
 //        -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
 //         0.0, 0.0, 0.0, 1.0
 
+
     b_simu_g = cmd.used('g');
 
     Mat3 Ric;
@@ -212,33 +214,23 @@ int main(int argc, char **argv)
 //                0.00900781, 0.01312851, -0.99987324;
 //        tic << 0.01903381, -0.02204486, 0.00402214;
 
-//        tic <<  0.0291997, -0.0430028,   0.109315;
-//        Ric <<
-//                -0.00952889,   -0.999334,  -0.0352139,
-//                -0.999732,  0.00877768,   0.0214261,
-//                -0.0211028,   0.0354086,    -0.99915;
-
         //Mate20Pro
-//        Mat3 Rci;
-//        Vec3 tci;
-//
-//        Rci << -0.00080983, -0.99991118,  0.01330307,
-//            -0.99981724,  0.0010637,   0.01908794,
-//            -0.01910039, -0.01328518, -0.9997293;
-//        tci << 0.02532891, 0.03078696, 0.080411;
-//
-//        Ric = Rci.transpose();
-//        tic = -Ric * tci;
-//
-//
-//        std::cout << "tic = " << tic.transpose() << std::endl;
-//        std::cout << "Ric = \n" << Ric << std::endl;
+        Mat3 Rci;
+        Vec3 tci;
 
-        tic <<   0.07, 0., 0.02;//0.0294058, -0.00618251,   0.0419311;
-        Ric <<
-                0.0031626,   -0.999771,  -0.0211788,
-                -0.999949, -0.00336582,  0.00956673,
-                -0.00963582,   0.0211475,    -0.99973;
+        Rci << -0.00080983, -0.99991118,  0.01330307,
+            -0.99981724,  0.0010637,   0.01908794,
+            -0.01910039, -0.01328518, -0.9997293;
+        tci << 0.02532891, 0.03078696, 0.080411;
+
+        Ric = Rci.transpose();
+        tic = -Ric * tci;
+
+//        Ric <<
+//            -0.01328179, -0.99853927,  0.05237284,
+//                -0.99971395,  0.01221905, -0.02056013,
+//                0.01989015, -0.05263093, -0.99841593;
+//        tic << 0.03755697, 0.03135829, -0.04861944;
 
     }
     else if( sSfM_IMU_FileType == std::string("Simu") )
@@ -279,15 +271,10 @@ int main(int argc, char **argv)
     }
     else if( sSfM_IMU_FileType == std::string("Mate20Pro") )
     {
-        VIstaticParm::acc_n = 0.01;
-        VIstaticParm::acc_w = 0.0002;
-        VIstaticParm::gyr_n = 0.005;
-        VIstaticParm::gyr_w = 4.0e-6;
-
-//        VIstaticParm::acc_n = 0.08;
-//        VIstaticParm::acc_w = 0.00004;
-//        VIstaticParm::gyr_n = 0.004;
-//        VIstaticParm::gyr_w = 2.0e-6;
+        VIstaticParm::acc_n = 0;
+        VIstaticParm::acc_w = 0;
+        VIstaticParm::gyr_n = 0;
+        VIstaticParm::gyr_w = 0;
 
 //        VIstaticParm::acc_n = 1.3061437477214574e-02;
 //        VIstaticParm::acc_w = 9.7230832140122278e-04;
@@ -296,20 +283,10 @@ int main(int argc, char **argv)
     }
     else
     {
-        VIstaticParm::acc_n = 0.08;
-        VIstaticParm::acc_w = 0.00004;
-        VIstaticParm::gyr_n = 0.004;
-        VIstaticParm::gyr_w = 2.0e-6;
-
-//        VIstaticParm::acc_n = 0;
-//        VIstaticParm::acc_w = 0;
-//        VIstaticParm::gyr_n = 0;
-//        VIstaticParm::gyr_w = 0;
-
-//        VIstaticParm::acc_n = 1.0e-2;
-//        VIstaticParm::acc_w = 1.0e-2;
-//        VIstaticParm::gyr_n = 1.0e-2;
-//        VIstaticParm::gyr_w = 1.0e-2;
+        VIstaticParm::acc_n = 0;
+        VIstaticParm::acc_w = 0;
+        VIstaticParm::gyr_n = 0;
+        VIstaticParm::gyr_w = 0;
     }
 
 
@@ -407,8 +384,6 @@ int main(int argc, char **argv)
         fin.close();
     }
 
-    std::cout << "time file read over" << std::endl;
-
     if( sSfM_IMU_Filename.empty() )
     {
         std::cerr << "not input sSfM_IMU_Filename " << std::endl;
@@ -427,16 +402,7 @@ int main(int argc, char **argv)
 
 //    IndexT dt = ;
     if(sSfM_IMU_FileType == std::string( "Mate20Pro" ))
-//        imu_dataset->corect_dt( -0.26 * 1000 );
-        imu_dataset->corect_dt( -0.2 * 1000 );
-
-//    imu_dataset->corect_dt( 0.05 * 1000 );
-
-//    imu_dataset->corect_dt( 50);
-
-    // IMU_Dataset::sum_st_ = -50.1366
-
-    IMU_Dataset::sum_st_ = 0.;
+        imu_dataset->corect_dt( 0.2 * 1000 );
 
 //    timeshift cam0 to imu0: [s] (t_imu = t_cam + shift)n
 
@@ -480,82 +446,58 @@ int main(int argc, char **argv)
     }
 
     XinTime time;
-    if(visfmEngine.VI_Init(  ))
+    if(visfmEngine.Process_visual_all(  ))
     {
 
         Save(visfmEngine.Get_SfM_Data(),
-             stlplus::create_filespec(sOutDir, "sfm_visual_init_data", ".bin"),
+             stlplus::create_filespec(sOutDir, "sfm_visual_all_data", ".bin"),
              ESfM_Data(ALL));
 
         Save(visfmEngine.Get_SfM_Data(),
-             stlplus::create_filespec(sOutDir, "sfm_visual_init_cloud_and_poses", ".ply"),
+             stlplus::create_filespec(sOutDir, "sfm_visual_all_cloud_and_poses", ".ply"),
              ESfM_Data(ALL));
 //        Save(visfmEngine.Get_SfM_Data(),
 //             "/home/xinli/work/data/VI_visual_init.bin",
 //             ESfM_Data(ALL));
-        if(!visfmEngine.VI_align())
+        if(!visfmEngine.VI_align(true))
         {
             std::cerr << "VI sfm align fail" << std::endl;
             return EXIT_FAILURE;
         }
         else{
-//            Save(visfmEngine.Get_SfM_Data(),
-//                 "/home/xinli/work/data/VI_visualIMU_init.bin",
-//                 ESfM_Data(ALL));
-//            return EXIT_SUCCESS;
-            if(visfmEngine.Process())
-            {
 
-//                time.print_time();
+
+            time.print_time();
 //                Save(visfmEngine.Get_SfM_Data(),
 //                     "/home/xinli/work/data/Allresutl.bin",
 //                     ESfM_Data(ALL));
 
-                std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
+            std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
-                std::cout << "init ex\n";
-                PrintExtric(sfMData);
-                std::cout << "after oti" << std::endl;
-                PrintExtric(visfmEngine.Get_SfM_Data());
+            std::cout << "init ex\n";
+            PrintExtric(sfMData);
+            std::cout << "after oti" << std::endl;
+            PrintExtric(visfmEngine.Get_SfM_Data());
 
-                std::cout << "IMU_Dataset::sum_st_ = " << IMU_Dataset::sum_st_ << std::endl;
+            std::cout << "...Generating SfM_Report.html" << std::endl;
+            Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
+                                stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
 
+            //-- Export to disk computed scene (data & visualizable results)
+            std::cout << "...Export SfM_Data to disk." << std::endl;
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
+                 ESfM_Data(ALL));
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "sfm_data", ".json"),
+                 ESfM_Data(ALL));
 
-                {
-                    std::string output_result_file = stlplus::create_filespec(sOutDir, "td_ex", ".txt");
-                    std::ofstream fout( output_result_file, std::ofstream::out );
-                    fout.precision(3);
-//                    fout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
-                    fout << time.time_str();
-                    fout << "IMU_Dataset::sum_st_ = " << IMU_Dataset::sum_st_ << std::endl;
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
+                 ESfM_Data(ALL));
 
-                    auto sfm_data_opti = visfmEngine.Get_SfM_Data();
+            return EXIT_SUCCESS;
 
-                    fout << "sfm_data.IG_Ric = \n" << sfm_data_opti.IG_Ric << std::endl;
-                    fout << "sfm_data.IG_tic = \n" << sfm_data_opti.IG_tic << std::endl;
-                    fout.close();
-                }
-
-                std::cout << "...Generating SfM_Report.html" << std::endl;
-                Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
-                                    stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
-
-                //-- Export to disk computed scene (data & visualizable results)
-                std::cout << "...Export SfM_Data to disk." << std::endl;
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
-                     ESfM_Data(ALL));
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "sfm_data", ".json"),
-                     ESfM_Data(ALL));
-
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
-                     ESfM_Data(ALL));
-
-                return EXIT_SUCCESS;
-            }
-//            return EXIT_SUCCESS;
         }
     }
     else

@@ -119,7 +119,7 @@ C:\Users\v-xinli1\Documents\Data\EuRoc\V1_01_easy\video_recon\ex_debug
 -T
 C:\Users\v-xinli1\Documents\Data\EuRoc\V1_01_easy\video_recon\right_times.txt
 -u
-C:\Users\v-xinli1\Documents\Data\EuRoc\V1_01_easy\video_recon\data.csv
+C:\Users\v-xinli1\Documents\Data\EuRoc\V1_01_easy\video_recon\imu_data.csv
 -I
 EuRoc
 
@@ -151,6 +151,18 @@ C:\Users\v-xinli1\Documents\Data\LayoutBuilderTestData\20200501_GAP_1\imu_data.c
 -I
 Mate20Pro
 
+-i
+C:\Users\v-xinli1\Documents\Data\capture\202012111343\per_frame\key_openMVG_seq_recon\sfm_data.json
+-m
+C:\Users\v-xinli1\Documents\Data\capture\202012111343\per_frame\key_openMVG_seq_recon\matches
+-o
+C:\Users\v-xinli1\Documents\Data\capture\202012111343\per_frame\key_openMVG_seq_recon\debug_ex_td
+-T
+C:\Users\v-xinli1\Documents\Data\capture\202012111343\times.txt
+-u
+C:\Users\v-xinli1\Documents\Data\capture\202012111343\imu_data.csv
+-I
+Mate20Pro
 
 
 -i
@@ -177,5 +189,34 @@ C:\Users\v-xinli1\Documents\Data\test_data_simu\roller_coaster_3\openMVGFormat\m
 C:\Users\v-xinli1\Documents\Data\test_data_simu\roller_coaster_3\time.txt
 -u
 C:\Users\v-xinli1\Documents\Data\test_data_simu\roller_coaster_3\openMVGFormat\imu_data.csv
+-I
+Simu
+
+-i
+C:\Users\v-xinli1\Documents\Data\test_data_simu\walk_through_with_gravity\openMVGFormat\sfm_data.json
+-m
+C:\Users\v-xinli1\Documents\Data\test_data_simu\walk_through_with_gravity\openMVGFormat
+-o
+C:\Users\v-xinli1\Documents\Data\test_data_simu\walk_through_with_gravity\debug
+-T
+C:\Users\v-xinli1\Documents\Data\test_data_simu\walk_through_with_gravity\timestamp.txt
+-u
+C:\Users\v-xinli1\Documents\Data\test_data_simu\walk_through_with_gravity\openMVGFormat\imu_data.csv
+-I
+Simu
+-g
+
+-i
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\openMVGFormat\sfm_data.json
+-m
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\openMVGFormat
+-M
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\openMVGFormat\matches.putative.txt
+-o
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\debug
+-T
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\time.txt
+-u
+C:\Users\v-xinli1\Documents\Data\test_data_simu\test_data_circle_sine\output\openMVGFormat\imu_data.csv
 -I
 Simu

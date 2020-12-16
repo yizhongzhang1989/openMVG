@@ -248,6 +248,14 @@ int main(int argc, char **argv)
 
     std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
+      {
+          std::string output_result_file = stlplus::create_filespec(sOutDir, "time", ".txt");
+          std::ofstream fout( output_result_file, std::ofstream::out );
+          fout.precision(3);
+          fout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
+          fout.close();
+      }
+
     std::cout << "...Generating SfM_Report.html" << std::endl;
     Generate_SfM_Report(sfmEngine.Get_SfM_Data(),
       stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));

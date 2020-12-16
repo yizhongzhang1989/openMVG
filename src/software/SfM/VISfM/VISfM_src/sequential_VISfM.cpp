@@ -143,7 +143,7 @@ namespace sfm{
                     update_imu_time();
 //                      std::cout << "start update_imu_inte" << std::endl;
                     update_imu_inte();
-                    BundleAdjustment_optimizi_init_IMU( );
+//                    BundleAdjustment_optimizi_init_IMU( );
 //                    BundleAdjustment();
                     do
                     {
@@ -713,6 +713,8 @@ namespace sfm{
                 }
             }
         }
+
+//        initial_pair_ = Pair(30, 40);
             std::cout << "---------------------------------------\n"
                       << "initial_pair_.first = " << initial_pair_.first << "\n"
                       <<  "initial_pair_.second = " << initial_pair_.second << "\n"
@@ -720,7 +722,7 @@ namespace sfm{
 
             // get start index and end index of vi init
             {
-                const int len_size_2 = 15;
+                const int len_size_2 = 20;
                 IndexT len_2 = (initial_pair_.second - initial_pair_.first) / 2;
                 IndexT inital_len_2 = len_size_2 > len_2 ? len_size_2 : len_2;
                 IndexT center = initial_pair_.first + len_2;
@@ -1061,6 +1063,7 @@ namespace sfm{
 //        correct_scale = 3.57;//(speeds_scale.tail<1>())(0) / 100.;
 
 
+//        std::cout <<"-=------=-=-=-=-=-=-=-=" << std::endl;
         int kv = -1;
         auto pose_i = sfm_data_.poses.begin();
         for (; pose_i != sfm_data_.poses.end(); pose_i++)
@@ -1070,8 +1073,10 @@ namespace sfm{
             auto Rwi = pose_i->second.rotation().transpose();
             Vec3 speedV3d = Rwi * speeds_scale.segment<3>(kv * 3);
             IMU_Speed speed(speedV3d, 0);
+//            std::cout << speedV3d(0) << "," << speedV3d(1) << "," << speedV3d(2) << std::endl;
             sfm_data_.Speeds.insert( std::make_pair(poseId, speed) );
         }
+//        std::cout <<"-=------=-=-=-=-=-=-=-=" << std::endl;
 
         for( auto& it_pose:sfm_data_.poses )
         {
@@ -1399,6 +1404,22 @@ namespace sfm{
 
     bool SequentialVISfMReconstructionEngine::VI_align(bool only_align)
     {
+
+        {
+            auto it_pose = sfm_data_.poses.begin();
+            auto rit_pose = sfm_data_.poses.rbegin();
+            auto it_time = sfm_data_.timestamps.at(it_pose->first);
+            auto rit_time = sfm_data_.timestamps.at(rit_pose->first);
+
+            std::cout << "it_pose->first = " << it_pose->first << std::endl;
+            std::cout << "rit_pose->first = " << rit_pose->first << std::endl;
+
+            std::cout << "it_time = " << it_time << std::endl;
+            std::cout << "rit_time = " << rit_time << std::endl;
+
+        }
+
+
         std::cout << "start VI align" << std::endl;
         std::cout << "start update_imu_time" << std::endl;
         update_imu_time();
@@ -1418,6 +1439,28 @@ namespace sfm{
         Eigen::VectorXd speeds_scale;
         Eigen::Vector3d correct_g;
 
+//        {
+//            Eigen::Quaterniond Qw0_gt(-0.0144252,  0.7069596, 0.0144252, 0.7069596);
+////            Eigen::Quaterniond Qw0_gt(-0.0143451, 0.7069613, 0.0143451, 0.7069613);
+//
+//            auto Rc0w = sfm_data_.poses.begin()->second.rotation();
+//            Eigen::Quaterniond Qw0(Rc0w.transpose());
+//
+//            Eigen::Quaterniond delta = Qw0 * Qw0_gt.inverse();
+//
+//            for(auto&it_pose:sfm_data_.poses)
+//            {
+//                Mat3 Rcw = it_pose.second.rotation();
+//                Rcw = Rcw * delta;
+//                it_pose.second.SetRoation( Rcw );
+//
+//                Vec3 twi = it_pose.second.center();
+//                twi = delta.inverse() * twi;
+//                it_pose.second.SetCenter(twi);
+//            }
+//        }
+//        correct_g = Eigen::Vector3d(0., 9.8, 0.);
+
 //        std::cout << "start solveGyroscopeBias" << std::endl;
 //        solveGyroscopeBias();
 //        std::cout << "end solveGyroscopeBias" << std::endl;
@@ -1425,6 +1468,11 @@ namespace sfm{
         std::cout << "start solve_vgs" << std::endl;
         if( !solve_vgs(speeds_scale, correct_g) ) return false;
         std::cout << "end solve_vgs" << std::endl;
+
+
+//        std::cout << "start solve_vs" << std::endl;
+//        if( !solve_vs(correct_g, speeds_scale) ) return false;
+//        std::cout << "end solve_vs" << std::endl;
 
         // init pre not very good
         {
@@ -1460,7 +1508,7 @@ namespace sfm{
 //
 //        BundleAdjustmentWithIMU();
 //        BundleAdjustmentWithIMU();
-//        std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
+        std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
         BundleAdjustment_optimizi_only_IMU();
 //        BundleAdjustment();
 //        BundleAdjustment();
@@ -1523,8 +1571,8 @@ namespace sfm{
             b += tmp_A.transpose() * tmp_b;
 
 
-//            Eigen::Quaterniond delta = imu_inte.delta_q_.inverse() * q_ij;
-//            std::cout << "delta = " << delta.coeffs().transpose() << std::endl;
+            Eigen::Quaterniond delta = imu_inte.delta_q_.inverse() * q_ij;
+            std::cout << "delta = " << delta.coeffs().transpose() << std::endl;
         }
         delta_bg = A.ldlt().solve(b);
 
@@ -1537,17 +1585,27 @@ namespace sfm{
 
     bool SequentialVISfMReconstructionEngine::solve_vgs(Eigen::VectorXd& speeds_scale, Eigen::Vector3d &correct_g)
     {
-        int n_state = static_cast<int>(sfm_data_.imus.size()+1) * 3 + 3 + 1;
+        int start_index = 0;//sfm_data_.poses.size()/2;
+        int use_size = sfm_data_.poses.size();
+        int n_state = static_cast<int>(/*sfm_data_.imus.size()+1*/(use_size - start_index)) * 3 + 3 + 1;
         Eigen::MatrixXd A{n_state, n_state};
         A.setZero();
         Eigen::VectorXd b{n_state};
         b.setZero();
 
+        int index_start = 0;
         int index = 0;
         auto pose_it_i = sfm_data_.poses.begin();
         auto pose_it_j = sfm_data_.poses.begin(); pose_it_j++;
+        while(index_start < start_index)
+        {
+            index_start++;
+            pose_it_i++;
+            pose_it_j++;
+        }
         for( ; pose_it_j != sfm_data_.poses.end(); pose_it_i++, pose_it_j++, index++ )
         {
+            if( (index + index_start) == use_size ) break;
             Eigen::MatrixXd tmp_A(6, 10);
             tmp_A.setZero();
             Eigen::VectorXd tmp_b(6);
@@ -1608,6 +1666,98 @@ namespace sfm{
         std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
 
         RefineGravity(speeds_scale, correct_g);
+
+        correct_scale = (speeds_scale.tail<1>())(0) / 100;
+        std::cout << "correct_scale = " << correct_scale << std::endl;
+        std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
+        VIstaticParm::G_ = correct_g;
+        return true;
+    }
+
+    bool SequentialVISfMReconstructionEngine::solve_vs(const Eigen::Vector3d &correct_g, Eigen::VectorXd& speeds_scale)
+    {
+        int start_index = 0;//sfm_data_.poses.size()/2;
+        int use_size = sfm_data_.poses.size();
+        int n_state = static_cast<int>(/*sfm_data_.imus.size()+1*/(use_size - start_index)) * 3 + 1;
+        Eigen::MatrixXd A{n_state, n_state};
+        A.setZero();
+        Eigen::VectorXd b{n_state};
+        b.setZero();
+
+        int index_start = 0;
+        int index = 0;
+        auto pose_it_i = sfm_data_.poses.begin();
+        auto pose_it_j = sfm_data_.poses.begin(); pose_it_j++;
+        while(index_start < start_index)
+        {
+            index_start++;
+            pose_it_i++;
+            pose_it_j++;
+        }
+        for( ; pose_it_j != sfm_data_.poses.end(); pose_it_i++, pose_it_j++, index++ )
+        {
+            if( (index + index_start) == use_size ) break;
+            Eigen::MatrixXd tmp_A(6, 7);
+            tmp_A.setZero();
+            Eigen::VectorXd tmp_b(6);
+            tmp_b.setZero();
+
+            Mat3 Riw = pose_it_i->second.rotation();
+            Mat3 Rwi = Riw.transpose();
+            Mat3 Rjw = pose_it_j->second.rotation();
+            Mat3 Rwj = Rjw.transpose();
+            Vec3 twi = pose_it_i->second.center();
+            Vec3 twj = pose_it_j->second.center();
+
+            auto imu_inte = sfm_data_.imus.at( pose_it_j->first );
+
+            double dt = imu_inte.sum_dt_;
+            tmp_A.block<3, 3>(0, 0) = -dt * Eigen::Matrix3d::Identity();
+//            tmp_A.block<3, 3>(0, 6) = Rwi.transpose() * dt * dt / 2 * Eigen::Matrix3d::Identity();
+            tmp_A.block<3, 1>(0, 6) = Rwi.transpose() * (twj - twi) / 100.;
+
+            tmp_b.block<3, 1>(0, 0) = imu_inte.delta_p_ + Rwi.transpose() * Rwj * sfm_data_.IG_tic - sfm_data_.IG_tic - Rwi.transpose() * dt * dt / 2 * Eigen::Matrix3d::Identity() * correct_g;
+            //cout << "delta_p   " << frame_j->second.pre_integratfion->delta_p.transpose() << endl;
+            tmp_A.block<3, 3>(3, 0) = -Eigen::Matrix3d::Identity();
+            tmp_A.block<3, 3>(3, 3) = Rwi.transpose() * Rwj;
+//            tmp_A.block<3, 3>(3, 6) = Rwi.transpose() * dt * Eigen::Matrix3d::Identity();
+
+            tmp_b.block<3, 1>(3, 0) = imu_inte.delta_v_ - Rwi.transpose() * dt * Eigen::Matrix3d::Identity() * correct_g;
+            //cout << "delta_v   " << frame_j->second.pre_integration->delta_v.transpose() << endl;
+
+            Eigen::Matrix<double, 6, 6> cov_inv = Eigen::Matrix<double, 6, 6>::Zero();
+            //cov.block<6, 6>(0, 0) = IMU_cov[i + 1];
+            //MatrixXd cov_inv = cov.inverse();
+            cov_inv.setIdentity();
+
+            Eigen::MatrixXd r_A = tmp_A.transpose() * cov_inv * tmp_A;
+            Eigen::VectorXd r_b = tmp_A.transpose() * cov_inv * tmp_b;
+
+            A.block<6, 6>(index * 3, index * 3) += r_A.topLeftCorner<6, 6>();
+            b.segment<6>(index * 3) += r_b.head<6>();
+
+            A.bottomRightCorner<1, 1>() += r_A.bottomRightCorner<1, 1>();
+            b.tail<1>() += r_b.tail<1>();
+
+            A.block<6, 1>(index * 3, n_state - 1) += r_A.topRightCorner<6, 1>();
+            A.block<1, 6>(n_state - 1, index * 3) += r_A.bottomLeftCorner<1, 6>();
+        }
+        A = A * 1000.0;
+        b = b * 1000.0;
+        speeds_scale = A.ldlt().solve(b);
+//        std::cout << "speeds_scale.size() = " << speeds_scale.size() << std::endl;
+        double correct_scale = speeds_scale(n_state - 1) / 100.;
+        std::cout << "correct_scale = " << correct_scale << std::endl;
+        std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
+
+        if(std::fabs(correct_g.norm() - VIstaticParm::G_.norm()) > 2.0 || correct_scale < 0)
+        {
+            return false;
+        }
+        std::cout << "correct_scale = " << correct_scale << std::endl;
+        std::cout << "correct_g nrom = " << correct_g.norm() << std::endl << "correct_g =  " << correct_g.transpose() << std::endl;
+
+//        RefineGravity(speeds_scale, correct_g);
 
         correct_scale = (speeds_scale.tail<1>())(0) / 100;
         std::cout << "correct_scale = " << correct_scale << std::endl;
@@ -1790,7 +1940,28 @@ namespace sfm{
                   this->b_use_motion_prior_
                 );
         if(td)
-            return bundle_adjustment_obj.AdjustTd(sfm_data_, ba_refine_options);
+        {
+            double td_time = 0;
+            bundle_adjustment_obj.AdjustTd(sfm_data_, ba_refine_options, td_time);
+            {
+                std::cout << "compute td_time = " << td_time << std::endl;
+                sfm_data_.imu_dataset->corect_dt( -td_time );
+                update_imu_time();
+                update_imu_inte();
+            }
+            while( std::abs(td_time) > 5 )
+            {
+                td_time = 0;
+                bundle_adjustment_obj.AdjustTd(sfm_data_, ba_refine_options, td_time);
+                {
+                    std::cout << "compute td_time = " << td_time << std::endl;
+                    sfm_data_.imu_dataset->corect_dt( -td_time );
+                    update_imu_time();
+                    update_imu_inte();
+                }
+            }
+            return true;
+        }
         else
             return bundle_adjustment_obj.Adjust(sfm_data_, ba_refine_options);
     }
@@ -3213,6 +3384,20 @@ namespace sfm{
                         pose
                 );
         resection_data.pt2D = std::move(pt2D_original); // restore original image domain points
+
+//        // xinli debug
+//        {
+//            std::cout << "pose.rotation() = \n" << pose.rotation() << "\n";
+//            std::cout << "pose.translation() = " << pose.translation().transpose() << std::endl;
+//
+//            IndexT closed = sfm_data_.poses.begin()->first;
+//            for(auto &it_pose:sfm_data_.poses)
+//            {
+//
+//            }
+////            std::find(  )
+//
+//        }
 
         if (!sLogging_file_.empty())
         {

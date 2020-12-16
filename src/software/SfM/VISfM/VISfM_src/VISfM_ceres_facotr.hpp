@@ -53,6 +53,27 @@ namespace openMVG {
             Eigen::Vector2d point_obs_;
         };
 
+        class VISfM_ProjectionSim3 : public ceres::SizedCostFunction<2, 7, 7, 6, 3, 1>
+        {
+        public:
+            VISfM_ProjectionSim3(Eigen::Vector2d& obs);
+
+            enum : uint8_t {
+                OFFSET_FOCAL_LENGTH = 0,
+                OFFSET_PRINCIPAL_POINT_X = 1,
+                OFFSET_PRINCIPAL_POINT_Y = 2,
+                OFFSET_DISTO_K1 = 3,
+                OFFSET_DISTO_K2 = 4,
+                OFFSET_DISTO_K3 = 5,
+            };
+
+            virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const;
+            void check(double **parameters);
+            static Eigen::Vector2d compute_error( double const *parameters_pose, double const *parameters_point, const Eigen::Vector2d& obs, bool& bad_point );
+            static Eigen::Matrix2d sqrt_info;
+            Eigen::Vector2d point_obs_;
+        };
+
         class TdRegularizationTerm : public ceres::SizedCostFunction<1, 1, 1>
         {
         public:

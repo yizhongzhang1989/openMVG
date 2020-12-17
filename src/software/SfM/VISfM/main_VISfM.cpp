@@ -495,15 +495,31 @@ int main(int argc, char **argv)
 //             ESfM_Data(ALL));
         if(!visfmEngine.VI_align())
         {
-            std::cerr << "VI sfm align fail" << std::endl;
-            return EXIT_FAILURE;
+            std::cout << "VI sfm align fail" << std::endl;
+
+            bool align_ok = false;
+            for(int i=0;i<10;++i)
+            {
+                if(visfmEngine.VI_Init_again(  ))
+                {
+                    if(visfmEngine.VI_align())
+                    {
+                        align_ok = true;
+                        break;
+                    }
+                }
+            }
+            if(!align_ok)
+                return EXIT_FAILURE;
         }
-        else{
+
+        {
 //            Save(visfmEngine.Get_SfM_Data(),
 //                 "/home/xinli/work/data/VI_visualIMU_init.bin",
 //                 ESfM_Data(ALL));
 //            return EXIT_SUCCESS;
-            if(visfmEngine.Process())
+            if(visfmEngine.Process_window())
+//            if(visfmEngine.Process())
             {
 
 //                time.print_time();
@@ -544,9 +560,6 @@ int main(int argc, char **argv)
                 std::cout << "...Export SfM_Data to disk." << std::endl;
                 Save(visfmEngine.Get_SfM_Data(),
                      stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
-                     ESfM_Data(ALL));
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "sfm_data", ".json"),
                      ESfM_Data(ALL));
 
                 Save(visfmEngine.Get_SfM_Data(),

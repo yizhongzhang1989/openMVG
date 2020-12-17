@@ -55,6 +55,8 @@ struct Optimize_Options
   Control_Point_Parameter control_point_opt;
   bool use_motion_priors_opt;
 
+  bool local_opt;
+
   Optimize_Options
   (
     const cameras::Intrinsic_Parameter_Type intrinsics = cameras::Intrinsic_Parameter_Type::ADJUST_ALL,
@@ -69,6 +71,7 @@ struct Optimize_Options
    control_point_opt(control_point),
    use_motion_priors_opt(use_motion_priors)
   {
+      local_opt = true;
   }
 };
 

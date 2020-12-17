@@ -69,6 +69,8 @@ struct SfM_Data
   // Considered IMU integration (indexed by view.id_pose)
   Imus imus;
 
+  std::vector<std::pair<double, Pair>> scoring_per_pair_;
+
   double td_;
 
   Tds tds;

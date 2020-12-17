@@ -502,9 +502,6 @@ int main(int argc, char **argv)
                 Save(visfmEngine.Get_SfM_Data(),
                      stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
                      ESfM_Data(ALL));
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "sfm_data", ".json"),
-                     ESfM_Data(ALL));
 
                 Save(visfmEngine.Get_SfM_Data(),
                      stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),

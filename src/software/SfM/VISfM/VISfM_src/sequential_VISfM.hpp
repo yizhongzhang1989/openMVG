@@ -54,6 +54,8 @@ public:
 
     bool VI_Init( );
 
+    bool VI_Init_again( );
+
     bool TestImuFactor();
 
     void solveGyroscopeBias();
@@ -90,7 +92,7 @@ public:
     bool MakeInitialPair3D(const Pair & initialPair);
 
     /// Automatic initial pair selection (based on a 'baseline' computation score)
-    bool AutomaticInitialPairChoice(Pair & initialPair) const;
+    bool AutomaticInitialPairChoice(Pair & initialPair);
 
     /**
      * Set the default lens distortion type to use if it is declared unknown

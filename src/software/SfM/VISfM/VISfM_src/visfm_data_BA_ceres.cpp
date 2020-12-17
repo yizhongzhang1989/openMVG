@@ -2285,7 +2285,7 @@ namespace openMVG
 
             ceres::Problem problem;
 
-//            std::cout << "start AddParameterBlock ex" << std::endl;
+            std::cout << "start AddParameterBlock ex" << std::endl;
             double ex_paparm[7];
             {
                 Mat3 Ric = sfm_data.IG_Ric;
@@ -2304,7 +2304,8 @@ namespace openMVG
 
 
 //                // xinli debug ex
-//                problem.SetParameterBlockConstant(ex_paparm);
+                if(options.local_opt)
+                    problem.SetParameterBlockConstant(ex_paparm);
             }
 
             // Data wrapper for refinement:
@@ -2376,7 +2377,7 @@ namespace openMVG
             }
 //            problem.SetParameterBlockConstant( &map_poses.begin()->second[0] );
 
-            std::cout << "start AddParameterBlock imus" << std::endl;
+//            std::cout << "start AddParameterBlock imus" << std::endl;
             for( const auto& imu:sfm_data.imus )
             {
                 const IndexT indexSpd = imu.first;
@@ -2416,27 +2417,17 @@ namespace openMVG
             }
 
 //            std::cout << "start AddParameterBlock td" << std::endl;
-//            for( const auto& speed:sfm_data.Speeds )
-//            {
-//                const IndexT indexSpd = speed.first;
-//
-//                double td = speed.second.td_;
-//                map_td[indexSpd] = {td};
-//
-//                double * parameter_block = &map_td.at(indexSpd)[0];
-//                problem.AddParameterBlock(parameter_block, map_td.at(indexSpd).size());
-//            }
-
             {
                 map_td[0] = {0};
 //                map_td[0] = {sfm_data.td_};
                 double * parameter_block = &map_td.at(0)[0];
                 problem.AddParameterBlock(parameter_block, map_td.at(0).size());
 
-//                problem.SetParameterBlockConstant(parameter_block);
+                if(options.local_opt)
+                    problem.SetParameterBlockConstant(parameter_block);
             }
 
-            std::cout << "start AddParameterBlock intrinsics" << std::endl;
+//            std::cout << "start AddParameterBlock intrinsics" << std::endl;
             // Setup Intrinsics data & subparametrization
             for (const auto & intrinsic_it : sfm_data.intrinsics)
             {
@@ -2481,7 +2472,7 @@ namespace openMVG
                     new ceres::HuberLoss(Square(4.0))
                                                        : nullptr;
 
-            std::cout << "start Add Factor ReProjection" << std::endl;
+//            std::cout << "start Add Factor ReProjection" << std::endl;
             // For all visibility add reprojections errors:
             for (auto & structure_landmark_it : sfm_data.structure)
             {
@@ -2490,6 +2481,7 @@ namespace openMVG
 
                 Hash_Map<IndexT, Vec2> PointsVelocitys;
                 //compute 2d points velocity
+                if( obs.size() > 2 )
                 {
                     auto obs_it = obs.begin();
                     auto obs_it_next = std::next(obs_it);
@@ -2513,6 +2505,7 @@ namespace openMVG
 
                 }
 
+
                 for (const auto & obs_it : obs)
                 {
                     // Build the residual block corresponding to the track observation:
@@ -2523,7 +2516,11 @@ namespace openMVG
                     // image location and compares the reprojection against the observation.
 
                     Eigen::Vector2d ob_i = obs_it.second.x;
-                    Eigen::Vector2d velocity = PointsVelocitys.at(obs_it.first);
+                    Eigen::Vector2d velocity;
+                    if( obs.size() > 2 )
+                        velocity = PointsVelocitys.at(obs_it.first);
+                    else
+                        velocity.setZero();
                     auto cost_function = new VISfM_ProjectionTd(ob_i, velocity);
 //                    VISfM_Projection* cost_function = new VISfM_Projection( ob_i );
 
@@ -2566,6 +2563,7 @@ namespace openMVG
                     problem.SetParameterBlockConstant(structure_landmark_it.second.X.data());
             }
 
+//            std::cout << "Add Factor ReProjection Over" << std::endl;
             {
 
 //                std::cout << "start Add Factor TdRegularizationTerm" << std::endl;
@@ -2589,13 +2587,15 @@ namespace openMVG
 //                    new ceres::CauchyLoss(Square(2.0));
             {
 
-                std::cout << "start Add Factor IMU" << std::endl;
+//                std::cout << "start Add Factor IMU" << std::endl;
                 // TODO xinli first pose speed
                 auto pose_i = sfm_data.poses.begin(); pose_i++;
                 auto pose_j = std::next(pose_i);
                 for(; pose_j != sfm_data.poses.end(); pose_j++, pose_i++)
                 {
-//                    break;
+
+//                    if(options.local_opt)
+//                        break;
                     const IndexT indexPose = pose_j->first;
 
                     if( sfm_data.imus.count(indexPose) == 0 )
@@ -2667,7 +2667,7 @@ namespace openMVG
             // Configure a BA engine and run it
             //  Make Ceres automatically detect the bundle structure.
             ceres::Solver::Options ceres_config_options;
-            ceres_config_options.max_num_iterations = 500;
+            ceres_config_options.max_num_iterations = 100;
             ceres_config_options.preconditioner_type =
                     static_cast<ceres::PreconditionerType>(ceres_options_.preconditioner_type_);
             ceres_config_options.linear_solver_type =

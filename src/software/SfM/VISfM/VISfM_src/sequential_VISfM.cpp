@@ -297,7 +297,7 @@ namespace sfm{
 //                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
 
                 // Perform BA until all point are under the given precision
-                if( resectionGroupIndex % 10 == 0 || resectionGroupIndex < 10 )
+                if( resectionGroupIndex % 10 == 0 || resectionGroupIndex < 3 )
                 {
                     std::cout << "start full BA " << std::endl;//                      std::cout << "start update_state_speed" << std::endl;
                     update_state_speed();
@@ -407,6 +407,8 @@ namespace sfm{
 
                     std::cout <<"local_scene_viewId.size() = " << local_scene_viewId.size() << std::endl;
 
+                    std::map<IndexT, int> view_candidates;
+
                     for (auto &structure_landmark_it : sfm_data_.structure) {
                         const Observations &obs = structure_landmark_it.second.obs;
                         Observations local_obs;
@@ -414,20 +416,39 @@ namespace sfm{
                         for (const auto &obs_it : obs) {
                             const View *view = sfm_data_.views.at(obs_it.first).get();
                             if( local_scene_viewId.count( view->id_view ) == 1)
-//                    if (view->id_pose >= start_camera && view->id_pose < end_camera)
                             {
-                                local_obs[obs_it.first] = obs_it.second;
+//                                local_obs[obs_it.first] = obs_it.second;
                                 f_use_landmark = true;
                             }
                         }
                         if (f_use_landmark) {
-                            original_local_landmarks[structure_landmark_it.first].obs =
-                            local_scene.structure[structure_landmark_it.first].obs = std::move(local_obs);
 
-                            original_local_landmarks[structure_landmark_it.first].X =
+                            for (const auto &obs_it : obs) {
+                                const View *view = sfm_data_.views.at(obs_it.first).get();
+                                local_obs[obs_it.first] = obs_it.second;
+                                if( local_scene_viewId.count( view->id_view ) == 0)
+                                {
+                                    if(view_candidates.count(view->id_view) == 0)
+                                        view_candidates[view->id_view] = 1;
+                                    else
+                                        view_candidates[view->id_view] ++;
+                                }
+                            }
+
+                            local_scene.structure[structure_landmark_it.first].obs = std::move(local_obs);
                             local_scene.structure[structure_landmark_it.first].X =
                                     sfm_data_.structure[structure_landmark_it.first].X;
                         }
+                    }
+                    std::cout <<"view_candidates.size() = " << view_candidates.size() << std::endl;
+
+                    for(auto & view_candidate:view_candidates)
+                    {
+                        if(view_candidate.second < 50) continue;
+                        const View *view_I = sfm_data_.GetViews().at(view_candidate.first).get();
+                        local_scene.views.insert(*sfm_data_.GetViews().find(view_I->id_view));
+                        local_scene.intrinsics.insert(*sfm_data_.GetIntrinsics().find(view_I->id_intrinsic));
+                        local_scene.poses.insert(*sfm_data_.GetPoses().find(view_I->id_pose));
                     }
 
                     {
@@ -471,6 +492,15 @@ namespace sfm{
                             sfm_data_.intrinsics[view_I->id_intrinsic] = local_scene.intrinsics[view_I->id_intrinsic];
                             sfm_data_.poses[view_I->id_pose] = local_scene.poses[view_I->id_pose];
                         }
+
+                        for( auto&view_index:view_candidates )
+                        {
+                            if(view_index.second < 50) continue;
+                            const View *view_I = sfm_data_.GetViews().at(view_index.first).get();
+                            sfm_data_.intrinsics[view_I->id_intrinsic] = local_scene.intrinsics[view_I->id_intrinsic];
+                            sfm_data_.poses[view_I->id_pose] = local_scene.poses[view_I->id_pose];
+                        }
+
                         // update camera 3d points and 2d points
                         for (auto &structure_landmark_it : local_scene.structure) {
                             sfm_data_.structure[structure_landmark_it.first].X =
@@ -499,13 +529,13 @@ namespace sfm{
         }
 
 
-        do
-        {
-            BundleAdjustmentWithIMU( true );
-//            BundleAdjustmentWithIMU(  );
-//            BundleAdjustment( );
-        }
-        while (badTrackRejector(4.0, 50));
+//        do
+//        {
+//            BundleAdjustmentWithIMU( true );
+////            BundleAdjustmentWithIMU(  );
+////            BundleAdjustment( );
+//        }
+//        while (badTrackRejector(4.0, 50));
         // Ensure there is no remaining outliers
         if (badTrackRejector(4.0, 0))
         {
@@ -3224,10 +3254,11 @@ namespace sfm{
             std::cout << "right_pose_id = " << right_pose_id << std::endl;
             std::cout << "sfm_data_.poses.size() = " << sfm_data_.poses.size() << std::endl;
 
-            if( (left_pose_id - left_view_id) < 10 ) left_pose_id = left_view_id;
-            else left_pose_id -= 10;
-            if( (right_view_id - right_pose_id) < 10 ) right_pose_id = right_view_id;
-            else right_pose_id += 10;
+            const int candidate_size_half = 30;
+            if( (left_pose_id - left_view_id) < candidate_size_half ) left_pose_id = left_view_id;
+            else left_pose_id -= candidate_size_half;
+            if( (right_view_id - right_pose_id) < candidate_size_half ) right_pose_id = right_view_id;
+            else right_pose_id += candidate_size_half;
         }
 
         std::cout << "left_pose_id = " << left_pose_id << std::endl;

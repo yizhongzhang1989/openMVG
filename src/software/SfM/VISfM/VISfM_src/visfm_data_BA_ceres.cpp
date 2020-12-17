@@ -534,8 +534,29 @@ namespace openMVG
                     imu_error_size++;
                     const IndexT indexPose = pose_j->first;
                     auto imu_ptr = sfm_data.imus.at(indexPose);
+                    if( sfm_data.imus.count(indexPose) == 0 )
+                    {
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_i->first) == 0 )
+                    {
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_j->first) == 0 )
+                    {
+                        continue;
+                    }
+                    if( map_speed.count(pose_i->first) == 0 )
+                    {
+                        continue;
+                    }
+                    if( map_speed.count(pose_j->first) == 0 )
+                    {
+                        continue;
+                    }
+
 //                    if(  sfm_data.Speeds.at(pose_j->first).al_opti && sfm_data.Speeds.at(pose_i->first).al_opti ) continue;
-                    if( imu_ptr.sum_dt_ > 0.3 ) continue;
+                    if( imu_ptr.sum_dt_ > 10.0 ) continue;
                     if( imu_ptr.good_to_opti_ == false ) continue;
 
                     Eigen::Matrix<double, 15, 1> imu_error = GetImuError(
@@ -598,6 +619,27 @@ namespace openMVG
 
                     const IndexT indexPose = pose_j->first;
                     auto imu_ptr = sfm_data.imus.at(indexPose);
+                    if( sfm_data.imus.count(indexPose) == 0 )
+                    {
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_i->first) == 0 )
+                    {
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_j->first) == 0 )
+                    {
+                        continue;
+                    }
+                    if( map_speed.count(pose_i->first) == 0 )
+                    {
+                        continue;
+                    }
+                    if( map_speed.count(pose_j->first) == 0 )
+                    {
+                        continue;
+                    }
+
 //                    if(  sfm_data.Speeds.at(pose_j->first).al_opti && sfm_data.Speeds.at(pose_i->first).al_opti ) continue;
                     if( imu_ptr.sum_dt_ > 10.0 ) continue;
                     if( imu_ptr.good_to_opti_ == false ) continue;
@@ -2285,7 +2327,7 @@ namespace openMVG
 
             ceres::Problem problem;
 
-            std::cout << "start AddParameterBlock ex" << std::endl;
+//            std::cout << "start AddParameterBlock ex" << std::endl;
             double ex_paparm[7];
             {
                 Mat3 Ric = sfm_data.IG_Ric;
@@ -2375,6 +2417,10 @@ namespace openMVG
                     }
                 }
             }
+
+//            if(options.local_opt)
+            problem.SetParameterBlockConstant(&map_poses.begin()->second[0]);
+
 //            problem.SetParameterBlockConstant( &map_poses.begin()->second[0] );
 
 //            std::cout << "start AddParameterBlock imus" << std::endl;
@@ -2587,7 +2633,7 @@ namespace openMVG
 //                    new ceres::CauchyLoss(Square(2.0));
             {
 
-//                std::cout << "start Add Factor IMU" << std::endl;
+                std::cout << "start Add Factor IMU" << std::endl;
                 // TODO xinli first pose speed
                 auto pose_i = sfm_data.poses.begin(); pose_i++;
                 auto pose_j = std::next(pose_i);
@@ -2600,27 +2646,27 @@ namespace openMVG
 
                     if( sfm_data.imus.count(indexPose) == 0 )
                     {
-                        std::cout << "imu nullptr" << std::endl;
+//                        std::cout << "imu nullptr" << std::endl;
                         continue;
                     }
                     if( sfm_data.Speeds.count(pose_i->first) == 0 )
                     {
-                        std::cout << "Speeds pose_i nullptr" << std::endl;
+//                        std::cout << "Speeds pose_i nullptr" << std::endl;
                         continue;
                     }
                     if( sfm_data.Speeds.count(pose_j->first) == 0 )
                     {
-                        std::cout << "Speeds pose_j nullptr" << std::endl;
+//                        std::cout << "Speeds pose_j nullptr" << std::endl;
                         continue;
                     }
                     if( map_speed.count(pose_i->first) == 0 )
                     {
-                        std::cout << "map Speeds pose_i nullptr" << std::endl;
+//                        std::cout << "map Speeds pose_i nullptr" << std::endl;
                         continue;
                     }
                     if( map_speed.count(pose_j->first) == 0 )
                     {
-                        std::cout << "map Speeds pose_j nullptr" << std::endl;
+//                        std::cout << "map Speeds pose_j nullptr" << std::endl;
                         continue;
                     }
 
@@ -2646,6 +2692,9 @@ namespace openMVG
                                              &map_speed.at(pose_j->first)[0]);
                     size_imu_factor++;
                 }
+
+
+                std::cout << "Over Add Factor IMU" << std::endl;
             }
 
 
@@ -2663,6 +2712,8 @@ namespace openMVG
             {
                 std::runtime_error("not define");
             }
+
+//            std::cout << "Over Add Factor IMU" << std::endl;
 
             // Configure a BA engine and run it
             //  Make Ceres automatically detect the bundle structure.
@@ -2685,7 +2736,8 @@ namespace openMVG
 
 
 
-            PrintAvgImuError( sfm_data, map_poses, map_speed );
+//            PrintAvgImuError( sfm_data, map_poses, map_speed );
+
             IMUFactor::sqrt_info_weight =  Eigen::Matrix<double, 15, 15>::Identity();
             VISfM_Projection::sqrt_info = Eigen::Matrix2d::Identity();
             std::cout << "pre compute sqart" << std::endl;
@@ -2696,7 +2748,7 @@ namespace openMVG
 //            VISfM_Projection::sqrt_info /= projection_factor;
 
             std::cout << "after norm" << std::endl;
-            PrintImuError( sfm_data, map_poses, map_speed );
+//            PrintImuError( sfm_data, map_poses, map_speed );
             PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
 
             // Solve BA
@@ -2708,10 +2760,10 @@ namespace openMVG
 
 
 
-            PrintImuError( sfm_data, map_poses, map_speed );
+//            PrintImuError( sfm_data, map_poses, map_speed );
             PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
 
-            PrintAvgImuError( sfm_data, map_poses, map_speed );
+//            PrintAvgImuError( sfm_data, map_poses, map_speed );
 
             // If no error, get back refined parameters
             if (!summary.IsSolutionUsable())

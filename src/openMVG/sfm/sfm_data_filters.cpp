@@ -105,9 +105,16 @@ IndexT RemoveOutliers_PixelResidualError_Local
                 ++itObs;
         }
 
-        if (full_sfm_obs.empty() || full_sfm_obs.size() < minTrackLength)
+        if (obs.empty() || obs.size() < minTrackLength)
+        {
             sfm_data.structure.erase(iterTracks->first);
-        ++iterTracks;
+            iterTracks = sfm_data_local.structure.erase(iterTracks);
+        }
+        else
+            ++iterTracks;
+
+//        if (full_sfm_obs.empty() || full_sfm_obs.size() < minTrackLength)
+//            sfm_data.structure.erase(iterTracks->first);
     }
     return outlier_count;
 }

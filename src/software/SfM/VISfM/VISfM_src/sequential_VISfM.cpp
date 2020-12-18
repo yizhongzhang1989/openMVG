@@ -308,11 +308,11 @@ namespace sfm{
                     update_imu_inte();
                     update_state_speed();
 
-                    {
-                        std::ostringstream os;
-                        os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_FullBA_Resection";
-                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
-                    }
+//                    {
+//                        std::ostringstream os;
+//                        os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_FullBA_Resection";
+//                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+//                    }
 //                    BundleAdjustment_optimizi_init_IMU( );
                     do
                     {
@@ -454,7 +454,7 @@ namespace sfm{
                                 }
                             }
 
-                            if( max_angle < 1.5 ) continue;
+                            if( max_angle < 2.0 ) continue;
                         }
 
                         if (f_use_landmark) {
@@ -467,15 +467,15 @@ namespace sfm{
                         }
                     }
 
-                    {
-                        std::ostringstream os1;
-                        os1 << std::setw(8) << std::setfill('0') << local_intersection << "_Resection";
-                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os1.str(), ".ply"), ESfM_Data(ALL));
-
-                        std::ostringstream os2;
-                        os2 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalScene";
-                        Save(local_scene, stlplus::create_filespec(sOut_directory_, os2.str(), ".ply"), ESfM_Data(ALL));
-                    }
+//                    {
+//                        std::ostringstream os1;
+//                        os1 << std::setw(8) << std::setfill('0') << local_intersection << "_Resection";
+//                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os1.str(), ".ply"), ESfM_Data(ALL));
+//
+//                        std::ostringstream os2;
+//                        os2 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalScene";
+//                        Save(local_scene, stlplus::create_filespec(sOut_directory_, os2.str(), ".ply"), ESfM_Data(ALL));
+//                    }
 
 //                    BundleAdjustment_optimizi_init_IMU( local_scene );
 //                    BundleAdjustment_optimizi_init_IMU( local_scene );
@@ -491,13 +491,13 @@ namespace sfm{
                         std::cout <<"BundleAdjustment over"  << std::endl;
 //                    std::cout << "end BundleAdjustmentWithIMU" << std::endl;
                     }
-                    while (badTrackRejector(local_scene,4.0, 50));
+                    while (badTrackRejector_Local( local_scene,4.0, 50));
 
-                    {
-                        std::ostringstream os3;
-                        os3 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalSceneOptimized";
-                        Save(local_scene, stlplus::create_filespec(sOut_directory_, os3.str(), ".ply"), ESfM_Data(ALL));
-                    }
+//                    {
+//                        std::ostringstream os3;
+//                        os3 << std::setw(8) << std::setfill('0') << local_intersection << "_LocalSceneOptimized";
+//                        Save(local_scene, stlplus::create_filespec(sOut_directory_, os3.str(), ".ply"), ESfM_Data(ALL));
+//                    }
 
                     local_intersection++;
 
@@ -529,7 +529,7 @@ namespace sfm{
                         }
                     }
 
-                    badTrackRejector_Local( local_scene,10.0, 50);
+//                    badTrackRejector_Local( local_scene,4.0, 50);
 
                 }
 
@@ -538,6 +538,7 @@ namespace sfm{
             ++resectionGroupIndex;
         }
 
+        std::cout << "Last BA" << std::endl;
         badTrackRejector(100.0, 50);
         update_imu_time();
         update_imu_inte();
@@ -553,6 +554,31 @@ namespace sfm{
         if (badTrackRejector(4.0, 0))
         {
             eraseUnstablePosesAndObservations(sfm_data_);
+        }
+
+
+        //
+        {
+            std::set<uint32_t> re_intersection_ids_;
+            for( auto&view_id:sfm_data_.views )
+            {
+                auto id_pose = view_id.second->id_pose;
+                auto id_view = view_id.second->id_view;
+                if( sfm_data_.poses.count( view_id.second->id_pose ) == 0)
+                    re_intersection_ids_.insert(id_view);
+            }
+            for (const auto & iter : re_intersection_ids_)
+            {
+                Resection(iter);
+            }
+            update_imu_time();
+            update_imu_inte();
+            update_state_speed();
+            do
+            {
+                BundleAdjustmentWithIMU( true );
+            }
+            while (badTrackRejector(4.0, 50));
         }
 
         //-- Reconstruction done.
@@ -2630,13 +2656,13 @@ namespace sfm{
     bool SequentialVISfMReconstructionEngine::badTrackRejector_Local(SfM_Data &local_scene, double dPrecision, size_t count)
     {
         const size_t nbOutliers_residualErr = RemoveOutliers_PixelResidualError_Local(sfm_data_, local_scene, dPrecision, 2);
-        const size_t nbOutliers_angleErr = RemoveOutliers_AngleError(sfm_data_, 2.0);
+//        const size_t nbOutliers_angleErr = RemoveOutliers_AngleError(sfm_data_, 2.0);
         std::cout << "nbOutliers_residualErr = " << nbOutliers_residualErr << "\n"
                   << "dPrecision = " << dPrecision << "\n"
-                  << "nbOutliers_angleErr = " << nbOutliers_angleErr << "\n"
+//                  << "nbOutliers_angleErr = " << nbOutliers_angleErr << "\n"
                   << "count = " << count << std::endl;
 
-        return (nbOutliers_residualErr + nbOutliers_angleErr) > count;
+        return (nbOutliers_residualErr) > count;
     }
 
     bool SequentialVISfMReconstructionEngine::badTrackRejector(SfM_Data &local_scene, double dPrecision, size_t count)
@@ -3288,10 +3314,10 @@ namespace sfm{
             std::cout << "right_pose_id = " << right_pose_id << std::endl;
             std::cout << "sfm_data_.poses.size() = " << sfm_data_.poses.size() << std::endl;
 
-            if( (left_pose_id - left_view_id) < 15 ) left_pose_id = left_view_id;
-            else left_pose_id -= 15;
-            if( (right_view_id - right_pose_id) < 15 ) right_pose_id = right_view_id;
-            else right_pose_id += 15;
+            if( (left_pose_id - left_view_id) < 20 ) left_pose_id = left_view_id;
+            else left_pose_id -= 20;
+            if( (right_view_id - right_pose_id) < 20 ) right_pose_id = right_view_id;
+            else right_pose_id += 20;
         }
 
         std::cout << "left_pose_id = " << left_pose_id << std::endl;

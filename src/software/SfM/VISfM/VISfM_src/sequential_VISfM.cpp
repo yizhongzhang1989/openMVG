@@ -297,7 +297,7 @@ namespace sfm{
 //                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
 
                 // Perform BA until all point are under the given precision
-                if( resectionGroupIndex % 10 == 0 || resectionGroupIndex < 10 )
+                if( resectionGroupIndex % 100 == 0 || resectionGroupIndex < 10 )
                 {
                     badTrackRejector(1000.0, 50);
                     std::cout << "start full BA " << std::endl;//                      std::cout << "start update_state_speed" << std::endl;
@@ -424,6 +424,33 @@ namespace sfm{
                             }
                         }
                         if(local_obs.size() < 3) continue;
+
+                        {
+                            double max_angle = 0.0;
+
+                            {
+                                const View * view1 = sfm_data_.views.at(obs.begin()->first).get();
+                                const geometry::Pose3 pose1 = sfm_data_.GetPoseOrDie(view1);
+                                const cameras::IntrinsicBase * intrinsic1 = sfm_data_.intrinsics.at(view1->id_intrinsic).get();
+
+                                Observations::const_iterator itObs2 = obs.begin();
+                                ++itObs2;
+                                for (; itObs2 != obs.end(); ++itObs2)
+                                {
+                                    const View * view2 = sfm_data_.views.at(itObs2->first).get();
+                                    const geometry::Pose3 pose2 = sfm_data_.GetPoseOrDie(view2);
+                                    const cameras::IntrinsicBase * intrinsic2 = sfm_data_.intrinsics.at(view2->id_intrinsic).get();
+
+                                    const double angle = AngleBetweenRay(
+                                            pose1, intrinsic1, pose2, intrinsic2,
+                                            intrinsic1->get_ud_pixel(obs.begin()->second.x), intrinsic2->get_ud_pixel(itObs2->second.x));
+                                    max_angle = std::max(angle, max_angle);
+                                }
+                            }
+
+                            if( max_angle < 1.5 ) continue;
+                        }
+
                         if (f_use_landmark) {
                             original_local_landmarks[structure_landmark_it.first].obs =
                             local_scene.structure[structure_landmark_it.first].obs = std::move(local_obs);

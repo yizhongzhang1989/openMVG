@@ -535,7 +535,33 @@ namespace openMVG
                     const IndexT indexPose = pose_j->first;
                     auto imu_ptr = sfm_data.imus.at(indexPose);
 //                    if(  sfm_data.Speeds.at(pose_j->first).al_opti && sfm_data.Speeds.at(pose_i->first).al_opti ) continue;
-                    if( imu_ptr.sum_dt_ > 0.3 ) continue;
+                    if( sfm_data.imus.count(indexPose) == 0 )
+                    {
+//                        std::cout << "imu nullptr" << std::endl;
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_i->first) == 0 )
+                    {
+//                        std::cout << "Speeds pose_i nullptr" << std::endl;
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_j->first) == 0 )
+                    {
+//                        std::cout << "Speeds pose_j nullptr" << std::endl;
+                        continue;
+                    }
+                    if( map_speed.count(pose_i->first) == 0 )
+                    {
+//                        std::cout << "map Speeds pose_i nullptr" << std::endl;
+                        continue;
+                    }
+                    if( map_speed.count(pose_j->first) == 0 )
+                    {
+//                        std::cout << "map Speeds pose_j nullptr" << std::endl;
+                        continue;
+                    }
+
+                    if( imu_ptr.sum_dt_ > 10.0 ) continue;
                     if( imu_ptr.good_to_opti_ == false ) continue;
 
                     Eigen::Matrix<double, 15, 1> imu_error = GetImuError(
@@ -626,6 +652,32 @@ namespace openMVG
                     const IndexT indexPose = pose_j->first;
                     auto imu_ptr = sfm_data.imus.at(indexPose);
 //                    if(  sfm_data.Speeds.at(pose_j->first).al_opti && sfm_data.Speeds.at(pose_i->first).al_opti ) continue;
+                    if( sfm_data.imus.count(indexPose) == 0 )
+                    {
+//                        std::cout << "imu nullptr" << std::endl;
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_i->first) == 0 )
+                    {
+//                        std::cout << "Speeds pose_i nullptr" << std::endl;
+                        continue;
+                    }
+                    if( sfm_data.Speeds.count(pose_j->first) == 0 )
+                    {
+//                        std::cout << "Speeds pose_j nullptr" << std::endl;
+                        continue;
+                    }
+                    if( map_speed.count(pose_i->first) == 0 )
+                    {
+//                        std::cout << "map Speeds pose_i nullptr" << std::endl;
+                        continue;
+                    }
+                    if( map_speed.count(pose_j->first) == 0 )
+                    {
+//                        std::cout << "map Speeds pose_j nullptr" << std::endl;
+                        continue;
+                    }
+
                     if( imu_ptr.sum_dt_ > 10.0 ) continue;
                     if( imu_ptr.good_to_opti_ == false ) continue;
 

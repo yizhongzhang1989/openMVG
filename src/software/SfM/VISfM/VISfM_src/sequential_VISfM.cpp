@@ -297,16 +297,22 @@ namespace sfm{
 //                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
 
                 // Perform BA until all point are under the given precision
-                if( resectionGroupIndex % 100 == 0 || resectionGroupIndex < 10 )
+                if( resectionGroupIndex % 300 == 0 || resectionGroupIndex < 50 )
                 {
-                    badTrackRejector(1000.0, 50);
+                    badTrackRejector(100.0, 50);
                     std::cout << "start full BA " << std::endl;//                      std::cout << "start update_state_speed" << std::endl;
-                    update_state_speed();
+
 //                      std::cout << "start update_state_speed" << std::endl;
                     update_imu_time();
 //                      std::cout << "start update_imu_inte" << std::endl;
                     update_imu_inte();
+                    update_state_speed();
 
+                    {
+                        std::ostringstream os;
+                        os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_FullBA_Resection";
+                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+                    }
 //                    BundleAdjustment_optimizi_init_IMU( );
                     do
                     {
@@ -523,6 +529,8 @@ namespace sfm{
                         }
                     }
 
+                    badTrackRejector_Local( local_scene,10.0, 50);
+
                 }
 
                 eraseUnstablePosesAndObservations(sfm_data_);
@@ -530,7 +538,10 @@ namespace sfm{
             ++resectionGroupIndex;
         }
 
-
+        badTrackRejector(100.0, 50);
+        update_imu_time();
+        update_imu_inte();
+        update_state_speed();
         do
         {
             BundleAdjustmentWithIMU( true );
@@ -2612,6 +2623,18 @@ namespace sfm{
         << "dPrecision = " << dPrecision << "\n"
         << "nbOutliers_angleErr = " << nbOutliers_angleErr << "\n"
         << "count = " << count << std::endl;
+
+        return (nbOutliers_residualErr + nbOutliers_angleErr) > count;
+    }
+
+    bool SequentialVISfMReconstructionEngine::badTrackRejector_Local(SfM_Data &local_scene, double dPrecision, size_t count)
+    {
+        const size_t nbOutliers_residualErr = RemoveOutliers_PixelResidualError_Local(sfm_data_, local_scene, dPrecision, 2);
+        const size_t nbOutliers_angleErr = RemoveOutliers_AngleError(sfm_data_, 2.0);
+        std::cout << "nbOutliers_residualErr = " << nbOutliers_residualErr << "\n"
+                  << "dPrecision = " << dPrecision << "\n"
+                  << "nbOutliers_angleErr = " << nbOutliers_angleErr << "\n"
+                  << "count = " << count << std::endl;
 
         return (nbOutliers_residualErr + nbOutliers_angleErr) > count;
     }

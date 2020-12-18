@@ -155,6 +155,8 @@ private:
     /// Discard track with too large residual error
     bool badTrackRejector(double dPrecision, size_t count = 0);
 
+    bool badTrackRejector_Local(SfM_Data &local_scene, double dPrecision, size_t count = 0);
+
 
     bool badTrackRejector( SfM_Data &local_scene, double dPrecision, size_t count = 0);
 

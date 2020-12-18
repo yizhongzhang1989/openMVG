@@ -51,6 +51,14 @@ IndexT RemoveOutliers_PixelResidualError
   const unsigned int minTrackLength = 2
 );
 
+IndexT RemoveOutliers_PixelResidualError_Local
+(
+        SfM_Data & sfm_data,
+        SfM_Data & sfm_data_local,
+        const double dThresholdPixel,
+        const unsigned int minTrackLength = 2
+);
+
 // Remove tracks that have a small angle (tracks with tiny angle leads to instable 3D points)
 // Return the number of removed tracks
 IndexT RemoveOutliers_AngleError

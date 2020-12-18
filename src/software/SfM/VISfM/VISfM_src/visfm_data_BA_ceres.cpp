@@ -2899,19 +2899,20 @@ namespace openMVG
             ceres_config_options.parameter_tolerance = ceres_options_.parameter_tolerance_;
 
 
+            std::cout << "before optimization" << std::endl;
 
             PrintAvgImuError( sfm_data, map_poses, map_speed );
             IMUFactor::sqrt_info_weight =  Eigen::Matrix<double, 15, 15>::Identity();
             VISfM_Projection::sqrt_info = Eigen::Matrix2d::Identity();
-            std::cout << "pre compute sqart" << std::endl;
+//            std::cout << "pre compute sqart" << std::endl;
 //            double imu_factor = PrintImuError( sfm_data, map_poses, map_speed );
 //            double projection_factor = PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
 //
 //            IMUFactor::sqrt_info_weight /= 100;
 //            VISfM_Projection::sqrt_info /= projection_factor;
 
-            std::cout << "after norm" << std::endl;
-            PrintImuError( sfm_data, map_poses, map_speed );
+//            std::cout << "after norm" << std::endl;
+//            PrintImuError( sfm_data, map_poses, map_speed );
             PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
 
             // Solve BA
@@ -2921,9 +2922,9 @@ namespace openMVG
             if (ceres_options_.bCeres_summary_)
                 std::cout << summary.FullReport() << std::endl;
 
+            std::cout << "Solve OK" << std::endl;
 
-
-            PrintImuError( sfm_data, map_poses, map_speed );
+//            PrintImuError( sfm_data, map_poses, map_speed );
             PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
 
             PrintAvgImuError( sfm_data, map_poses, map_speed );

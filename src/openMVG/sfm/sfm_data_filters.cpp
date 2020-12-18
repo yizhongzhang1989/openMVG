@@ -72,6 +72,46 @@ IndexT RemoveOutliers_PixelResidualError
   return outlier_count;
 }
 
+IndexT RemoveOutliers_PixelResidualError_Local
+(
+        SfM_Data & sfm_data,
+        SfM_Data & sfm_data_local,
+        const double dThresholdPixel,
+        const unsigned int minTrackLength
+)
+{
+    IndexT outlier_count = 0;
+    Landmarks::iterator iterTracks = sfm_data_local.structure.begin();
+    while (iterTracks != sfm_data_local.structure.end())
+    {
+        auto full_sfm_structure = sfm_data.structure.at( iterTracks->first );
+        auto full_sfm_obs = full_sfm_structure.obs;
+        Observations & obs = iterTracks->second.obs;
+        Observations::iterator itObs = obs.begin();
+        while (itObs != obs.end())
+        {
+            const View * view = sfm_data_local.views.at(itObs->first).get();
+            const geometry::Pose3 pose = sfm_data_local.GetPoseOrDie(view);
+            const cameras::IntrinsicBase * intrinsic = sfm_data_local.intrinsics.at(view->id_intrinsic).get();
+            const Vec2 residual = intrinsic->residual(pose(iterTracks->second.X), itObs->second.x);
+//      std::cout << "residual = " << residual.transpose() << std::endl;
+            if (residual.norm() > dThresholdPixel)
+            {
+                ++outlier_count;
+                itObs = obs.erase(itObs);
+                full_sfm_obs.erase(itObs->first);
+            }
+            else
+                ++itObs;
+        }
+
+        if (full_sfm_obs.empty() || full_sfm_obs.size() < minTrackLength)
+            sfm_data.structure.erase(iterTracks->first);
+        ++iterTracks;
+    }
+    return outlier_count;
+}
+
 // Remove tracks that have a small angle (tracks with tiny angle leads to instable 3D points)
 // Return the number of removed tracks
 IndexT RemoveOutliers_AngleError

@@ -297,14 +297,16 @@ namespace sfm{
 //                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
 
                 // Perform BA until all point are under the given precision
-                if( resectionGroupIndex % 10 == 0 || resectionGroupIndex < 3 )
+                if( resectionGroupIndex % 10 == 0 || resectionGroupIndex < 10 )
                 {
+                    badTrackRejector(1000.0, 50);
                     std::cout << "start full BA " << std::endl;//                      std::cout << "start update_state_speed" << std::endl;
                     update_state_speed();
 //                      std::cout << "start update_state_speed" << std::endl;
                     update_imu_time();
 //                      std::cout << "start update_imu_inte" << std::endl;
                     update_imu_inte();
+
 //                    BundleAdjustment_optimizi_init_IMU( );
                     do
                     {
@@ -327,7 +329,7 @@ namespace sfm{
 
                     std::set< IndexT > local_scene_viewId;
                     {
-                        int half_window = 20;
+                        int half_window = 30;
                         for( auto&viewId:sfm_data_.add_viewId_cur )
                         {
                             {
@@ -370,6 +372,7 @@ namespace sfm{
                         local_scene.IG_tic = sfm_data_.IG_tic;
                         local_scene.IG_Ric = sfm_data_.IG_Ric;
                         local_scene.timestamps = sfm_data_.timestamps;
+                        local_scene.add_viewId_cur = sfm_data_.add_viewId_cur;
 
                         update_imu_time();
                         update_imu_inte();
@@ -407,8 +410,6 @@ namespace sfm{
 
                     std::cout <<"local_scene_viewId.size() = " << local_scene_viewId.size() << std::endl;
 
-                    std::map<IndexT, int> view_candidates;
-
                     for (auto &structure_landmark_it : sfm_data_.structure) {
                         const Observations &obs = structure_landmark_it.second.obs;
                         Observations local_obs;
@@ -416,39 +417,21 @@ namespace sfm{
                         for (const auto &obs_it : obs) {
                             const View *view = sfm_data_.views.at(obs_it.first).get();
                             if( local_scene_viewId.count( view->id_view ) == 1)
+//                    if (view->id_pose >= start_camera && view->id_pose < end_camera)
                             {
-//                                local_obs[obs_it.first] = obs_it.second;
+                                local_obs[obs_it.first] = obs_it.second;
                                 f_use_landmark = true;
                             }
                         }
+                        if(local_obs.size() < 3) continue;
                         if (f_use_landmark) {
-
-                            for (const auto &obs_it : obs) {
-                                const View *view = sfm_data_.views.at(obs_it.first).get();
-                                local_obs[obs_it.first] = obs_it.second;
-                                if( local_scene_viewId.count( view->id_view ) == 0)
-                                {
-                                    if(view_candidates.count(view->id_view) == 0)
-                                        view_candidates[view->id_view] = 1;
-                                    else
-                                        view_candidates[view->id_view] ++;
-                                }
-                            }
-
+                            original_local_landmarks[structure_landmark_it.first].obs =
                             local_scene.structure[structure_landmark_it.first].obs = std::move(local_obs);
+
+                            original_local_landmarks[structure_landmark_it.first].X =
                             local_scene.structure[structure_landmark_it.first].X =
                                     sfm_data_.structure[structure_landmark_it.first].X;
                         }
-                    }
-                    std::cout <<"view_candidates.size() = " << view_candidates.size() << std::endl;
-
-                    for(auto & view_candidate:view_candidates)
-                    {
-                        if(view_candidate.second < 50) continue;
-                        const View *view_I = sfm_data_.GetViews().at(view_candidate.first).get();
-                        local_scene.views.insert(*sfm_data_.GetViews().find(view_I->id_view));
-                        local_scene.intrinsics.insert(*sfm_data_.GetIntrinsics().find(view_I->id_intrinsic));
-                        local_scene.poses.insert(*sfm_data_.GetPoses().find(view_I->id_pose));
                     }
 
                     {
@@ -461,6 +444,7 @@ namespace sfm{
                         Save(local_scene, stlplus::create_filespec(sOut_directory_, os2.str(), ".ply"), ESfM_Data(ALL));
                     }
 
+//                    BundleAdjustment_optimizi_init_IMU( local_scene );
 //                    BundleAdjustment_optimizi_init_IMU( local_scene );
                     // Perform BA until all point are under the given precision
                     do
@@ -492,15 +476,6 @@ namespace sfm{
                             sfm_data_.intrinsics[view_I->id_intrinsic] = local_scene.intrinsics[view_I->id_intrinsic];
                             sfm_data_.poses[view_I->id_pose] = local_scene.poses[view_I->id_pose];
                         }
-
-                        for( auto&view_index:view_candidates )
-                        {
-                            if(view_index.second < 50) continue;
-                            const View *view_I = sfm_data_.GetViews().at(view_index.first).get();
-                            sfm_data_.intrinsics[view_I->id_intrinsic] = local_scene.intrinsics[view_I->id_intrinsic];
-                            sfm_data_.poses[view_I->id_pose] = local_scene.poses[view_I->id_pose];
-                        }
-
                         // update camera 3d points and 2d points
                         for (auto &structure_landmark_it : local_scene.structure) {
                             sfm_data_.structure[structure_landmark_it.first].X =
@@ -529,13 +504,13 @@ namespace sfm{
         }
 
 
-//        do
-//        {
-//            BundleAdjustmentWithIMU( true );
-////            BundleAdjustmentWithIMU(  );
-////            BundleAdjustment( );
-//        }
-//        while (badTrackRejector(4.0, 50));
+        do
+        {
+            BundleAdjustmentWithIMU( true );
+//            BundleAdjustmentWithIMU(  );
+//            BundleAdjustment( );
+        }
+        while (badTrackRejector(4.0, 50));
         // Ensure there is no remaining outliers
         if (badTrackRejector(4.0, 0))
         {
@@ -1742,6 +1717,15 @@ namespace sfm{
 //        BundleAdjustmentWithIMU();
         std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
         BundleAdjustment_optimizi_only_IMU();
+
+        do
+        {
+            BundleAdjustmentWithIMU( true );
+//            BundleAdjustmentWithIMU(  );
+//            BundleAdjustment( );
+        }
+        while (badTrackRejector(4.0, 50));
+
 //        BundleAdjustment();
 //        BundleAdjustment();
 //        std::cout << "start BundleAdjustmentWithIMU" << std::endl;
@@ -3254,11 +3238,10 @@ namespace sfm{
             std::cout << "right_pose_id = " << right_pose_id << std::endl;
             std::cout << "sfm_data_.poses.size() = " << sfm_data_.poses.size() << std::endl;
 
-            const int candidate_size_half = 30;
-            if( (left_pose_id - left_view_id) < candidate_size_half ) left_pose_id = left_view_id;
-            else left_pose_id -= candidate_size_half;
-            if( (right_view_id - right_pose_id) < candidate_size_half ) right_pose_id = right_view_id;
-            else right_pose_id += candidate_size_half;
+            if( (left_pose_id - left_view_id) < 15 ) left_pose_id = left_view_id;
+            else left_pose_id -= 15;
+            if( (right_view_id - right_pose_id) < 15 ) right_pose_id = right_view_id;
+            else right_pose_id += 15;
         }
 
         std::cout << "left_pose_id = " << left_pose_id << std::endl;

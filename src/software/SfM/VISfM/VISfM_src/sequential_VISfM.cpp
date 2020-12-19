@@ -274,49 +274,52 @@ namespace sfm{
     {
         // Compute robust Resection of remaining images
         // - group of images will be selected and resection + scene completion will be tried
-        size_t resectionGroupIndex = 0;
-        size_t local_intersection = 0;
-        std::vector<uint32_t> vec_possible_resection_indexes;
-        while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
-        {
-            bool bImageAdded = false;
-            sfm_data_.add_viewId_cur.clear();
-            // Add images to the 3D reconstruction
-            for (const auto & iter : vec_possible_resection_indexes)
-            {
-                bImageAdded |= Resection(iter);
-                set_remaining_view_id_.erase(iter);
-                sfm_data_.add_viewId_cur.insert(iter );
-            }
 
-            if (bImageAdded)
+        for(int i=0;i <10; ++i)
+        {
+            size_t resectionGroupIndex = 0;
+            size_t local_intersection = 0;
+            std::vector<uint32_t> vec_possible_resection_indexes;
+            while (FindImagesWithPossibleResection(vec_possible_resection_indexes))
             {
-                // Scene logging as ply for visual debug
+                bool bImageAdded = false;
+                sfm_data_.add_viewId_cur.clear();
+                // Add images to the 3D reconstruction
+                for (const auto & iter : vec_possible_resection_indexes)
+                {
+                    bImageAdded |= Resection(iter);
+                    set_remaining_view_id_.erase(iter);
+                    sfm_data_.add_viewId_cur.insert(iter );
+                }
+
+                if (bImageAdded)
+                {
+                    // Scene logging as ply for visual debug
 //                std::ostringstream os;
 //                os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_Resection";
 //                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
 
-                // Perform BA until all point are under the given precision
-                if( resectionGroupIndex % 300 == 0 || resectionGroupIndex < 50 )
-                {
-                    badTrackRejector(100.0, 50);
-                    std::cout << "start full BA " << std::endl;//                      std::cout << "start update_state_speed" << std::endl;
+                    // Perform BA until all point are under the given precision
+                    if( resectionGroupIndex % 100 == 0 || (resectionGroupIndex < 50 && i == 0 ) )
+                    {
+                        badTrackRejector(100.0, 50);
+                        std::cout << "start full BA " << std::endl;//                      std::cout << "start update_state_speed" << std::endl;
 
 //                      std::cout << "start update_state_speed" << std::endl;
-                    update_imu_time();
+                        update_imu_time();
 //                      std::cout << "start update_imu_inte" << std::endl;
-                    update_imu_inte();
-                    update_state_speed();
+                        update_imu_inte();
+                        update_state_speed();
 
-//                    {
-//                        std::ostringstream os;
-//                        os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_FullBA_Resection";
-//                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
-//                    }
-//                    BundleAdjustment_optimizi_init_IMU( );
-                    do
                     {
-                        BundleAdjustmentWithIMU( true );
+                        std::ostringstream os;
+                        os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_FullBA_Resection_before_opti";
+                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+                    }
+//                    BundleAdjustment_optimizi_init_IMU( );
+                        do
+                        {
+                            BundleAdjustmentWithIMU( true );
 //                        BundleAdjustment_optimizi_only_IMU();
 //                        BundleAdjustment();
 //                      std::cout << "start BundleAdjustment_optimizi_only_IMU" << std::endl;
@@ -324,148 +327,154 @@ namespace sfm{
 //                      std::cout << "end BundleAdjustment_optimizi_only_IMU" << std::endl;
 //                        BundleAdjustmentWithIMU( );
 //                      std::cout << "end BundleAdjustmentWithIMU" << std::endl;
-                    }
-                    while (badTrackRejector(4.0, 50));
-                }
-                else
-                {
-                    std::cout << "start local BA " << std::endl;
-                    SfM_Data local_scene;
-                    Landmarks original_local_landmarks;
+                        }
+                        while (badTrackRejector(4.0, 50));
 
-                    std::set< IndexT > local_scene_viewId;
-                    {
-                        int half_window = 30;
-                        for( auto&viewId:sfm_data_.add_viewId_cur )
                         {
+                            std::ostringstream os;
+                            os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_FullBA_Resection_after_opti";
+                            Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+                        }
+                    }
+                    else
+                    {
+                        std::cout << "start local BA " << std::endl;
+                        SfM_Data local_scene;
+                        Landmarks original_local_landmarks;
+
+                        std::set< IndexT > local_scene_viewId;
+                        {
+                            int half_window = 30;
+                            for( auto&viewId:sfm_data_.add_viewId_cur )
                             {
-                                auto pose_it = sfm_data_.poses.find(viewId);
-                                int i=0;
-                                while( pose_it != sfm_data_.poses.begin() )
                                 {
-                                    local_scene_viewId.insert(pose_it->first);
-                                    pose_it--;
-                                    if( i ++ == half_window ) break;
+                                    auto pose_it = sfm_data_.poses.find(viewId);
+                                    int i=0;
+                                    while( pose_it != sfm_data_.poses.begin() )
+                                    {
+                                        local_scene_viewId.insert(pose_it->first);
+                                        pose_it--;
+                                        if( i ++ == half_window ) break;
+                                    }
+                                    if( i == (half_window + 1) ) local_scene_viewId.insert(pose_it->first);
                                 }
-                                if( i == (half_window + 1) ) local_scene_viewId.insert(pose_it->first);
+                                {
+                                    auto pose_it = sfm_data_.poses.find(viewId);
+                                    int i=0;
+                                    while( pose_it != sfm_data_.poses.end() )
+                                    {
+                                        local_scene_viewId.insert(pose_it->first);
+                                        pose_it++;
+                                        if( i ++ == half_window ) break;
+                                    }
+                                }
                             }
+
+                            for( auto viewId:local_scene_viewId )
                             {
-                                auto pose_it = sfm_data_.poses.find(viewId);
-                                int i=0;
-                                while( pose_it != sfm_data_.poses.end() )
-                                {
-                                    local_scene_viewId.insert(pose_it->first);
-                                    pose_it++;
-                                    if( i ++ == half_window ) break;
-                                }
+                                const View *view_I = sfm_data_.GetViews().at(viewId).get();
+                                local_scene.views.insert(*sfm_data_.GetViews().find(view_I->id_view));
+                                local_scene.intrinsics.insert(*sfm_data_.GetIntrinsics().find(view_I->id_intrinsic));
+                                local_scene.poses.insert(*sfm_data_.GetPoses().find(view_I->id_pose));
+                                assert( view_I->id_view == view_I->id_pose );
                             }
                         }
 
-                        for( auto viewId:local_scene_viewId )
+                        std::cout <<"update local parameter " << std::endl;
                         {
-                            const View *view_I = sfm_data_.GetViews().at(viewId).get();
-                            local_scene.views.insert(*sfm_data_.GetViews().find(view_I->id_view));
-                            local_scene.intrinsics.insert(*sfm_data_.GetIntrinsics().find(view_I->id_intrinsic));
-                            local_scene.poses.insert(*sfm_data_.GetPoses().find(view_I->id_pose));
-                            assert( view_I->id_view == view_I->id_pose );
-                        }
-                    }
-
-                    std::cout <<"update local parameter " << std::endl;
-                    {
 //                        local_scene.imus = sfm_data_.imus;
 //                        local_scene.Speeds = sfm_data_.Speeds;
-                        local_scene.IG_tic = sfm_data_.IG_tic;
-                        local_scene.IG_Ric = sfm_data_.IG_Ric;
-                        local_scene.timestamps = sfm_data_.timestamps;
-                        local_scene.add_viewId_cur = sfm_data_.add_viewId_cur;
+                            local_scene.IG_tic = sfm_data_.IG_tic;
+                            local_scene.IG_Ric = sfm_data_.IG_Ric;
+                            local_scene.timestamps = sfm_data_.timestamps;
+                            local_scene.add_viewId_cur = sfm_data_.add_viewId_cur;
 
-                        update_imu_time();
-                        update_imu_inte();
-                        for(auto &id_pose:local_scene.poses)
-                        {
-                            if(sfm_data_.imus.count(id_pose.first))
-                                local_scene.imus.insert({id_pose.first, sfm_data_.imus.at(id_pose.first)});
-                        }
-                        for(auto &id_imu:local_scene.imus)
-                        {
-                            auto imu = id_imu.second;
-                            auto t0 = imu.t0_;
-                            auto t1 = imu.t1_;
-                            bool find = false;
-                            for( auto &id_pose:local_scene.poses )
+                            update_imu_time();
+                            update_imu_inte();
+                            for(auto &id_pose:local_scene.poses)
                             {
-                                if( local_scene.timestamps.at(id_pose.first) == t0 )
-                                {
-                                    find = true;
-                                    break;
-                                }
+                                if(sfm_data_.imus.count(id_pose.first))
+                                    local_scene.imus.insert({id_pose.first, sfm_data_.imus.at(id_pose.first)});
                             }
-                            if(!find) id_imu.second.good_to_opti_ = false;
-                        }
+                            for(auto &id_imu:local_scene.imus)
+                            {
+                                auto imu = id_imu.second;
+                                auto t0 = imu.t0_;
+                                auto t1 = imu.t1_;
+                                bool find = false;
+                                for( auto &id_pose:local_scene.poses )
+                                {
+                                    if( local_scene.timestamps.at(id_pose.first) == t0 )
+                                    {
+                                        find = true;
+                                        break;
+                                    }
+                                }
+                                if(!find) id_imu.second.good_to_opti_ = false;
+                            }
 //                        update_imu_time(local_scene);
 //                        update_imu_inte(local_scene);
 
-                        update_state_speed();
-                        for(auto &id_pose:local_scene.poses)
-                        {
-                            local_scene.Speeds.insert({id_pose.first, sfm_data_.Speeds.at(id_pose.first)});
-                        }
-//                        update_state_speed(local_scene);
-                    }
-
-                    std::cout <<"local_scene_viewId.size() = " << local_scene_viewId.size() << std::endl;
-
-                    for (auto &structure_landmark_it : sfm_data_.structure) {
-                        const Observations &obs = structure_landmark_it.second.obs;
-                        Observations local_obs;
-                        bool f_use_landmark = false;
-                        for (const auto &obs_it : obs) {
-                            const View *view = sfm_data_.views.at(obs_it.first).get();
-                            if( local_scene_viewId.count( view->id_view ) == 1)
-//                    if (view->id_pose >= start_camera && view->id_pose < end_camera)
+                            update_state_speed();
+                            for(auto &id_pose:local_scene.poses)
                             {
-                                local_obs[obs_it.first] = obs_it.second;
-                                f_use_landmark = true;
+                                local_scene.Speeds.insert({id_pose.first, sfm_data_.Speeds.at(id_pose.first)});
                             }
+//                        update_state_speed(local_scene);
                         }
-                        if(local_obs.size() < 3) continue;
 
-                        {
-                            double max_angle = 0.0;
+                        std::cout <<"local_scene_viewId.size() = " << local_scene_viewId.size() << std::endl;
 
-                            {
-                                const View * view1 = sfm_data_.views.at(obs.begin()->first).get();
-                                const geometry::Pose3 pose1 = sfm_data_.GetPoseOrDie(view1);
-                                const cameras::IntrinsicBase * intrinsic1 = sfm_data_.intrinsics.at(view1->id_intrinsic).get();
-
-                                Observations::const_iterator itObs2 = obs.begin();
-                                ++itObs2;
-                                for (; itObs2 != obs.end(); ++itObs2)
+                        for (auto &structure_landmark_it : sfm_data_.structure) {
+                            const Observations &obs = structure_landmark_it.second.obs;
+                            Observations local_obs;
+                            bool f_use_landmark = false;
+                            for (const auto &obs_it : obs) {
+                                const View *view = sfm_data_.views.at(obs_it.first).get();
+                                if( local_scene_viewId.count( view->id_view ) == 1)
+//                    if (view->id_pose >= start_camera && view->id_pose < end_camera)
                                 {
-                                    const View * view2 = sfm_data_.views.at(itObs2->first).get();
-                                    const geometry::Pose3 pose2 = sfm_data_.GetPoseOrDie(view2);
-                                    const cameras::IntrinsicBase * intrinsic2 = sfm_data_.intrinsics.at(view2->id_intrinsic).get();
-
-                                    const double angle = AngleBetweenRay(
-                                            pose1, intrinsic1, pose2, intrinsic2,
-                                            intrinsic1->get_ud_pixel(obs.begin()->second.x), intrinsic2->get_ud_pixel(itObs2->second.x));
-                                    max_angle = std::max(angle, max_angle);
+                                    local_obs[obs_it.first] = obs_it.second;
+                                    f_use_landmark = true;
                                 }
                             }
+                            if(local_obs.size() < 3) continue;
 
-                            if( max_angle < 2.0 ) continue;
+                            {
+                                double max_angle = 0.0;
+
+                                {
+                                    const View * view1 = sfm_data_.views.at(obs.begin()->first).get();
+                                    const geometry::Pose3 pose1 = sfm_data_.GetPoseOrDie(view1);
+                                    const cameras::IntrinsicBase * intrinsic1 = sfm_data_.intrinsics.at(view1->id_intrinsic).get();
+
+                                    Observations::const_iterator itObs2 = obs.begin();
+                                    ++itObs2;
+                                    for (; itObs2 != obs.end(); ++itObs2)
+                                    {
+                                        const View * view2 = sfm_data_.views.at(itObs2->first).get();
+                                        const geometry::Pose3 pose2 = sfm_data_.GetPoseOrDie(view2);
+                                        const cameras::IntrinsicBase * intrinsic2 = sfm_data_.intrinsics.at(view2->id_intrinsic).get();
+
+                                        const double angle = AngleBetweenRay(
+                                                pose1, intrinsic1, pose2, intrinsic2,
+                                                intrinsic1->get_ud_pixel(obs.begin()->second.x), intrinsic2->get_ud_pixel(itObs2->second.x));
+                                        max_angle = std::max(angle, max_angle);
+                                    }
+                                }
+
+                                if( max_angle < 2.0 ) continue;
+                            }
+
+                            if (f_use_landmark) {
+                                original_local_landmarks[structure_landmark_it.first].obs =
+                                local_scene.structure[structure_landmark_it.first].obs = std::move(local_obs);
+
+                                original_local_landmarks[structure_landmark_it.first].X =
+                                local_scene.structure[structure_landmark_it.first].X =
+                                        sfm_data_.structure[structure_landmark_it.first].X;
+                            }
                         }
-
-                        if (f_use_landmark) {
-                            original_local_landmarks[structure_landmark_it.first].obs =
-                            local_scene.structure[structure_landmark_it.first].obs = std::move(local_obs);
-
-                            original_local_landmarks[structure_landmark_it.first].X =
-                            local_scene.structure[structure_landmark_it.first].X =
-                                    sfm_data_.structure[structure_landmark_it.first].X;
-                        }
-                    }
 
 //                    {
 //                        std::ostringstream os1;
@@ -479,19 +488,19 @@ namespace sfm{
 
 //                    BundleAdjustment_optimizi_init_IMU( local_scene );
 //                    BundleAdjustment_optimizi_init_IMU( local_scene );
-                    // Perform BA until all point are under the given precision
-                    do
-                    {
+                        // Perform BA until all point are under the given precision
+                        do
+                        {
 //                        update_imu_time(local_scene);
 //                        update_imu_inte(local_scene);
 //                        std::cout <<"BundleAdjustment_optimizi_only_IMU()" << std::endl;
 //                        BundleAdjustment_optimizi_only_IMU( local_scene );
-                        std::cout <<"BundleAdjustmentWithIMU_local()"  << std::endl;
-                        BundleAdjustmentWithIMU_local( local_scene );
-                        std::cout <<"BundleAdjustment over"  << std::endl;
+                            std::cout <<"BundleAdjustmentWithIMU_local()"  << std::endl;
+                            BundleAdjustmentWithIMU_local( local_scene );
+                            std::cout <<"BundleAdjustment over"  << std::endl;
 //                    std::cout << "end BundleAdjustmentWithIMU" << std::endl;
-                    }
-                    while (badTrackRejector_Local( local_scene,4.0, 50));
+                        }
+                        while (badTrackRejector_Local( local_scene,4.0, 50));
 
 //                    {
 //                        std::ostringstream os3;
@@ -499,87 +508,100 @@ namespace sfm{
 //                        Save(local_scene, stlplus::create_filespec(sOut_directory_, os3.str(), ".ply"), ESfM_Data(ALL));
 //                    }
 
-                    local_intersection++;
+                        local_intersection++;
 
-                    // update local pose and stucture to global sfm_data
-                    {
-                        for( auto&view_index:local_scene_viewId )
+                        // update local pose and stucture to global sfm_data
                         {
-                            const View *view_I = sfm_data_.GetViews().at(view_index).get();
-                            sfm_data_.intrinsics[view_I->id_intrinsic] = local_scene.intrinsics[view_I->id_intrinsic];
-                            sfm_data_.poses[view_I->id_pose] = local_scene.poses[view_I->id_pose];
-                        }
-                        // update camera 3d points and 2d points
-                        for (auto &structure_landmark_it : local_scene.structure) {
-                            sfm_data_.structure[structure_landmark_it.first].X =
-                                    local_scene.structure[structure_landmark_it.first].X;
-                        }
-                    }
-
-                    // update local Speed and imu to global sfm_data
-                    {
-                        for(auto &id_imu:local_scene.imus)
-                        {
-                            sfm_data_.imus.at(id_imu.first) = id_imu.second;
+                            for( auto&view_index:local_scene_viewId )
+                            {
+                                const View *view_I = sfm_data_.GetViews().at(view_index).get();
+                                sfm_data_.intrinsics[view_I->id_intrinsic] = local_scene.intrinsics[view_I->id_intrinsic];
+                                sfm_data_.poses[view_I->id_pose] = local_scene.poses[view_I->id_pose];
+                            }
+                            // update camera 3d points and 2d points
+                            for (auto &structure_landmark_it : local_scene.structure) {
+                                sfm_data_.structure[structure_landmark_it.first].X =
+                                        local_scene.structure[structure_landmark_it.first].X;
+                            }
                         }
 
-                        for(auto &id_speed:local_scene.Speeds)
+                        // update local Speed and imu to global sfm_data
                         {
-                            sfm_data_.Speeds.at(id_speed.first) = id_speed.second;
+                            for(auto &id_imu:local_scene.imus)
+                            {
+                                sfm_data_.imus.at(id_imu.first) = id_imu.second;
+                            }
+
+                            for(auto &id_speed:local_scene.Speeds)
+                            {
+                                sfm_data_.Speeds.at(id_speed.first) = id_speed.second;
+                            }
                         }
-                    }
 
 //                    badTrackRejector_Local( local_scene,4.0, 50);
 
+                    }
+
+                    eraseUnstablePosesAndObservations(sfm_data_);
                 }
-
-                eraseUnstablePosesAndObservations(sfm_data_);
+                ++resectionGroupIndex;
             }
-            ++resectionGroupIndex;
-        }
 
-        std::cout << "Last BA" << std::endl;
-        badTrackRejector(100.0, 50);
-        update_imu_time();
-        update_imu_inte();
-        update_state_speed();
-        do
-        {
-            BundleAdjustmentWithIMU( true );
-//            BundleAdjustmentWithIMU(  );
-//            BundleAdjustment( );
-        }
-        while (badTrackRejector(4.0, 50));
-        // Ensure there is no remaining outliers
-        if (badTrackRejector(4.0, 0))
-        {
-            eraseUnstablePosesAndObservations(sfm_data_);
-        }
-
-
-        //
-        {
-            std::set<uint32_t> re_intersection_ids_;
-            for( auto&view_id:sfm_data_.views )
-            {
-                auto id_pose = view_id.second->id_pose;
-                auto id_view = view_id.second->id_view;
-                if( sfm_data_.poses.count( view_id.second->id_pose ) == 0)
-                    re_intersection_ids_.insert(id_view);
-            }
-            for (const auto & iter : re_intersection_ids_)
-            {
-                Resection(iter);
-            }
+            std::cout << "Last BA" << std::endl;
+            badTrackRejector(100.0, 50);
             update_imu_time();
             update_imu_inte();
             update_state_speed();
             do
             {
                 BundleAdjustmentWithIMU( true );
+//            BundleAdjustmentWithIMU(  );
+//            BundleAdjustment( );
             }
             while (badTrackRejector(4.0, 50));
+            // Ensure there is no remaining outliers
+            if (badTrackRejector(4.0, 0))
+            {
+                eraseUnstablePosesAndObservations(sfm_data_);
+            }
+
+            if(!set_remaining_view_id_.empty()) break;
+
+            {
+                for( auto&view_id:sfm_data_.views )
+                {
+                    auto id_pose = view_id.second->id_pose;
+                    auto id_view = view_id.second->id_view;
+                    if( sfm_data_.poses.count( view_id.second->id_pose ) == 0)
+                        set_remaining_view_id_.insert(id_view);
+                }
+//                for (const auto & iter : re_intersection_ids_)
+//                {
+//                    Resection(iter);
+//                }
+//                update_imu_time();
+//                update_imu_inte();
+//                update_state_speed();
+//                do
+//                {
+//                    BundleAdjustmentWithIMU( true );
+//                }
+//                while (badTrackRejector(4.0, 50));
+            }
+            std::ofstream fout( output_log_file_, std::ofstream::app );
+            fout << "-------------------------------" << std::endl;
+            fout << i << " re process pipileline " << std::endl;
+            fout << "set_remaining_view_id_.size() = " << set_remaining_view_id_.size() << std::endl;
+            fout << "-------------------------------" << std::endl;
+            fout.close();
+
+            if(set_remaining_view_id_.empty()) break;
         }
+
+
+
+        //
+
 
         //-- Reconstruction done.
         //-- Display some statistics
@@ -1340,8 +1362,14 @@ namespace sfm{
             auto Rwi = pose_i->second.rotation().transpose();
             Vec3 speedV3d = Rwi * speeds_scale.segment<3>(kv * 3);
             IMU_Speed speed(speedV3d, 0);
+//            std::cout <<"-------------------------" << std::endl;
+//            std::cout << sfm_data_.Speeds.at(poseId).speed_.transpose() << std::endl;
+//            std::cout << speedV3d.transpose() << std::endl;
+            sfm_data_.Speeds.at(poseId).speed_ = speedV3d;
 //            std::cout << speedV3d(0) << "," << speedV3d(1) << "," << speedV3d(2) << std::endl;
-            sfm_data_.Speeds.insert( std::make_pair(poseId, speed) );
+//            sfm_data_.Speeds.insert( std::make_pair(poseId, speed) );
+//            std::cout << sfm_data_.Speeds.at(poseId).speed_.transpose() << std::endl;
+//            std::cout <<"-------------------------" << std::endl;
         }
 //        std::cout <<"-=------=-=-=-=-=-=-=-=" << std::endl;
 
@@ -1570,14 +1598,54 @@ namespace sfm{
                     auto it_speed_next = std::next(it_speed);
                     if( it_speed_next != sfm_data_.Speeds.end() )
                     {
-                        it_speed->second.speed_ = it_speed_next->second.speed_;
+                        it_speed->first;
+                        it_speed_next->first;
+
+                        double t0 = sfm_data_.timestamps.at( it_speed->first );
+                        double t1 = sfm_data_.timestamps.at( it_speed_next->first );
+                        IMU_InteBase imubase(t0, t1);
+
+                        std::vector< double > times;
+                        std::vector<Vec3> accs;
+                        std::vector<Vec3> gyrs;
+                        bool good_flag;
+                        std::tie( good_flag, times, accs, gyrs ) = sfm_data_.imu_dataset->GetMeasure(t0, t1);
+                        imubase.integrate(accs, gyrs, times, good_flag);
+
+                        if( !good_flag )
+                        {
+                            Mat3 Rwi = sfm_data_.poses.at( it_speed->first ).rotation().transpose();
+                            it_speed->second.speed_ = it_speed_next->second.speed_ - Rwi*imubase.delta_v_;
+                        }
+                        else
+                            it_speed->second.speed_ = it_speed_next->second.speed_;
                     }
                     else
                     {
                         if( sfm_data_.Speeds.size() > 2 )
                         {
                             auto it_speed_prev = std::prev(it_speed);
-                            it_speed->second.speed_ = it_speed_prev->second.speed_;
+//                            it_speed->second.speed_ = it_speed_prev->second.speed_;
+
+
+                            double t0 = sfm_data_.timestamps.at( it_speed_prev->first );
+                            double t1 = sfm_data_.timestamps.at( it_speed->first );
+                            IMU_InteBase imubase(t0, t1);
+
+                            std::vector< double > times;
+                            std::vector<Vec3> accs;
+                            std::vector<Vec3> gyrs;
+                            bool good_flag;
+                            std::tie( good_flag, times, accs, gyrs ) = sfm_data_.imu_dataset->GetMeasure(t0, t1);
+                            imubase.integrate(accs, gyrs, times, good_flag);
+
+                            if( !good_flag )
+                            {
+                                Mat3 Rwi = sfm_data_.poses.at( it_speed_prev->first ).rotation().transpose();
+                                it_speed->second.speed_ = it_speed_prev->second.speed_ + Rwi*imubase.delta_v_;
+                            }
+                            else
+                                it_speed->second.speed_ = it_speed_prev->second.speed_;
                         }
                     }
                 }
@@ -1865,27 +1933,17 @@ namespace sfm{
 
     bool SequentialVISfMReconstructionEngine::solve_vgs(Eigen::VectorXd& speeds_scale, Eigen::Vector3d &correct_g)
     {
-        int start_index = 0;//sfm_data_.poses.size()/2;
-        int use_size = sfm_data_.poses.size();
-        int n_state = static_cast<int>(/*sfm_data_.imus.size()+1*/(use_size - start_index)) * 3 + 3 + 1;
+        int n_state = static_cast<int>(sfm_data_.imus.size()+1) * 3 + 3 + 1;
         Eigen::MatrixXd A{n_state, n_state};
         A.setZero();
         Eigen::VectorXd b{n_state};
         b.setZero();
 
-        int index_start = 0;
         int index = 0;
         auto pose_it_i = sfm_data_.poses.begin();
         auto pose_it_j = sfm_data_.poses.begin(); pose_it_j++;
-        while(index_start < start_index)
-        {
-            index_start++;
-            pose_it_i++;
-            pose_it_j++;
-        }
         for( ; pose_it_j != sfm_data_.poses.end(); pose_it_i++, pose_it_j++, index++ )
         {
-            if( (index + index_start) == use_size ) break;
             Eigen::MatrixXd tmp_A(6, 10);
             tmp_A.setZero();
             Eigen::VectorXd tmp_b(6);
@@ -3314,10 +3372,10 @@ namespace sfm{
             std::cout << "right_pose_id = " << right_pose_id << std::endl;
             std::cout << "sfm_data_.poses.size() = " << sfm_data_.poses.size() << std::endl;
 
-            if( (left_pose_id - left_view_id) < 20 ) left_pose_id = left_view_id;
-            else left_pose_id -= 20;
-            if( (right_view_id - right_pose_id) < 20 ) right_pose_id = right_view_id;
-            else right_pose_id += 20;
+            if( (left_pose_id - left_view_id) < 15 ) left_pose_id = left_view_id;
+            else left_pose_id -= 15;
+            if( (right_view_id - right_pose_id) < 15 ) right_pose_id = right_view_id;
+            else right_pose_id += 15;
         }
 
         std::cout << "left_pose_id = " << left_pose_id << std::endl;

@@ -233,10 +233,11 @@ int main(int argc, char **argv)
 //
 //        std::cout << "tic = " << tic.transpose() << std::endl;
 //        std::cout << "Ric = \n" << Ric << std::endl;
-        tic << 0.00807,
-        -0.00301,
-        -0.00273;
+//        tic << 0.00807,
+//        -0.00301,
+//        -0.00273;
 //        tic <<   0.07, 0., 0.02;//0.0294058, -0.00618251,   0.0419311;
+        tic << 0.0294058, -0.00618251,   0.0419311;
         Ric <<
                 0.0031626,   -0.999771,  -0.0211788,
                 -0.999949, -0.00336582,  0.00956673,
@@ -515,6 +516,7 @@ int main(int argc, char **argv)
                 return EXIT_FAILURE;
         }
 
+        visfmEngine.output_log_file_ = stlplus::create_filespec(sOutDir, "log", ".txt");
         {
 //            Save(visfmEngine.Get_SfM_Data(),
 //                 "/home/xinli/work/data/VI_visualIMU_init.bin",

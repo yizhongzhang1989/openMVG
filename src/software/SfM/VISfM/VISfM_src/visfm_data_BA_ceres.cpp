@@ -1107,7 +1107,7 @@ namespace openMVG
                 if (options.structure_opt == Structure_Parameter_Type::NONE)
                     problem.SetParameterBlockConstant(structure_landmark_it.second.X.data());
             }
-
+            PrintAvgImuError( sfm_data, map_poses, map_speed );
             PrintImuError( sfm_data, map_poses, map_speed );
             PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
 
@@ -1140,6 +1140,7 @@ namespace openMVG
             if (ceres_options_.bCeres_summary_)
                 std::cout << summary.FullReport() << std::endl;
 
+            PrintAvgImuError( sfm_data, map_poses, map_speed );
             PrintImuError( sfm_data, map_poses, map_speed );
             PrintProjectionError( sfm_data, map_poses, map_intrinsics, ex_paparm );
 

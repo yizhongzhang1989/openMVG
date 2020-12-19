@@ -275,7 +275,7 @@ namespace sfm{
         // Compute robust Resection of remaining images
         // - group of images will be selected and resection + scene completion will be tried
 
-        for(int i=0;i <10; ++i)
+        for(int loop=0;loop <10; ++loop)
         {
             size_t resectionGroupIndex = 0;
             size_t local_intersection = 0;
@@ -300,7 +300,7 @@ namespace sfm{
 //                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
 
                     // Perform BA until all point are under the given precision
-                    if( resectionGroupIndex % 100 == 0 || (resectionGroupIndex < 50 && i == 0 ) )
+                    if( resectionGroupIndex % 100 == 0 || (resectionGroupIndex < 50 && loop == 0 ) )
                     {
                         badTrackRejector(100.0, 50);
                         std::cout << "start full BA " << std::endl;//                      std::cout << "start update_state_speed" << std::endl;
@@ -590,7 +590,7 @@ namespace sfm{
             }
             std::ofstream fout( output_log_file_, std::ofstream::app );
             fout << "-------------------------------" << std::endl;
-            fout << i << " re process pipileline " << std::endl;
+            fout << loop << " re process pipileline " << std::endl;
             fout << "set_remaining_view_id_.size() = " << set_remaining_view_id_.size() << std::endl;
             fout << "-------------------------------" << std::endl;
             fout.close();

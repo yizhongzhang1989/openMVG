@@ -24,6 +24,7 @@
 #include <functional>
 #include <iostream>
 #include <utility>
+#include <openMVG/sfm/sfm.hpp>
 
 #ifdef _MSC_VER
 #pragma warning( once : 4267 ) //warning C4267: 'argument' : conversion from 'size_t' to 'const int', possible loss of data
@@ -275,7 +276,7 @@ namespace sfm{
         // Compute robust Resection of remaining images
         // - group of images will be selected and resection + scene completion will be tried
 
-        for(int loop=0;loop <10; ++loop)
+        for(int loop=0;loop <3; ++loop)
         {
             size_t resectionGroupIndex = 0;
             size_t local_intersection = 0;
@@ -311,11 +312,11 @@ namespace sfm{
                         update_imu_inte();
                         update_state_speed();
 
-                    {
-                        std::ostringstream os;
-                        os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_FullBA_Resection_before_opti";
-                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
-                    }
+//                    {
+//                        std::ostringstream os;
+//                        os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_FullBA_Resection_before_opti";
+//                        Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+//                    }
 //                    BundleAdjustment_optimizi_init_IMU( );
                         do
                         {
@@ -330,11 +331,11 @@ namespace sfm{
                         }
                         while (badTrackRejector(4.0, 50));
 
-                        {
-                            std::ostringstream os;
-                            os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_FullBA_Resection_after_opti";
-                            Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
-                        }
+//                        {
+//                            std::ostringstream os;
+//                            os << std::setw(8) << std::setfill('0') << resectionGroupIndex << "_FullBA_Resection_after_opti";
+//                            Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+//                        }
                     }
                     else
                     {
@@ -391,11 +392,28 @@ namespace sfm{
 
                             update_imu_time();
                             update_imu_inte();
+                            update_state_speed();
+
+
                             for(auto &id_pose:local_scene.poses)
                             {
                                 if(sfm_data_.imus.count(id_pose.first))
                                     local_scene.imus.insert({id_pose.first, sfm_data_.imus.at(id_pose.first)});
+//                                else
+//                                {
+//                                    IMU_InteBase imu;
+//
+//                                    std::ofstream fout( output_log_file_, std::ofstream::app );
+//                                    fout << "-------------------------------" << std::endl;
+//                                    fout << "sfm_data_.imus.count(id_pose.first)  == false" << std::endl;
+//                                    fout << "-------------------------------" << std::endl;
+//                                    fout.close();
+//
+//                                    imu.good_to_opti_ = false;
+//                                    local_scene.imus.insert({id_pose.first, imu});
+//                                }
                             }
+
                             for(auto &id_imu:local_scene.imus)
                             {
                                 auto imu = id_imu.second;
@@ -412,15 +430,26 @@ namespace sfm{
                                 }
                                 if(!find) id_imu.second.good_to_opti_ = false;
                             }
-//                        update_imu_time(local_scene);
-//                        update_imu_inte(local_scene);
 
-                            update_state_speed();
                             for(auto &id_pose:local_scene.poses)
                             {
-                                local_scene.Speeds.insert({id_pose.first, sfm_data_.Speeds.at(id_pose.first)});
+
+
+                                if(sfm_data_.Speeds.count(id_pose.first))
+                                    local_scene.Speeds.insert({id_pose.first, sfm_data_.Speeds.at(id_pose.first)});
+//                                else
+//                                {
+//                                    IMU_Speed speed(Vec3(0.,0.,0.), 0.);
+//
+//                                    std::ofstream fout( output_log_file_, std::ofstream::app );
+//                                    fout << "-------------------------------" << std::endl;
+//                                    fout << "sfm_data_.Speeds.count(id_pose.first)  == false" << std::endl;
+//                                    fout << "-------------------------------" << std::endl;
+//                                    fout.close();
+//
+//                                    local_scene.Speeds.insert({id_pose.first, speed});
+//                                }
                             }
-//                        update_state_speed(local_scene);
                         }
 
                         std::cout <<"local_scene_viewId.size() = " << local_scene_viewId.size() << std::endl;
@@ -596,6 +625,128 @@ namespace sfm{
             fout.close();
 
             if(set_remaining_view_id_.empty()) break;
+
+            /*{
+                std::ostringstream os;
+                os << std::setw(8) << std::setfill('0') << loop << "_before_retri_opti";
+                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+            }
+
+
+            {
+                sfm_data_.structure.clear();
+
+                std::cout
+                        << "\n======================================\n"
+                        << "Robust triangulation of the match file\n"
+                        << "======================================"  << std::endl;
+                matches_provider_->pairWise_matches_;
+//                PairWiseMatches matches;
+
+                // Compute the tracks from the pairwise estimation
+                // Compute tracks from matches
+                const int min_track_length = 2;
+                openMVG::tracks::STLMAPTracks tracks;
+                {
+                    // List of features matches for each couple of images
+                    std::cout << "\n" << "Building tracks..." << std::endl;
+                    tracks::TracksBuilder tracks_builder;
+                    tracks_builder.Build( matches_provider_->pairWise_matches_ );
+                    std::cout << "Filtering tracks..." << std::endl;
+                    tracks_builder.Filter(min_track_length);
+                    //-- Build tracks with STL compliant type :
+                    tracks_builder.ExportToSTL(tracks);
+
+                    // Display some statistics about the computed tracks
+//                    {
+//                        std::ostringstream track_stream;
+//                        //-- Display stats :
+//                        //    - number of images
+//                        //    - number of tracks
+//                        std::set<uint32_t> images_id;
+//                        tracks::TracksUtilsMap::ImageIdInTracks(tracks, images_id);
+//                        track_stream
+//                                << "------------------" << "\n"
+//                                << "-- Tracks Stats --" << "\n"
+//                                << " Tracks number: " << tracks_builder.NbTracks() << "\n"
+//                                << " Images Id: " << "\n";
+//                        std::copy(images_id.begin(), images_id.end(),
+//                                  std::ostream_iterator<uint32_t>(track_stream, ", "));
+//                        track_stream << "\n------------------" << "\n";
+//
+//                        std::map<uint32_t, uint32_t> track_length_histogram;
+//                        tracks::TracksUtilsMap::TracksLength(tracks, track_length_histogram);
+//                        track_stream << "TrackLength, Count" << "\n";
+//                        for (const auto & it : track_length_histogram)  {
+//                            track_stream << "\t" << it.first << "\t" << it.second << "\n";
+//                        }
+//                        track_stream << "\n";
+//                        std::cout << track_stream.str();
+//                    }
+                }
+
+                std::cout
+                        << "====================================\n"
+                        << "Robust triangulation of the tracks\n"
+                        << " - tracks computed from a match file\n"
+                        << "====================================" << std::endl;
+
+                // Fill sfm_data with the computed tracks (no 3D yet)
+                Landmarks & structure = sfm_data_.structure;
+                IndexT idx(0);
+                for (const auto & tracks_it : tracks)
+                {
+                    structure[idx] = {};
+                    Observations & obs = structure.at(idx).obs;
+                    for (const auto & track_it : tracks_it.second)
+                    {
+                        const uint32_t imaIndex = track_it.first;
+                        const uint32_t featIndex = track_it.second;
+//                        features_provider_->feats_per_view.at( imaIndex )[featIndex];
+                        Vec2f pt2f = features_provider_->feats_per_view.at( imaIndex )[featIndex].coords();
+                        Vec2 pt( pt2f.x(), pt2f.y() );
+                        // regions_provider->get(imaIndex)->GetRegionPosition(featIndex);
+                        obs[imaIndex] = {pt, featIndex};
+                    }
+                    ++idx;
+                }
+
+                // Compute 3D position of the landmark of the structure by robust triangulation of the observations
+                {
+//                    openMVG::system::Timer timer;
+                    const double max_reprojection_error = 8.0; // pixels reprojection error
+                    bool console_verbose = true;
+                    SfM_Data_Structure_Computation_Robust structure_estimator(
+                            max_reprojection_error,
+                            min_track_length,
+                            min_track_length,
+                            ETriangulationMethod::INVERSE_DEPTH_WEIGHTED_MIDPOINT,
+                            console_verbose);
+                    structure_estimator.triangulate(sfm_data_);
+//                    std::cout << "\n@Triangulation time: " << timer.elapsedMs() << std::endl;
+                }
+
+                update_imu_time();
+                update_imu_inte();
+                update_state_speed();
+                do
+                {
+                    BundleAdjustmentWithIMU( true );
+                }
+                while (badTrackRejector(4.0, 50));
+                // Ensure there is no remaining outliers
+                if (badTrackRejector(4.0, 0))
+                {
+                    eraseUnstablePosesAndObservations(sfm_data_);
+                }
+            }
+
+            {
+                std::ostringstream os;
+                os << std::setw(8) << std::setfill('0') << loop << "_after_retri_opti";
+                Save(sfm_data_, stlplus::create_filespec(sOut_directory_, os.str(), ".ply"), ESfM_Data(ALL));
+            }*/
+
         }
 
 
@@ -3112,7 +3263,8 @@ namespace sfm{
 
                 const uint32_t I = std::min(current_pair.first, current_pair.second);
                 const uint32_t J = std::max(current_pair.first, current_pair.second);
-                if( (J - I) < 40 )  // TODO xinli
+//                if( I < 100 )
+                if( (J - I) < 60 )  // TODO xinli
                 if (valid_views.count(I) && valid_views.count(J))
                 {
                     const View
@@ -3197,6 +3349,12 @@ namespace sfm{
         std::sort(scoring_per_pair.begin(), scoring_per_pair.end());
         // Since scoring is ordered in increasing order, reverse the order
         std::reverse(scoring_per_pair.begin(), scoring_per_pair.end());
+        {
+            for(auto &pair:scoring_per_pair)
+            {
+                std::cout << pair.first << " : " << pair.second.first << " - " << pair.second.second << std::endl;
+            }
+        }
         if (!scoring_per_pair.empty())
         {
             initial_pair = scoring_per_pair.begin()->second;
@@ -3372,10 +3530,10 @@ namespace sfm{
             std::cout << "right_pose_id = " << right_pose_id << std::endl;
             std::cout << "sfm_data_.poses.size() = " << sfm_data_.poses.size() << std::endl;
 
-            if( (left_pose_id - left_view_id) < 15 ) left_pose_id = left_view_id;
-            else left_pose_id -= 15;
-            if( (right_view_id - right_pose_id) < 15 ) right_pose_id = right_view_id;
-            else right_pose_id += 15;
+            if( (left_pose_id - left_view_id) < 20 ) left_pose_id = left_view_id;
+            else left_pose_id -= 20;
+            if( (right_view_id - right_pose_id) < 20 ) right_pose_id = right_view_id;
+            else right_pose_id += 20;
         }
 
         std::cout << "left_pose_id = " << left_pose_id << std::endl;

@@ -441,7 +441,7 @@ int main(int argc, char **argv)
 
     IMU_Dataset::sum_st_ = 0.;
 
-//    timeshift cam0 to imu0: [s] (t_imu = t_cam + shift)n
+//    timeshift cam0 to imu0: [s] (t_imu = t_cam + shift)n sfm_data_.views.size() =
 
 //    imu_dataset->corect_dt( -2 );
 
@@ -482,6 +482,9 @@ int main(int argc, char **argv)
         visfmEngine.setInitialPair(initialPairIndex);
     }
 
+
+    std::string output_result_file = stlplus::create_filespec(sOutDir, "td_ex", ".txt");
+    visfmEngine.output_result_file_ = output_result_file;
     XinTime time;
     if(visfmEngine.VI_Init(  ))
     {
@@ -542,11 +545,11 @@ int main(int argc, char **argv)
 
 
                 {
-                    std::string output_result_file = stlplus::create_filespec(sOutDir, "td_ex", ".txt");
-                    std::ofstream fout( output_result_file, std::ofstream::out );
+                    std::ofstream fout( output_result_file, std::ofstream::app );
                     fout.precision(3);
 //                    fout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
-                    fout << time.time_str();
+                    time.toc();
+                    fout << "FULL RECONSTRUCTION " << time.time_str();
                     fout << "IMU_Dataset::sum_st_ = " << IMU_Dataset::sum_st_ << std::endl;
 
                     auto sfm_data_opti = visfmEngine.Get_SfM_Data();

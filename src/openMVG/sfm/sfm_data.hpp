@@ -51,6 +51,8 @@ using Intrinsics = Hash_Map<IndexT, std::shared_ptr<cameras::IntrinsicBase>>;
 /// Define a collection of Pose (indexed by View::id_pose)
 using Poses = Hash_Map<IndexT, geometry::Pose3>;
 
+using PoseLandmarks = Hash_Map<IndexT, std::set<IndexT>>;
+
 /// Define a collection of View (indexed by View::id_view)
 using Views = Hash_Map<IndexT, std::shared_ptr<View>>;
 
@@ -68,6 +70,8 @@ struct SfM_Data
   Poses poses_gt;
   // Considered IMU integration (indexed by view.id_pose)
   Imus imus;
+
+  PoseLandmarks pose_landmark_;
 
   std::vector<std::pair<double, Pair>> scoring_per_pair_;
 

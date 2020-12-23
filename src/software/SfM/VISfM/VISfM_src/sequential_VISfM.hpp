@@ -111,6 +111,7 @@ public:
         triangulation_method_ = method;
     }
 
+    std::string output_result_file_;
     std::string output_log_file_;
 
 protected:

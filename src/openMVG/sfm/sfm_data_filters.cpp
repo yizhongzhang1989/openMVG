@@ -60,6 +60,15 @@ IndexT RemoveOutliers_PixelResidualError
       {
         ++outlier_count;
         itObs = obs.erase(itObs);
+          // ADD XINLI
+        if( sfm_data.pose_landmark_.count(view->id_pose) )
+        {
+            if( sfm_data.pose_landmark_[view->id_pose].count(iterTracks->first) )
+            {
+                sfm_data.pose_landmark_[view->id_pose].erase(iterTracks->first);
+            }
+        }
+          // ADD XINLI
       }
       else
         ++itObs;
@@ -99,7 +108,17 @@ IndexT RemoveOutliers_PixelResidualError_Local
             {
                 ++outlier_count;
                 itObs = obs.erase(itObs);
-                full_sfm_obs.erase(itObs->first);
+                // ADD XINLI
+                if( full_sfm_obs.count(itObs->first) )
+                    full_sfm_obs.erase(itObs->first);
+                if( sfm_data.pose_landmark_.count(view->id_pose) )
+                {
+                    if( sfm_data.pose_landmark_[view->id_pose].count(iterTracks->first) )
+                    {
+                        sfm_data.pose_landmark_[view->id_pose].erase(iterTracks->first);
+                    }
+                }
+                // ADD XINLI
             }
             else
                 ++itObs;
@@ -156,6 +175,23 @@ IndexT RemoveOutliers_AngleError
     }
     if (max_angle < dMinAcceptedAngle)
     {
+        // ADD XINLI
+        Observations & obs_all = iterTracks->second.obs;
+        auto itObs = obs_all.begin();
+        while (itObs != obs_all.end())
+        {
+            const View * view = sfm_data.views.at(itObs->first).get();
+            if( sfm_data.pose_landmark_.count(view->id_pose) )
+            {
+                if( sfm_data.pose_landmark_[view->id_pose].count(iterTracks->first) )
+                {
+                    sfm_data.pose_landmark_[view->id_pose].erase(iterTracks->first);
+                }
+            }
+            itObs++;
+        }
+        // ADD XINLI
+
       iterTracks = sfm_data.structure.erase(iterTracks);
       ++removedTrack_count;
     }
@@ -199,6 +235,8 @@ bool eraseMissingPoses
     if (it.second < min_points_per_pose)
     {
       sfm_data.poses.erase(it.first);
+        if( sfm_data.pose_landmark_.count(it.first) )
+            sfm_data.pose_landmark_.at(it.first).clear();
       ++removed_elements;
     }
   }
@@ -231,6 +269,9 @@ bool eraseObservationsWithMissingPoses
       if (pose_Index.count(v->id_pose) == 0)
       {
         itObs = obs.erase(itObs);
+        //ADD XINLI
+        if( sfm_data.pose_landmark_.count(v->id_pose) )
+            sfm_data.pose_landmark_.at(v->id_pose).clear();
         ++removed_elements;
       }
       else

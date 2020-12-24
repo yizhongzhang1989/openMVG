@@ -1,8 +1,4 @@
 //
-// Created by v-xinli1 on 11/13/2020.
-//
-
-//
 // Created by root on 10/12/20.
 //
 
@@ -30,11 +26,17 @@
 #include <memory>
 #include <string>
 #include <utility>
-#include <random>
 
 using namespace openMVG;
 using namespace openMVG::cameras;
 using namespace openMVG::sfm;
+
+
+void PrintExtric(const SfM_Data & sfm_data)
+{
+    std::cout << "sfm_data.IG_Ric = \n" << sfm_data.IG_Ric << std::endl;
+    std::cout << "sfm_data.IG_tic = \n" << sfm_data.IG_tic << std::endl;
+}
 
 /// From 2 given image file-names, find the two corresponding index in the View list
 bool computeIndexFromImageNames(
@@ -72,12 +74,6 @@ bool computeIndexFromImageNames(
 }
 
 
-void PrintExtric(const SfM_Data & sfm_data)
-{
-    std::cout << "sfm_data.IG_Ric = \n" << sfm_data.IG_Ric << std::endl;
-    std::cout << "sfm_data.IG_tic = \n" << sfm_data.IG_tic << std::endl;
-}
-
 int main(int argc, char **argv)
 {
     using namespace std;
@@ -101,6 +97,8 @@ int main(int argc, char **argv)
     std::string sSfM_IMU_FileType = "Mate20Pro";
     std::string sSfM_Stamp_Filename;
 
+    bool b_simu_g = false;
+
 
     cmd.add( make_option('i', sSfM_Data_Filename, "input_file") );
     cmd.add( make_option('m', sMatchesDir, "matchdir") );
@@ -117,6 +115,8 @@ int main(int argc, char **argv)
     cmd.add( make_option('u', sSfM_IMU_Filename,"imu_file"));
     cmd.add( make_option('I', sSfM_IMU_FileType,"imu_filetype"));
     cmd.add( make_option('T',sSfM_Stamp_Filename,"timestamp_file"));
+
+    cmd.add( make_switch('g', "simu_gravity") );
 
     try {
         if (argc == 1) throw std::string("Invalid parameter.");
@@ -193,14 +193,17 @@ int main(int argc, char **argv)
 //        -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
 //         0.0, 0.0, 0.0, 1.0
 
+
+    b_simu_g = cmd.used('g');
+
     Mat3 Ric;
     Vec3 tic;
     if( sSfM_IMU_FileType == std::string("EuRoc") )
     {
 // EuRoc
         Ric << 0.0148655429818, -0.999880929698, 0.00414029679422,
-                0.999557249008, 0.0149672133247, 0.025715529948,
-                -0.0257744366974, 0.00375618835797, 0.999660727178;
+            0.999557249008, 0.0149672133247, 0.025715529948,
+            -0.0257744366974, 0.00375618835797, 0.999660727178;
         tic << -0.0216401454975, -0.064676986768, 0.00981073058949;
     }
     else if ( sSfM_IMU_FileType == std::string("Mate20Pro") )
@@ -216,42 +219,25 @@ int main(int argc, char **argv)
         Vec3 tci;
 
         Rci << -0.00080983, -0.99991118,  0.01330307,
-                -0.99981724,  0.0010637,   0.01908794,
-                -0.01910039, -0.01328518, -0.9997293;
+            -0.99981724,  0.0010637,   0.01908794,
+            -0.01910039, -0.01328518, -0.9997293;
         tci << 0.02532891, 0.03078696, 0.080411;
 
         Ric = Rci.transpose();
         tic = -Ric * tci;
 
+//        Ric <<
+//            -0.01328179, -0.99853927,  0.05237284,
+//                -0.99971395,  0.01221905, -0.02056013,
+//                0.01989015, -0.05263093, -0.99841593;
+//        tic << 0.03755697, 0.03135829, -0.04861944;
+
     }
     else if( sSfM_IMU_FileType == std::string("Simu") )
     {
-//        Mat3 Rci;
-//        Vec3 tci;
-//        Rci << -0.00080983, -0.99991118,  0.01330307,
-//                -0.99981724,  0.0010637,   0.01908794,
-//                -0.01910039, -0.01328518, -0.9997293;
-//        tci << 0.02532891, 0.03078696, 0.080411;
-//        Ric = Rci.transpose();
-//        tic = -Ric * tci;
-
-//        Eigen::Matrix4d Tcc = Eigen::Matrix4d::Identity();
-//        Eigen::Vector3d tcc = Eigen::Vector3d(nt_(generator_), nt_(generator_), nt_(generator_));
-
-
-
-//        Eigen::Matrix3d Rcc = Eigen::Matrix3d::Identity();
-//        Rcc = Eigen::AngleAxisd( ( 3 )/180.*M_PI , Eigen::Vector3d::UnitZ())
-//              * Eigen::AngleAxisd( ( 3 )/180.*M_PI , Eigen::Vector3d::UnitY())
-//              * Eigen::AngleAxisd( ( 3 )/180.*M_PI , Eigen::Vector3d::UnitX());
-
         Ric.setIdentity();
-
-//        Ric = Ric * Rcc;
-        tic <<.0, .0, .0;
-//        tic <<.01, .01, .01;
-//        tic <<.01, .01, .01;
-//        tic <<.05,.05,.05;
+        tic << 0., 0., 0.;
+//        tic.setZero();
     }
     else
     {
@@ -264,7 +250,13 @@ int main(int argc, char **argv)
     Vec3 G;
 
 
-    if( sSfM_IMU_FileType == std::string("Simu") ) G = Vec3(0.,0.,0);
+    if( sSfM_IMU_FileType == std::string("Simu") )
+    {
+        if(b_simu_g)
+            G = Vec3(0.,0.,9.8);
+        else
+            G = Vec3(0., 0., 0.);
+    }
     else G = Vec3(0.,0.,9.8107);
     VIstaticParm::G_ = G;
     sfMData.IG_Ric = Ric;
@@ -279,22 +271,22 @@ int main(int argc, char **argv)
     }
     else if( sSfM_IMU_FileType == std::string("Mate20Pro") )
     {
-        VIstaticParm::acc_n = 1.3061437477214574e-02;
-        VIstaticParm::acc_w = 9.7230832140122278e-04;
-        VIstaticParm::gyr_n = 9.7933408260869451e-04;
-        VIstaticParm::gyr_w = 1.7270393511376410e-05;
+        VIstaticParm::acc_n = 0;
+        VIstaticParm::acc_w = 0;
+        VIstaticParm::gyr_n = 0;
+        VIstaticParm::gyr_w = 0;
+
+//        VIstaticParm::acc_n = 1.3061437477214574e-02;
+//        VIstaticParm::acc_w = 9.7230832140122278e-04;
+//        VIstaticParm::gyr_n = 9.7933408260869451e-04;
+//        VIstaticParm::gyr_w = 1.7270393511376410e-05;
     }
     else
     {
-        VIstaticParm::acc_n = 0.0;
-        VIstaticParm::acc_w = 0.0;
-        VIstaticParm::gyr_n = 0.0;
-        VIstaticParm::gyr_w = 0.0;
-
-//        VIstaticParm::acc_n = 1.0;
-//        VIstaticParm::acc_w = 1.0;
-//        VIstaticParm::gyr_n = 1.0;
-//        VIstaticParm::gyr_w = 1.0;
+        VIstaticParm::acc_n = 0;
+        VIstaticParm::acc_w = 0;
+        VIstaticParm::gyr_n = 0;
+        VIstaticParm::gyr_w = 0;
     }
 
 
@@ -337,7 +329,8 @@ int main(int argc, char **argv)
                   << "Invalid matches file." << std::endl;
         return EXIT_FAILURE;
     }
-    std::cout << "match load over"<< std::endl;
+
+    std::cout << "match load over" << std::endl;
 
     if (sOutDir.empty())  {
         std::cerr << "\nIt is an invalid output directory" << std::endl;
@@ -390,8 +383,6 @@ int main(int argc, char **argv)
         }
         fin.close();
     }
-
-    std::cout << "times load begin"<< std::endl;
 
     if( sSfM_IMU_Filename.empty() )
     {
@@ -454,62 +445,59 @@ int main(int argc, char **argv)
         visfmEngine.setInitialPair(initialPairIndex);
     }
 
-
     XinTime time;
-    if(visfmEngine.VI_Init(  ))
+    if(visfmEngine.Process_visual_all(  ))
     {
 
         Save(visfmEngine.Get_SfM_Data(),
-             stlplus::create_filespec(sOutDir, "sfm_visual_init_data", ".bin"),
+             stlplus::create_filespec(sOutDir, "sfm_visual_all_data", ".bin"),
              ESfM_Data(ALL));
 
         Save(visfmEngine.Get_SfM_Data(),
-             stlplus::create_filespec(sOutDir, "sfm_visual_init_cloud_and_poses", ".ply"),
+             stlplus::create_filespec(sOutDir, "sfm_visual_all_cloud_and_poses", ".ply"),
              ESfM_Data(ALL));
 //        Save(visfmEngine.Get_SfM_Data(),
 //             "/home/xinli/work/data/VI_visual_init.bin",
 //             ESfM_Data(ALL));
-        if(!visfmEngine.VI_align())
+        if(!visfmEngine.VI_align(true))
         {
             std::cerr << "VI sfm align fail" << std::endl;
             return EXIT_FAILURE;
         }
         else{
-//            Save(visfmEngine.Get_SfM_Data(),
-//                 "/home/xinli/work/data/VI_visualIMU_init.bin",
-//                 ESfM_Data(ALL));
-//            return EXIT_SUCCESS;
-            if(visfmEngine.Process_window())
-            {
 
+
+            time.print_time();
 //                Save(visfmEngine.Get_SfM_Data(),
 //                     "/home/xinli/work/data/Allresutl.bin",
 //                     ESfM_Data(ALL));
 
-                time.print_time();
-                std::cout << "init ex\n";
-                PrintExtric(sfMData);
-                std::cout << "after oti" << std::endl;
-                PrintExtric(visfmEngine.Get_SfM_Data());
-                std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
+            std::cout << std::endl << " Total Ac-Sfm took (s): " << timer.elapsed() << std::endl;
 
-                std::cout << "...Generating SfM_Report.html" << std::endl;
-                Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
-                                    stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
+            std::cout << "init ex\n";
+            PrintExtric(sfMData);
+            std::cout << "after oti" << std::endl;
+            PrintExtric(visfmEngine.Get_SfM_Data());
 
-                //-- Export to disk computed scene (data & visualizable results)
-                std::cout << "...Export SfM_Data to disk." << std::endl;
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
-                     ESfM_Data(ALL));
+            std::cout << "...Generating SfM_Report.html" << std::endl;
+            Generate_SfM_Report(visfmEngine.Get_SfM_Data(),
+                                stlplus::create_filespec(sOutDir, "SfMReconstruction_Report.html"));
 
-                Save(visfmEngine.Get_SfM_Data(),
-                     stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
-                     ESfM_Data(ALL));
+            //-- Export to disk computed scene (data & visualizable results)
+            std::cout << "...Export SfM_Data to disk." << std::endl;
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "sfm_data", ".bin"),
+                 ESfM_Data(ALL));
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "sfm_data", ".json"),
+                 ESfM_Data(ALL));
 
-                return EXIT_SUCCESS;
-            }
-//            return EXIT_SUCCESS;
+            Save(visfmEngine.Get_SfM_Data(),
+                 stlplus::create_filespec(sOutDir, "cloud_and_poses", ".ply"),
+                 ESfM_Data(ALL));
+
+            return EXIT_SUCCESS;
+
         }
     }
     else

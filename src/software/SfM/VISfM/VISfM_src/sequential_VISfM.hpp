@@ -54,10 +54,13 @@ public:
 
     bool VI_Init( );
 
+    bool VI_Init_again( );
+
     bool TestImuFactor();
 
     void solveGyroscopeBias();
     bool solve_vgs( Eigen::VectorXd& speeds_scale, Eigen::Vector3d& correct_g );
+    bool solve_vs( const Eigen::Vector3d &correct_g, Eigen::VectorXd& speeds_scale );
     static Eigen::MatrixXd TangentBasis( Eigen::Vector3d& g0 );
     void RefineGravity( Eigen::VectorXd& speeds_scale, Eigen::Vector3d& correct_g );
 
@@ -89,7 +92,7 @@ public:
     bool MakeInitialPair3D(const Pair & initialPair);
 
     /// Automatic initial pair selection (based on a 'baseline' computation score)
-    bool AutomaticInitialPairChoice(Pair & initialPair) const;
+    bool AutomaticInitialPairChoice(Pair & initialPair);
 
     /**
      * Set the default lens distortion type to use if it is declared unknown
@@ -107,6 +110,9 @@ public:
     {
         triangulation_method_ = method;
     }
+
+    std::string output_result_file_;
+    std::string output_log_file_;
 
 protected:
 
@@ -151,6 +157,8 @@ private:
 
     /// Discard track with too large residual error
     bool badTrackRejector(double dPrecision, size_t count = 0);
+
+    bool badTrackRejector_Local(SfM_Data &local_scene, double dPrecision, size_t count = 0);
 
 
     bool badTrackRejector( SfM_Data &local_scene, double dPrecision, size_t count = 0);

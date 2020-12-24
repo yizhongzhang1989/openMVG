@@ -60,6 +60,15 @@ IndexT RemoveOutliers_PixelResidualError
       {
         ++outlier_count;
         itObs = obs.erase(itObs);
+          // ADD XINLI
+        if( sfm_data.pose_landmark_.count(view->id_pose) )
+        {
+            if( sfm_data.pose_landmark_[view->id_pose].count(iterTracks->first) )
+            {
+                sfm_data.pose_landmark_[view->id_pose].erase(iterTracks->first);
+            }
+        }
+          // ADD XINLI
       }
       else
         ++itObs;
@@ -70,6 +79,63 @@ IndexT RemoveOutliers_PixelResidualError
       ++iterTracks;
   }
   return outlier_count;
+}
+
+IndexT RemoveOutliers_PixelResidualError_Local
+(
+        SfM_Data & sfm_data,
+        SfM_Data & sfm_data_local,
+        const double dThresholdPixel,
+        const unsigned int minTrackLength
+)
+{
+    IndexT outlier_count = 0;
+    Landmarks::iterator iterTracks = sfm_data_local.structure.begin();
+    while (iterTracks != sfm_data_local.structure.end())
+    {
+        auto full_sfm_structure = sfm_data.structure.at( iterTracks->first );
+        auto full_sfm_obs = full_sfm_structure.obs;
+        Observations & obs = iterTracks->second.obs;
+        Observations::iterator itObs = obs.begin();
+        while (itObs != obs.end())
+        {
+            const View * view = sfm_data_local.views.at(itObs->first).get();
+            const geometry::Pose3 pose = sfm_data_local.GetPoseOrDie(view);
+            const cameras::IntrinsicBase * intrinsic = sfm_data_local.intrinsics.at(view->id_intrinsic).get();
+            const Vec2 residual = intrinsic->residual(pose(iterTracks->second.X), itObs->second.x);
+//      std::cout << "residual = " << residual.transpose() << std::endl;
+            if (residual.norm() > dThresholdPixel)
+            {
+                ++outlier_count;
+                itObs = obs.erase(itObs);
+                // ADD XINLI
+                if( full_sfm_obs.count(itObs->first) )
+                    full_sfm_obs.erase(itObs->first);
+                if( sfm_data.pose_landmark_.count(view->id_pose) )
+                {
+                    if( sfm_data.pose_landmark_[view->id_pose].count(iterTracks->first) )
+                    {
+                        sfm_data.pose_landmark_[view->id_pose].erase(iterTracks->first);
+                    }
+                }
+                // ADD XINLI
+            }
+            else
+                ++itObs;
+        }
+
+        if (obs.empty() || obs.size() < minTrackLength)
+        {
+            sfm_data.structure.erase(iterTracks->first);
+            iterTracks = sfm_data_local.structure.erase(iterTracks);
+        }
+        else
+            ++iterTracks;
+
+//        if (full_sfm_obs.empty() || full_sfm_obs.size() < minTrackLength)
+//            sfm_data.structure.erase(iterTracks->first);
+    }
+    return outlier_count;
 }
 
 // Remove tracks that have a small angle (tracks with tiny angle leads to instable 3D points)
@@ -109,6 +175,23 @@ IndexT RemoveOutliers_AngleError
     }
     if (max_angle < dMinAcceptedAngle)
     {
+        // ADD XINLI
+        Observations & obs_all = iterTracks->second.obs;
+        auto itObs = obs_all.begin();
+        while (itObs != obs_all.end())
+        {
+            const View * view = sfm_data.views.at(itObs->first).get();
+            if( sfm_data.pose_landmark_.count(view->id_pose) )
+            {
+                if( sfm_data.pose_landmark_[view->id_pose].count(iterTracks->first) )
+                {
+                    sfm_data.pose_landmark_[view->id_pose].erase(iterTracks->first);
+                }
+            }
+            itObs++;
+        }
+        // ADD XINLI
+
       iterTracks = sfm_data.structure.erase(iterTracks);
       ++removedTrack_count;
     }
@@ -152,6 +235,8 @@ bool eraseMissingPoses
     if (it.second < min_points_per_pose)
     {
       sfm_data.poses.erase(it.first);
+        if( sfm_data.pose_landmark_.count(it.first) )
+            sfm_data.pose_landmark_.at(it.first).clear();
       ++removed_elements;
     }
   }
@@ -184,6 +269,9 @@ bool eraseObservationsWithMissingPoses
       if (pose_Index.count(v->id_pose) == 0)
       {
         itObs = obs.erase(itObs);
+        //ADD XINLI
+        if( sfm_data.pose_landmark_.count(v->id_pose) )
+            sfm_data.pose_landmark_.at(v->id_pose).clear();
         ++removed_elements;
       }
       else
